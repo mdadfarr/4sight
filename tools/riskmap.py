@@ -89,10 +89,8 @@ def cell_table(located):
 
 
 def render(df, located, routes, ksi, out, demo):
-    # Direct URL: folium's "CartoDB dark_matter" alias now insists on an API key the tile server does not require.
-    m = folium.Map(location=TORONTO, zoom_start=13,
-                   tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-                   attr="&copy; OpenStreetMap contributors &copy; CARTO")
+    # CARTO's free dark tiles now stamp "API KEY REQUIRED" across the image; OSM's need no key.
+    m = folium.Map(location=TORONTO, zoom_start=13, tiles="OpenStreetMap")
     if routes:
         fg = folium.FeatureGroup(name="Ridden route").add_to(m)
         for r in routes:
