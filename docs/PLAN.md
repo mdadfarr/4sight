@@ -7,8 +7,8 @@ Product name: 4sight (may change). Repo: github.com/mdadfarr/4sight. Contracts: 
 | Who | Machine | Owns |
 |---|---|---|
 | **A — Jasper** | Mac + Xcode | The whole iOS core: Xcode project, `FourSightKit` (Protocol, Perception, ThreatEngine, Links), rear role UI, single-phone mode, integration, submission |
-| **B** | Windows + RTX 3080 | Everything ML: YOLO export to Core ML (WSL2), training they've chosen, Python replay harness, labels, metrics |
-| **C — Arshiya** | Mac + Xcode | Hardware build + firmware, runs the **frontend agent loop** (reviews/merges its PRs), demo video, pitch |
+| **B — Arshiya** | Windows + RTX 3080 | Everything ML: `ml/` (Python detector, tracker, danger logic + tests, replay scripts), YOLO export to Core ML, the DangerEngine logic (Swift port lives in `FourSightKit/Sources/ThreatEngine/Danger/`), labels, metrics |
+| **C** (Mac teammate, name TBC) | Mac + Xcode | Hardware build + firmware, runs the **frontend agent loop** (reviews/merges its PRs), demo video, pitch |
 | **D** | — | Hardware build (wiring, box, mount, grips, LEDs), ride footage, demo video, pitch |
 
 The front-phone UI is written by a Claude Code session using `.claude/skills/4sight-front/`, one screenshot-verified PR at a time. Humans approve PRs; nobody designs by hand.
@@ -25,6 +25,8 @@ REAR iPhone 16 Pro Max (rack, facing back) — the brain, works alone
 Single-phone mode = rear role with no front phone found: grips + LEDs only. Audio tones = reach.
 
 ## Decisions log
+
+- **Two engines, switchable.** `ThreatEngine` (default): metric passing gap + inv TTC from GapEstimator/TTCEstimator, ISO-17387-style thresholds, alert-once, right-hook hold. `DangerEngine` (Arshiya's, `ThreatEngine/Danger/`): frame-fraction TTC from a line through 1/width, lateral check in vehicle widths, side by image thirds, 1 s hold. Both sit behind one `DetectionFilter` (min width 4 %, exclusion zones, large+unsure, size-jump reset). Switch with `-engine danger|threat` at launch or the Engine picker in RearView (`@AppStorage("engine")`); `-exclude x1,y1,x2,y2[;...]` sets the zones. Tomorrow's oncoming-car test runs both; we keep whichever fires correctly.
 
 - No DRV2605L. Bare motors on GPIO via transistor + flyback diode, PWM patterns in firmware. Two amber LEDs behave like a car blind-spot light (steady at level 1–2, flashing at 3).
 - One native app, role toggle Rear/Front. Front UI is SwiftUI, agent-built.
@@ -101,7 +103,7 @@ Rules: Swift 6 toolchain, language mode 5, iOS 26, SwiftUI, no third-party packa
 Current step: <paste the row from "Jasper's build order" in docs/PLAN.md>.
 ```
 
-## Prompt B — ML (Windows)
+## Prompt B — Arshiya: ML (Windows)
 
 ```
 You are helping build 4sight, a 36-hour hackathon prototype that warns cyclists about vehicles approaching from behind using a rear-facing iPhone camera running YOLO. I own everything ML and the Python tooling in tools/. The iOS teammate consumes my outputs; docs/CONTRACTS.md defines the JSON and class names he expects and it is frozen.
@@ -119,7 +121,7 @@ Rules: scripts under 300 lines, argparse CLIs, no notebooks in the repo, no clou
 Current task: <step number>.
 ```
 
-## Prompt C — Arshiya: hardware + firmware + frontend-loop operator (Mac)
+## Prompt C — hardware + firmware + frontend-loop operator (Mac)
 
 ```
 You are helping build 4sight, a 36-hour hackathon prototype that warns cyclists about vehicles approaching from behind. I own the hardware build, the ESP32 firmware, and I operate the Claude Code session that builds the front-phone UI. Read docs/CONTRACTS.md (BLE section is my spec, frozen), firmware/README.md, and docs/PLAN.md "Hardware".
