@@ -20,17 +20,26 @@ struct PassiveHomeView: View {
     @State private var camera: MapCameraPosition = .userLocation(fallback: .region(
         MKCoordinateRegion(center: .init(latitude: 43.6605, longitude: -79.4280),
                            span: MKCoordinateSpan(latitudeDelta: 0.06, longitudeDelta: 0.06))))
-    // `-homeExpanded YES` opens it pulled up, for simulator screenshots.
-    @State private var expanded = UserDefaults.standard.bool(forKey: "homeExpanded")
+    /// Three resting heights, like Apple Maps: a peek with just search and one-tap chips,
+    /// the half sheet, and pulled up with the bike's detail.
+    enum Detent: String { case peek, half, full }
+    // `-homeSheet peek|full` opens it there, for simulator screenshots.
+    @State private var detent = Detent(rawValue: UserDefaults.standard.string(forKey: "homeSheet") ?? "") ?? .half
+    private var expanded: Bool { detent == .full }
     @GestureState private var drag = 0.0
 
+    static let peekHeight = 196.0
     static let restingHeight = 470.0
     static let expandedTop = 64.0
 
     var body: some View {
         GeometryReader { geo in
             let full = geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
-            let top = expanded ? Self.expandedTop : full - Self.restingHeight
+            let top = switch detent {
+            case .peek: full - Self.peekHeight
+            case .half: full - Self.restingHeight
+            case .full: Self.expandedTop
+            }
             ZStack(alignment: .topLeading) {
                 Map(position: $camera) { UserAnnotation() }
                     .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
@@ -44,10 +53,10 @@ struct PassiveHomeView: View {
                 }
 
                 sheet(height: full - top)
-                    .offset(y: min(max(top + drag, Self.expandedTop), full - 120))
+                    .offset(y: min(max(top + drag, Self.expandedTop), full - Self.peekHeight + 40))
             }
             .ignoresSafeArea()
-            .animation(.spring(response: 0.35, dampingFraction: 0.86), value: expanded)
+            .animation(.spring(response: 0.35, dampingFraction: 0.86), value: detent)
         }
         .environment(\.colorScheme, .light)
     }
@@ -114,22 +123,30 @@ struct PassiveHomeView: View {
                 .gesture(DragGesture()
                     .updating($drag) { v, s, _ in s = v.translation.height }
                     .onEnded { v in
-                        if v.predictedEndTranslation.height < -80 { expanded = true }
-                        if v.predictedEndTranslation.height > 80 { expanded = false }
+                        let up = v.predictedEndTranslation.height < -80, down = v.predictedEndTranslation.height > 80
+                        switch detent {
+                        case .peek: if up { detent = .half }
+                        case .half: if up { detent = .full } else if down { detent = .peek }
+                        case .full: if down { detent = .half }
+                        }
                     })
 
             searchRow.padding(.horizontal, 16)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    if expanded { bikeCard }
-                    places
-                    recents
-                    if expanded { rides }
+            if detent == .peek {
+                chips.padding(.horizontal, 16).padding(.top, 14)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        if expanded { bikeCard }
+                        places
+                        recents
+                        if expanded { rides }
+                    }
+                    .padding(.horizontal, 16).padding(.top, 22).padding(.bottom, 40)
                 }
-                .padding(.horizontal, 16).padding(.top, 22).padding(.bottom, 40)
+                .scrollDisabled(!expanded)
             }
-            .scrollDisabled(!expanded)
         }
         .frame(maxWidth: .infinity, alignment: .top)
         .frame(height: height, alignment: .top)
@@ -151,7 +168,7 @@ struct PassiveHomeView: View {
                 .padding(.horizontal, 16).frame(height: 50)
                 .background(expanded ? .white : Light.field, in: RoundedRectangle(cornerRadius: 16))
             }
-            Button { expanded.toggle() } label: {
+            Button { detent = expanded ? .half : .full } label: {
                 Image(systemName: "bicycle")
                     .font(.system(size: 21, weight: .semibold))
                     .foregroundStyle(.white)
@@ -174,6 +191,42 @@ struct PassiveHomeView: View {
             if chevron { Image(systemName: "chevron.right").font(.system(size: 15, weight: .bold)) }
         }
         .foregroundStyle(Light.ink)
+    }
+
+    // MARK: - C: chips
+
+    /// The peek's one row: Home, the latest recent, and a way to add, each one tap.
+    private var chips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                if let home = flow.saved.home {
+                    chip("house.fill", "Home", primary: true) { onPick(home.mapItem) }
+                }
+                if let last = flow.recents.items.first {
+                    chip("clock", last.name) { onPick(last.mapItem) }
+                }
+                Button { flow.pickingFor = .extra; flow.picking = true } label: {
+                    Image(systemName: "plus").font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(Light.blue)
+                        .frame(width: 44, height: 44)
+                        .background(Light.field, in: Circle())
+                }
+                .accessibilityLabel("Add a place")
+            }
+        }
+    }
+
+    private func chip(_ symbol: String, _ title: String, primary: Bool = false,
+                      action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: symbol).font(.system(size: 14, weight: .semibold))
+                Text(title).font(.system(size: 15, weight: .semibold, design: .rounded)).lineLimit(1)
+            }
+            .foregroundStyle(primary ? .white : Light.ink)
+            .padding(.horizontal, 16).frame(height: 44)
+            .background(primary ? Light.blue : Light.field, in: Capsule())
+        }
     }
 
     // MARK: - B: bike
