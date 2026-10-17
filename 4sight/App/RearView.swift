@@ -68,7 +68,7 @@ struct RearView: View {
     private var stats: some View {
         Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 4) {
             GridRow { stat("inference", String(format: "%.1f ms", pipeline.inferenceMs)); stat("tracks", "\(pipeline.trackCount)") }
-            GridRow { stat("ESP32", "\(pipeline.haptics.state)"); stat("peer", "\(pipeline.peerState)") }
+            GridRow { stat("grips", "\(pipeline.haptics.state)"); stat("peer", "\(pipeline.peerState)") }
             GridRow {
                 stat("heading", pipeline.heading < 0 ? "–" : String(format: "%.0f°", pipeline.heading))
                 stat("source", pipeline.replayURL?.lastPathComponent ?? "camera")
