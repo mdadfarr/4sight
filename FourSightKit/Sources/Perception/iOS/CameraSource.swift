@@ -5,7 +5,8 @@ public final class CameraSource: NSObject, CaptureSource, AVCaptureVideoDataOutp
                                  @unchecked Sendable {
     public let frames: AsyncStream<CapturedFrame>
     private var continuation: AsyncStream<CapturedFrame>.Continuation?
-    private let session = AVCaptureSession()
+    /// For an AVCaptureVideoPreviewLayer; the pipeline never touches it otherwise.
+    public let session = AVCaptureSession()
     private let queue = DispatchQueue(label: "foursight.camera")
 
     public override init() {
