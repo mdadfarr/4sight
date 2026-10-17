@@ -73,6 +73,7 @@ struct RearView: View {
                 stat("heading", pipeline.heading < 0 ? "–" : String(format: "%.0f°", pipeline.heading))
                 stat("source", pipeline.replayURL?.lastPathComponent ?? "camera")
             }
+            GridRow { stat("events", "\(pipeline.eventCount)") }
         }
         .font(.system(size: 14, design: .rounded).monospacedDigit())
         .padding(.horizontal, 16)
@@ -99,6 +100,7 @@ struct RearView: View {
                 Button("Replay file…") { showPicker = true }
                 if pipeline.replayURL != nil { Button("Camera") { pipeline.setReplay(nil) } }
                 Spacer()
+                ShareLink("Share events", item: EventLogger.url)
             }
             .padding(.top, 4)
         }

@@ -21,6 +21,7 @@ import os
     @Published private(set) var overlay: [OverlayTrack] = []
     @Published private(set) var previewImage: CGImage?
     @Published private(set) var error: String?
+    @Published private(set) var eventCount = EventLogger.shared.count
     @Published var demoMode = false { didSet { syncInputs() } }
     @Published var logging = false { didSet { syncInputs() } }
     @Published var engine: Engine = .threat { didSet { syncInputs() } }
@@ -105,6 +106,7 @@ import os
         benchMs = s.benchMs
         peerState = s.peer
         overlay = s.overlay
+        eventCount = EventLogger.shared.count
         if let img = s.previewImage { previewImage = img }
     }
 
@@ -132,6 +134,7 @@ import os
         guard let loc = locations.last else { return }
         speed = max(loc.speed, 0)
         heading = loc.course >= 0 ? loc.course : -1
+        EventLogger.shared.setFix(lat: loc.coordinate.latitude, lon: loc.coordinate.longitude)
         syncInputs()
         // t matches the camera clock (host uptime) so the jsonl lines up with the .mov.
         let line = String(format: "{\"t\":%.3f,\"lat\":%.6f,\"lon\":%.6f,\"speed\":%.2f,\"heading\":%.1f}",

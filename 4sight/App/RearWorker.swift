@@ -157,6 +157,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
         }
         let byID = Dictionary(decisions.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         driveHaptics(decisions: gripDecisions, present: Set(tracks.map(\.id)))
+        EventLogger.shared.record(decisions: decisions, states: states, input: input)
 
         frameTimes.append(t)
         frameTimes.removeAll { t - $0 > 1 }
