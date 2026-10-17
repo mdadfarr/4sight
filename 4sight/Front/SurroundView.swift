@@ -28,7 +28,9 @@ struct SurroundView: View {
         SceneRenderer.blocks(&ctx, t)
         RouteRibbon.draw(&ctx, t)
         SceneRenderer.parked(&ctx, t)
+        let blocker = MergeBanner.current(model.frame, link: model.link)?.blockedBy
         for track in model.tracks(at: t) {
+            if track.id == blocker { VehicleSprite.blockedRing(&ctx, track) }
             VehicleSprite.draw(&ctx, track, t)
         }
         VehicleSprite.puck(&ctx)

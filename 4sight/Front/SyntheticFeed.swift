@@ -21,6 +21,24 @@ final class SyntheticFeed: TrackFeed {
 
     static let loop = 21.0
 
+    /// Scripted presses of the handlebar merge buttons, so the banner demos with no
+    /// ESP32 and no rear phone. `at` is when the answer was computed; the banner
+    /// drops itself 3 s later, exactly as it would from a real answer.
+    ///
+    /// The blocked one is answered while cue 6 — the cyclist overtaking on the left —
+    /// is still alongside, so the ring lands on a vehicle that is actually on screen.
+    struct MergeCue {
+        let at: Double
+        let side: String
+        let clear: Bool
+        let blockedBy: Int?
+    }
+
+    static let mergeCues: [MergeCue] = [
+        MergeCue(at: 9.5, side: "L", clear: false, blockedBy: 6),
+        MergeCue(at: 16.5, side: "R", clear: true, blockedBy: nil),
+    ]
+
     static let cues: [Cue] = [
         Cue(id: 1, cls: .car, from: 0, to: 6, x0: -1.5, x1: -1.5, z0: 38, z1: 0.5,
             thresholds: [(0, 0), (7, 3), (13, 2), (22, 1)]),
@@ -96,7 +114,14 @@ final class SyntheticFeed: TrackFeed {
                 id: cue.id, cls: cue.cls, x: x, z: z, invTTC: 0, gapPred: abs(x),
                 level: level, grip: x < -0.8 ? "L" : x > 0.8 ? "R" : "-", turnR: cue.turnR))
         }
+        // The newest answer still inside its window, on the same clock the front
+        // measures it against.
+        let answer = Self.mergeCues.last { t >= $0.at && t - $0.at < MergeBanner.window }
+        let merge = answer.map {
+            MergeMessage(side: $0.side, clear: $0.clear, blockedBy: $0.blockedBy,
+                         t: time - (t - $0.at))
+        }
         return FrameMessage(t: time, fps: 10, temp: .nominal, speed: World.speed,
-                            heading: -1, demo: demo, tracks: tracks)
+                            heading: -1, demo: demo, tracks: tracks, merge: merge)
     }
 }
