@@ -16,7 +16,7 @@ The front-phone UI is written by a Claude Code session using `.claude/skills/4si
 ## System
 
 ```
-REAR iPhone 16 Pro Max (rack, facing back) — the brain, works alone
+REAR iPhone 17 Pro Max (rack, facing back) — the brain, works alone
   camera 30 fps → Core ML yolo11n → Tracker → TTC/gap → ThreatEngine
   + CoreLocation (speed, heading, GPS log) + CoreMotion (heading wobble)
      ├─ BLE ──────► ESP32 (bar) ─► 4 coin motors (2/grip) + 2 amber LEDs (bar ends)
@@ -55,7 +55,7 @@ Single-phone mode = rear role with no front phone found: grips + LEDs only. Audi
 5. Info.plist (target → Info): `NSCameraUsageDescription`, `NSLocationWhenInUseUsageDescription`, `NSMotionUsageDescription`, `NSBluetoothAlwaysUsageDescription`, `NSLocalNetworkUsageDescription`, `NSBonjourServices` = [`_foursight._tcp`]. Build settings: iOS 26 deployment target.
 6. Replace `ContentView` with a role picker (Rear / Front). Rear = `RearView` you write; Front = `FrontRootView` the agent will add under `4sight/Front/` (stub it so the app compiles).
 7. Build for Simulator once, commit, push. Tell C the frontend agent can start.
-8. Plug in the 16 Pro Max, Developer Mode on, run once so signing works. Done for tonight.
+8. Plug in the 17 Pro Max, Developer Mode on, run once so signing works. Done for tonight.
 
 ## Jasper's build order (day 1)
 
@@ -98,7 +98,7 @@ Paste as the first message in each person's agent. Replace `<...>`.
 ```
 You are helping build 4sight, a 36-hour hackathon prototype. I own the entire iOS core. Read docs/CONTRACTS.md and docs/PLAN.md first; CONTRACTS.md is frozen.
 
-System: a rear iPhone 16 Pro Max faces backwards on the bike rack, runs yolo11n (Core ML, NMS baked in), tracks vehicles and people, estimates time-to-contact (box area ∝ 1/Z², so d ln(area)/dt = 2/TTC) and sideways passing gap (gap ≈ (u_near − u0)/f × (Z + L), un-mirrored so negative x = rider's left), and a pure-Swift ThreatEngine decides levels 0–3. Outputs: FrameMessage JSON at 15 Hz over Network.framework peer-to-peer to a front iPhone running the same app in Front role, and ASCII BLE commands (L1..R3, X, H) to an ESP32 that drives grip motors and bar LEDs. The rear phone must work alone (no front phone) and must stay in the foreground.
+System: a rear iPhone 17 Pro Max faces backwards on the bike rack, runs yolo11n (Core ML, NMS baked in), tracks vehicles and people, estimates time-to-contact (box area ∝ 1/Z², so d ln(area)/dt = 2/TTC) and sideways passing gap (gap ≈ (u_near − u0)/f × (Z + L), un-mirrored so negative x = rider's left), and a pure-Swift ThreatEngine decides levels 0–3. Outputs: FrameMessage JSON at 15 Hz over Network.framework peer-to-peer to a front iPhone running the same app in Front role, and ASCII BLE commands (L1..R3, X, H) to an ESP32 that drives grip motors and bar LEDs. The rear phone must work alone (no front phone) and must stay in the foreground.
 
 Code lives in the local Swift package FourSightKit (targets Protocol, Perception, ThreatEngine, Links) plus the app target 4sight. ThreatEngine and the pure Perception maths already exist with passing `swift test`; iOS-only files (CameraSource, FileSource, Detector, HapticsLink, PeerLink) exist but have never compiled: fix them in place rather than rewriting. The front UI under 4sight/Front/ is owned by another agent; never edit it. Only I edit project.pbxproj; synchronized folders pick up new files.
 
@@ -162,3 +162,26 @@ Current task: <paste>.
 - **Outside data:** no detector training this hackathon (Jasper's call). The rosbag drive (`tools/mcap_to_ride.py`, `replay-sidecars` branch) and our own ride footage are for TESTING and for tuning danger thresholds in `ml/replay_danger.py` against: recall ≥ 90 %, < 1 false alert/km, ≥ 2 s lead. Toronto KSI collisions, wards, census: pitch map and near-miss analysis only.
 - **Map context at runtime (stretch):** MapKit route steps / OSM tags could raise right-hook sensitivity before an intersection with a right turn and shift gap thresholds in a bike lane. Rule inputs, cheap; only after the core loop is verified on the bike.
 - **Near-miss log:** `Documents/events.jsonl` on the rear phone (EventLogger.swift), `tools/riskmap.py` renders the map; `--demo` gives a synthetic Bloor/College set labelled SYNTHETIC for the pitch.
+
+## State at day 1, 11:00 (what is merged on `main`)
+
+Front role is complete and merged: follow-view scene (PR #4, translated from `docs/mock/front.html`
+and checked against it frame by frame), risk map (PR #5), deterministic pairing (PR #6).
+Rear pipeline, two engines, event logging and the extraction tools were already on `main`.
+Tracker tuning cut track fragmentation from 27 ids to 18 on the night-drive boxes csv;
+gap prediction is clamped (1.5 m/s, 3 s). 82 package checks pass, app builds.
+
+**Everything left on the critical path needs the physical devices**, in this order:
+
+1. Flash the ESP32 and drive it from nRF Connect. The firmware compiles but has never run.
+2. Sign and run on the rear iPhone 17 Pro Max. Check landscape orientation in the rack mount, read the Bench number.
+3. Pair the two phones, rear role and front role.
+4. BLE range test through the metal box at 2 m.
+
+Known gaps, none blocking: danger engine unverified on the simulator since the tracker change;
+`-peer` needs a settable front name because iOS reports every phone as "iPhone" without an
+entitlement; `events.jsonl` grows without bound; demo risk-map points are interpolated, up to
+~100 m off the centreline.
+
+**Machine note:** each booted simulator costs ~190 processes. Four at once took this Mac to
+load average 377 and made Xcode unusable. One at a time; `xcrun simctl shutdown <udid>` when done.

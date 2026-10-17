@@ -105,8 +105,8 @@ Nav:
 
 ```bash
 cd /Users/jasper/4sight
-xcodebuild -scheme 4sight -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -derivedDataPath build build 2>&1 | tail -20
-xcrun simctl boot "iPhone 16 Pro" 2>/dev/null || true        # ignore "already booted"
+xcodebuild -scheme 4sight -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build build 2>&1 | tail -20
+xcrun simctl boot "iPhone 17" 2>/dev/null || true        # ignore "already booted"
 APP=$(find build/Build/Products/Debug-iphonesimulator -maxdepth 1 -name '4sight.app')
 BUNDLE=$(defaults read "$PWD/$APP/Info" CFBundleIdentifier)
 mkdir -p docs/shots
