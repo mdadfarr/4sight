@@ -191,3 +191,42 @@ entitlement; `events.jsonl` grows without bound; demo risk-map points are interp
 
 **Machine note:** each booted simulator costs ~190 processes. Four at once took this Mac to
 load average 377 and made Xcode unusable. One at a time; `xcrun simctl shutdown <udid>` when done.
+
+## Run sheet, day 1 afternoon (written 13:20 EDT)
+
+Submission ~20:15. Sunset ~18:30, so usable light ends ~18:00. **Hard go/no-go for the live two-phone ride: 16:30.**
+If the rear is not streaming to the front and buzzing the grips by then, film the fallback and stop debugging.
+
+**Safety rule for filming: never stage a close pass in live traffic.** Film real traffic passing at normal
+distance, and do the "danger" moments stationary, with a teammate wheeling a bike or walking toward the rear phone.
+
+| time | Jasper (phones) | C (ESP32) | D (bike, filming) |
+|---|---|---|---|
+| 13:20–13:50 | Quit Cursor and spare apps (Mac is swapping). Developer Mode on both phones. Install from Xcode on each phone. | Flash: `cd firmware && pio run -t upload && pio device monitor`. In nRF Connect write `L1`, `R2`, `X`; motors and amber LEDs respond. | Rear phone into the rack, landscape. ESP32 box with the antenna end out. Power bank in the frame bag. |
+| 13:50–14:20 | Rear phone, stationary on the bike: camera view, landscape correct, turn Bench on and note the number. Walk/wheel a bike toward it: boxes, levels. | Wire the merge buttons and LEDs (pins in the Hardware section). nRF: subscribe to the event characteristic, press, see `ML`/`MR`, write `GL` or `NL`, see the LED. | Check mounts hold over a curb. Scout a quiet street and one arterial. |
+| 14:20–14:40 | Front phone: pick Front, check the rear connects (status dot). Rear connects to the ESP32 (BLE state on the rear screen). | Range test: rear phone 2 m from the closed box, `L3` from the phone buzzes. | Charge the filming phone, clear space. |
+| 14:40–16:30 | Road test loops, quiet street first. Rear: **Log ride on**. Note every failure; send front-screen bugs to the frontend session, everything else to the orchestrator. | Ride along / fix wiring. Bench-test the merge flow end to end: press → LED + front banner. | Start filming the moment the loop works. Do not wait for 16:30. |
+| **16:30** | **Go/no-go.** Streaming and buzzing → keep filming live. Not → fallback below. | | |
+| 16:30–18:00 | Film. | Film close-ups. | Film. |
+| 18:00–20:00 | Rear: **Share events** → AirDrop to the Mac → `tools/riskmap.py` on today's ride. Fix the worst bug only. | Pitch deck with B. | Edit the video, under 2 min. |
+| 20:00 | **Freeze `main`.** No merges after this. | | |
+| 20:15 | Submit. | | |
+
+**Launch setup.** For the real ride, launch both apps from their home-screen icons, not from Xcode, and pick the role in
+the app. Launch arguments only exist for Xcode launches. Do not use `-peer` on the road: with one front phone in range the
+rear takes the only one there. The shared scheme forces `-role rear`, so untick it before an Xcode run on the front phone.
+
+**Fallback (no rear, no ESP32).** Front phone from Xcode with `--synthetic --demo --mockroute` and `-role rear` unticked.
+It plays the scripted ride: approaching vehicles, edge flashes and both merge banners. Film it on the handlebars in daylight.
+
+**Shot list** (most important first):
+1. Front phone on the bars: follow view, a real car drawn behind you, edge glow on the side it passes.
+2. Grip close-up: amber LED and a hand feeling the buzz as a car passes.
+3. Merge check: thumb presses the button, green LED and CLEAR banner together; then with traffic coming, red and BLOCKED.
+4. Rear phone in the rack, screen showing its boxes.
+5. Wide shot from the curb, rider in traffic.
+6. Stationary danger demo: teammate wheels a bike at the rear phone, alert fires.
+7. Risk map of the ride's near misses.
+
+**Can wait until tonight:** danger-engine tuning (B), tracker fragmentation, README numbers, the `events.jsonl` growth limit,
+the untested front rename path (only matters with two fronts in range).
