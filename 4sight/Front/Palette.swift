@@ -1,0 +1,78 @@
+import SwiftUI
+
+/// The colour table `C` from `docs/mock/front.html`, ported value for value.
+/// Light Tesla-clay world; the alert colours are the only saturated things on screen.
+enum Palette {
+    static let ground = Color(hex: 0xE9ECF0)
+    static let blockTop = Color(hex: 0xF2F0EC)
+    static let blockSide = Color(hex: 0xDAD5CE)
+    static let blockBack = Color(hex: 0xCDC8C0)
+    static let park = Color(hex: 0xCFE4C1)
+    static let parkEdge = Color(hex: 0xB9D4A8)
+    static let coneTint = Color.white.opacity(0.2)
+    static let label = Color.white
+    static let labelInk = Color(hex: 0x3B4250)
+    static let labelRoute = Color(hex: 0x0A6CDF)
+    static let road = Color(hex: 0xDEE3E8)
+    static let parkBay = Color(hex: 0xD9DEE4)
+    static let cone = Color.white.opacity(0.5)
+    static let body = Color(hex: 0xC3C9D1)
+    static let bodyEdge = Color(hex: 0xAEB5BE)
+    static let roof = Color(hex: 0xD9DEE4)
+    static let glass = Color(hex: 0x9AA3AD)
+    static let parkedBody = Color(hex: 0xCCD2D9)
+    static let parkedRoof = Color(hex: 0xDEE3E8)
+    static let shadow = Color(hex: 0x161C23).opacity(0.2)
+    static let banner = Color(hex: 0x0A0A0B)
+    static let hair = Color.white.opacity(0.16)
+    static let lane = Color.white
+    static let bar = Color.white
+    static let barInk = Color(hex: 0x13161A)
+    static let barDim = Color(hex: 0x8A8F98)
+    static let routeCore = Color(hex: 0x1C8CFF)
+    static let routeCase = Color(hex: 0x0A54BE)
+    static let puck = Color(hex: 0x0A84FF)
+    static let text = Color.white
+    static let textDim = Color(hex: 0x9298A1)
+    static let green = Color(hex: 0x34C759)
+    static let exit = Color(hex: 0xE8453C)
+
+    static let amber = Color(hex: 0xF5A623)
+    static let amberEdge = Color(hex: 0xC9820F)
+    static let amberRoof = Color(hex: 0xFFC65C)
+    static let red = Color(hex: 0xE8453C)
+    static let redEdge = Color(hex: 0xB52F27)
+    static let redRoof = Color(hex: 0xFF7A72)
+
+    /// Vehicle fills by threat level: the vehicle itself carries the alert.
+    struct VehiclePaint {
+        let body, edge, roof, glass: Color
+    }
+
+    static func paint(_ level: Int) -> VehiclePaint {
+        if level >= 3 {
+            return VehiclePaint(body: red, edge: redEdge, roof: redRoof,
+                                glass: Color(hex: 0x6E1A16).opacity(0.45))
+        }
+        if level == 2 {
+            return VehiclePaint(body: amber, edge: amberEdge, roof: amberRoof,
+                                glass: Color(hex: 0x784808).opacity(0.38))
+        }
+        return VehiclePaint(body: body, edge: bodyEdge, roof: roof, glass: glass)
+    }
+
+    /// People and cyclists: a white halo pass keeps them legible on light ground.
+    enum VRU {
+        static let body = Color(hex: 0x5F6873)
+        static let limb = Color(hex: 0x3E454E)
+        static let head = Color(hex: 0x9AA2AC)
+        static let halo = Color.white
+        static let scale = 1.6
+    }
+
+    static func vruColour(_ level: Int) -> (body: Color, limb: Color) {
+        if level >= 3 { return (red, redEdge) }
+        if level == 2 { return (amber, amberEdge) }
+        return (VRU.body, VRU.limb)
+    }
+}

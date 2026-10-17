@@ -1,37 +1,58 @@
 import Foundation
 import Protocol
 
-/// Scripted 20 Hz frames driven by a clock `t`. Scenario 0 loops every 17 s.
+/// The scripted ride from `docs/mock/front.html` (`CUES`), emitted at 20 Hz as real
+/// FrameMessages so the screen is driven by the same path as the rear phone.
+///
+/// Every cue stays behind the rider: the camera has nothing to say about what is
+/// alongside or ahead, so nothing is generated there.
 final class SyntheticFeed: TrackFeed {
-    /// One track moving linearly in z over [t0, t1). `level == nil` means derive from z.
-    struct Segment {
-        let t0, t1: Double
+    struct Cue {
         let id: Int
         let cls: VehicleClass
-        let x: Double
-        let z0, z1: Double
-        let level: Int?
+        let from, to: Double
+        let x0, x1, z0, z1: Double
+        var level: Int = 0
+        /// First `z < below` wins; nothing matched means level 0.
+        var thresholds: [(below: Double, level: Int)] = []
+        var vru = false
         var turnR = false
     }
 
-    static let scenarios: [[Segment]] = [
-        [
-            Segment(t0: 0, t1: 6, id: 1, cls: .car, x: -0.8, z0: 40, z1: -5, level: nil),
-            Segment(t0: 6, t1: 10, id: 2, cls: .bus, x: -1.6, z0: 30, z1: 5, level: 1),
-            Segment(t0: 10, t1: 14, id: 3, cls: .car, x: 0.6, z0: 25, z1: 4, level: 2, turnR: true),
-            Segment(t0: 14, t1: 17, id: 4, cls: .person, x: 0.3, z0: 6, z1: 6, level: 0),
-        ],
+    static let loop = 21.0
+
+    static let cues: [Cue] = [
+        Cue(id: 1, cls: .car, from: 0, to: 6, x0: -1.5, x1: -1.5, z0: 38, z1: 0.5,
+            thresholds: [(0, 0), (7, 3), (13, 2), (22, 1)]),
+        Cue(id: 2, cls: .bus, from: 6, to: 10.5, x0: -4.1, x1: -4.1, z0: 38, z1: 9, level: 1),
+        Cue(id: 3, cls: .car, from: 10.5, to: 14, x0: -2.2, x1: -1.3, z0: 34, z1: 3,
+            level: 2, turnR: true),
+        // A faster rider overtaking you on the left, 0.95 m off: grey normally, an
+        // alert only in demo mode, because ThreatEngine ignores bicycles outside it.
+        Cue(id: 6, cls: .bicycle, from: 6, to: 14, x0: -0.95, x1: -0.95, z0: 18, z1: 0.6,
+            thresholds: [(0, 0), (4, 3), (8, 2), (14, 1)], vru: true),
+        // Pedestrians stand still in the world, so riding away from them they recede
+        // at riding speed: someone out of a parked car, and two on the pavements.
+        Cue(id: 4, cls: .person, from: 13.5, to: 17.5, x0: 1.95, x1: 1.35,
+            z0: 3.5, z1: 3.5 + 4 * 3.6, thresholds: [(6, 2), (9, 1)], vru: true),
+        Cue(id: 7, cls: .person, from: 12, to: 17, x0: 5.4, x1: 5.4,
+            z0: 7, z1: 7 + 5 * (3.6 - 1.3), vru: true),
+        Cue(id: 8, cls: .person, from: 12.5, to: 16.5, x0: 6.3, x1: 6.3,
+            z0: 9, z1: 9 + 4 * (3.6 + 1.4), vru: true),
+        // Straight behind: no side to steer towards, so the whole frame carries it.
+        Cue(id: 5, cls: .car, from: 17.5, to: 21, x0: -0.25, x1: -0.25, z0: 24, z1: 2,
+            thresholds: [(6, 3), (12, 2), (20, 1)]),
     ]
 
     let frames: AsyncStream<FrameMessage>
     private let continuation: AsyncStream<FrameMessage>.Continuation
-    private let segments: [Segment]
     private let freeze: Double?
+    private let demo: Bool
     private var task: Task<Void, Never>?
 
-    init(scenario: Int = 0, freeze: Double? = nil) {
-        segments = Self.scenarios[min(max(scenario, 0), Self.scenarios.count - 1)]
+    init(freeze: Double? = nil, demo: Bool = false) {
         self.freeze = freeze
+        self.demo = demo
         var cont: AsyncStream<FrameMessage>.Continuation!
         frames = AsyncStream(bufferingPolicy: .bufferingNewest(1)) { cont = $0 }
         continuation = cont
@@ -42,10 +63,10 @@ final class SyntheticFeed: TrackFeed {
             continuation.yield(frame(at: freeze))
             return
         }
-        let start = Date()
+        let origin = Date()
         task = Task { [weak self] in
             while !Task.isCancelled, let self {
-                continuation.yield(frame(at: Date().timeIntervalSince(start)))
+                continuation.yield(frame(at: Date().timeIntervalSince(origin)))
                 try? await Task.sleep(for: .milliseconds(50))
             }
         }
@@ -53,26 +74,29 @@ final class SyntheticFeed: TrackFeed {
 
     func stop() { task?.cancel() }
 
-    func frame(at t: Double) -> FrameMessage {
-        let loopLength = segments.map(\.t1).max() ?? 1
-        let tt = t.truncatingRemainder(dividingBy: loopLength)
-        let tracks = segments.filter { $0.t0 <= tt && tt < $0.t1 }.map { s -> TrackMessage in
-            let f = (tt - s.t0) / (s.t1 - s.t0)
-            let z = s.z0 + (s.z1 - s.z0) * f
-            return TrackMessage(id: s.id, cls: s.cls, x: s.x, z: z, invTTC: 0, gapPred: abs(s.x),
-                                level: s.level ?? Self.levelByRange(z), grip: "-", turnR: s.turnR)
-        }
-        return FrameMessage(t: t, fps: 10, temp: .nominal, speed: 5.3, heading: -1, demo: false, tracks: tracks)
-    }
+    func frame(at time: Double) -> FrameMessage {
+        let t = time.truncatingRemainder(dividingBy: Self.loop)
+        var tracks: [TrackMessage] = []
+        for cue in Self.cues where t >= cue.from && t <= cue.to {
+            let f = (t - cue.from) / max(cue.to - cue.from, 0.001)
+            let z = cue.z0 + (cue.z1 - cue.z0) * f
+            let x = cue.x0 + (cue.x1 - cue.x0) * f
 
-    /// Overtake script: 0 → 1 (z < 20) → 2 (z < 12) → 3 (z < 8) → 0 once past (z < 0).
-    static func levelByRange(_ z: Double) -> Int {
-        switch z {
-        case ..<0: return 0
-        case ..<8: return 3
-        case ..<12: return 2
-        case ..<20: return 1
-        default: return 0
+            var level = cue.level
+            if !cue.thresholds.isEmpty && (!cue.vru || demo) {
+                level = 0
+                for step in cue.thresholds where z < step.below {
+                    level = step.level
+                    break
+                }
+            }
+            if cue.vru && !demo { level = 0 }
+
+            tracks.append(TrackMessage(
+                id: cue.id, cls: cue.cls, x: x, z: z, invTTC: 0, gapPred: abs(x),
+                level: level, grip: x < -0.8 ? "L" : x > 0.8 ? "R" : "-", turnR: cue.turnR))
         }
+        return FrameMessage(t: time, fps: 10, temp: .nominal, speed: World.speed,
+                            heading: -1, demo: demo, tracks: tracks)
     }
 }

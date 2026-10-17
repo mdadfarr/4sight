@@ -7,12 +7,13 @@ protocol TrackFeed {
     func stop()
 }
 
-/// Launch arguments: --synthetic, --scenario N, --freeze T, --mockroute.
+/// Launch arguments: --synthetic, --freeze T, --mockroute, --demo (FrameMessage.demo,
+/// which makes bicycles and people count as threats, matching ThreatEngine).
 struct LaunchArgs {
     let synthetic: Bool
-    let scenario: Int
     let freeze: Double?
     let mockRoute: Bool
+    let demo: Bool
 
     init(_ args: [String] = ProcessInfo.processInfo.arguments) {
         func value(after flag: String) -> String? {
@@ -20,8 +21,8 @@ struct LaunchArgs {
             return args[i + 1]
         }
         synthetic = args.contains("--synthetic")
-        scenario = value(after: "--scenario").flatMap(Int.init) ?? 0
         freeze = value(after: "--freeze").flatMap(Double.init)
         mockRoute = args.contains("--mockroute")
+        demo = args.contains("--demo")
     }
 }

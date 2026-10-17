@@ -1,5 +1,7 @@
 import SwiftUI
 
+/// The front screen: the follow view with the map and traffic, the nav chrome over
+/// it, and the edge warning painted last on top of both.
 struct FrontRootView: View {
     @StateObject private var model = FrontModel()
     @State private var router = NavRouter()
@@ -7,32 +9,30 @@ struct FrontRootView: View {
     private let args = LaunchArgs()
 
     var body: some View {
-        GeometryReader { geo in
-            VStack(spacing: 0) {
-                NavHUDView(model: model) { pickingDestination = true }
-                    .frame(height: geo.size.height / 3)
-                SurroundView(model: model)
-            }
+        ZStack {
+            SurroundView(model: model)
+            NavHUDView(model: model) { pickingDestination = true }
+            AlertOverlay(model: model)
         }
-        .background(Theme.bg)
-        .overlay { EdgeGlowView(model: model) }
-        .ignoresSafeArea(edges: .bottom)
+        .ignoresSafeArea()
         .preferredColorScheme(.dark)
         .sheet(isPresented: $pickingDestination) {
             DestinationPickerView { item in Task { try? await router.route(to: item) } }
         }
-        .onAppear {
-            model.freeze = args.freeze
-            if args.mockRoute {
-                model.nav = .mock
-            } else {
-                router.onUpdate = { model.nav = $0 }
-                router.requestAuthorization()
-                pickingDestination = true
-            }
-            model.start(feed: args.synthetic
-                        ? SyntheticFeed(scenario: args.scenario, freeze: args.freeze)
-                        : PeerFeed())
+        .onAppear(perform: begin)
+    }
+
+    private func begin() {
+        model.freeze = args.freeze
+        if args.mockRoute {
+            model.nav = .mock
+        } else if !args.synthetic {
+            // The picker is opened from the route button, never over the display.
+            router.onUpdate = { model.nav = $0 }
+            router.requestAuthorization()
         }
+        model.start(feed: args.synthetic
+                    ? SyntheticFeed(freeze: args.freeze, demo: args.demo)
+                    : PeerFeed())
     }
 }

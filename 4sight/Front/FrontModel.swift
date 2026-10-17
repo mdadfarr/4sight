@@ -12,6 +12,9 @@ final class FrontModel: ObservableObject {
     struct Motion { var from: CGPoint; var to: CGPoint; var arrival: Double }
     private(set) var motions: [Int: Motion] = [:]
 
+    /// How long each screen edge has held its level, so a band can flash on arrival.
+    private(set) var alerts = AlertBands.History()
+
     static let slide = 0.1
     /// When set, every clock in the UI reads this value (deterministic screenshots).
     var freeze: Double?
@@ -68,6 +71,19 @@ final class FrontModel: ObservableObject {
         motions = next
         frame = f
         link = .connected
+        alerts.update(AlertBands.zones(SurroundView.visibleTracks(f)), now: t)
+    }
+
+    /// Visible tracks with their positions slid over the 0.1 s between frames, so
+    /// traffic moves smoothly at 30 Hz on a 10 Hz feed.
+    func tracks(at t: Double) -> [VehicleSprite.Track] {
+        SurroundView.visibleTracks(frame).map { tr in
+            guard let m = motions[tr.id] else { return tr }
+            let p = position(of: m, at: t)
+            return VehicleSprite.Track(id: tr.id, cls: tr.cls, x: p.x, z: p.y,
+                                       level: tr.level, turnR: tr.turnR)
+        }
+        .sorted { $0.z < $1.z }
     }
 
     func position(of m: Motion, at t: Double) -> CGPoint {

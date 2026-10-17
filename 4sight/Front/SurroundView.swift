@@ -1,70 +1,74 @@
-import SwiftUI
 import Protocol
+import SwiftUI
 
-/// Top-down rear view. Ground exists only inside the camera wedge (±35°, 40 m).
+/// The follow view: one pinhole camera behind and above the rider, drawing the map
+/// around them and whatever the rear camera saw inside its wedge.
+///
+/// Everything is laid out in the mock's 393 x 852 design space and scaled once, so
+/// the constants in `Camera`, `Road` and `World` stay the numbers from
+/// `docs/mock/front.html`.
 struct SurroundView: View {
     @ObservedObject var model: FrontModel
 
-    static let halfAngle = 35.0 * .pi / 180
-    static let range = 40.0
-    static let bikeInset: CGFloat = 24
-
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1 / 20)) { timeline in
-            let t = model.now(timeline.date)
+        TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
             Canvas { ctx, size in
-                let apex = CGPoint(x: size.width / 2, y: size.height - Self.bikeInset)
-                let scale = Self.scale(for: size)
-                let wedge = Self.sector(apex: apex, radius: Self.range * scale)
-                ctx.fill(wedge, with: .color(Theme.ground))
-                ctx.clip(to: wedge)
-                for r in [10.0, 20.0, 30.0] {
-                    ctx.stroke(Self.arc(apex: apex, radius: r * scale), with: .color(Theme.line), lineWidth: 1)
-                }
-                for x in [-1.5, 1.5] {
-                    var p = Path()
-                    p.move(to: CGPoint(x: apex.x + x * scale, y: apex.y))
-                    p.addLine(to: CGPoint(x: apex.x + x * scale, y: apex.y - Self.range * scale))
-                    ctx.stroke(p, with: .color(Theme.line), lineWidth: 1)
-                }
-                // Far tracks first so near ones draw on top.
-                for track in (model.frame?.tracks ?? []).sorted(by: { $0.z > $1.z }) {
-                    guard let m = model.motions[track.id] else { continue }
-                    let pos = model.position(of: m, at: t)
-                    let centre = CGPoint(x: apex.x + pos.x * scale, y: apex.y - pos.y * scale)
-                    TrackGlyph.draw(track, at: centre, z: pos.y, scale: scale, t: t, in: &ctx)
-                }
-            }
-            .overlay(alignment: .bottom) {
-                Image(systemName: "bicycle")
-                    .font(.system(size: 28))
-                    .foregroundStyle(.white)
-                    .frame(height: Self.bikeInset * 2)
+                let t = model.now(timeline.date)
+                let scale = size.width / Design.width
+                var c = ctx
+                c.scaleBy(x: scale, y: scale)
+                draw(&c, t: t)
             }
         }
-        .background(Theme.bg)
+        .background(Palette.ground)
     }
 
-    /// Points per metre so 40 m reaches the top of the band; the wedge's far corners may leave the screen.
-    static func scale(for size: CGSize) -> CGFloat {
-        (size.height - bikeInset - 12) / range
+    private func draw(_ ctx: inout GraphicsContext, t: Double) {
+        SceneRenderer.ground(&ctx, t)
+        SceneRenderer.blocks(&ctx, t)
+        RouteRibbon.draw(&ctx, t)
+        SceneRenderer.parked(&ctx, t)
+        for track in model.tracks(at: t) {
+            VehicleSprite.draw(&ctx, track, t)
+        }
+        VehicleSprite.puck(&ctx)
+        SceneRenderer.haze(&ctx)
+        SceneRenderer.labels(&ctx, t)
     }
 
-    static func sector(apex: CGPoint, radius: CGFloat) -> Path {
-        var p = Path()
-        p.move(to: apex)
-        p.addArc(center: apex, radius: radius,
-                 startAngle: .radians(-.pi / 2 - halfAngle), endAngle: .radians(-.pi / 2 + halfAngle),
-                 clockwise: false)
-        p.closeSubpath()
-        return p
+    /// Only what the rear camera can actually see, painted far-behind last because
+    /// that is what sits nearest the lens. Half a vehicle width of margin, so a car
+    /// counts as in view as soon as part of it is.
+    ///
+    /// Vulnerable road users stay grey unless the frame is in demo mode, matching
+    /// ThreatEngine, which ignores bicycles and people outside it.
+    static func visibleTracks(_ frame: FrameMessage?) -> [VehicleSprite.Track] {
+        guard let frame else { return [] }
+        return frame.tracks
+            .filter { FOV.seen($0.x, $0.z, margin: World.size($0.cls.rawValue).w / 2) }
+            .sorted { $0.z < $1.z }
+            .map { tr in
+                let vru = tr.cls == .person || tr.cls == .bicycle
+                return VehicleSprite.Track(
+                    id: tr.id, cls: tr.cls.rawValue, x: tr.x, z: tr.z,
+                    level: vru && !frame.demo ? 0 : tr.level, turnR: tr.turnR)
+            }
     }
+}
 
-    static func arc(apex: CGPoint, radius: CGFloat) -> Path {
-        var p = Path()
-        p.addArc(center: apex, radius: radius,
-                 startAngle: .radians(-.pi / 2 - halfAngle), endAngle: .radians(-.pi / 2 + halfAngle),
-                 clockwise: false)
-        return p
+/// The screen-edge warning, kept in its own layer so it paints over the nav chrome
+/// as well as the map: a warning outranks everything else on screen.
+struct AlertOverlay: View {
+    @ObservedObject var model: FrontModel
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
+            Canvas { ctx, size in
+                var c = ctx
+                AlertBands.draw(&c, history: model.alerts,
+                                now: model.now(timeline.date), canvas: size)
+            }
+        }
+        .allowsHitTesting(false)
     }
 }
