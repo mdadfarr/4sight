@@ -27,52 +27,39 @@ uses `fps`, `temp`, `speed` (m/s, show km/h), plus link state. Ignore `inv_ttc`,
 
 ## Design brief
 
-Portrait phone, handlebar mount, dark, sunlight-readable. Language: Tesla's passive surround
-view, clean grey silhouettes on a dark ground with subtle lane lines, but showing ONLY the rear.
+**Source of truth: `docs/mock/front.html`.** Open it in a browser and scrub, or render stills
+with `node docs/mock/shot.mjs <t...>` (see `docs/mock/README.md`). It is Canvas2D on purpose:
+every call maps to SwiftUI `GraphicsContext`, so port it, do not reinterpret it. When this text
+and the mock disagree, the mock wins. Constants to copy exactly: `CAM`, `FOV`, `ROAD`, `BAND`,
+the colour table `C`, and the scenario `CUES`.
 
-Surround view (bottom two thirds):
-- Ground is drawn only inside the camera's real field of view: a wedge of ±35° from the bike
-  glyph, out to 40 m. Nothing is ever drawn outside the wedge. Faint range arcs at 10/20/30 m
-  (no numbers). Two subtle lane lines at x = ±1.5 m.
-- Bike glyph: `bicycle` SF Symbol, bottom centre, white, 28 pt.
-- Tracks: flat top-down silhouettes, size scaled by `z` (perspective: far = smaller, nearer the top).
-  Rounded rectangles sized per class (car 1.8×4.5 m, truck/bus 2.5×10 m, motorcycle 0.8×2.2 m,
-  bicycle 0.6×1.8 m, person 0.6×0.6 m circle). Draw as grey fill with a lighter 1 pt edge.
-- Level colouring: 0 grey fill. 1 amber 2 pt outline, grey fill. 2 solid amber fill + label
-  `THREAT` under the glyph. 3 red fill + pulsing ring (1 Hz, radius +8 pt) + a red glow on the
-  screen edge on the track's side (left edge if x < 0, else right edge; 60 pt wide gradient).
-- `turn_r` true: small amber `arrow.turn.up.right` SF Symbol at the vehicle's right edge.
-- Positions animate linearly over 0.1 s between feed updates (10–20 Hz). Never jump.
-- No numbers on the surround view except speed in the status strip.
+Decided with the owner on 2026-10-17, after several rejected passes:
 
-Nav HUD (top third), Google Maps cycling style:
-- Big next-manoeuvre arrow (SF Symbol: `arrow.turn.up.left`, `arrow.turn.up.right`, `arrow.up`,
-  `arrow.uturn.left`, `flag.checkered`) 56 pt, distance to it (e.g. `120 m`), street name.
-- Below: ETA and remaining distance in one line.
-- Thin status strip: `fps`, thermal (`temp`), speed km/h, link state dot (green connected,
-  amber searching, red lost).
+- **Camera: a real pinhole following the rider**, 26 m up, 8 m behind, tilted 20° forward,
+  pinned so the rider sits at y=430 and the road 20 m behind lands at y=752. It shows ~25 m
+  ahead (the route and the next turn) while a car 20 m back is drawn only ~1.34x true size.
+  More tilt (the Apple Maps look) oversizes rear traffic 1.6-2x: rejected. Do NOT use a fake
+  projection (separate x and y curves); it shears. Everything goes through one `pt(x, z, h)`.
+- **Screen up = the way you are going; screen down = the road behind; rider centred left-right.**
+- **Light world, Tesla clay style**: light ground, grey extruded vehicles (body box + greenhouse).
+  Map data (streets, crossings, low blocks, park, labels) is drawn everywhere.
+- **Detections only inside the rear camera's wedge** (±35°, 0-40 m behind, CONTRACTS.md).
+  Nothing is ever drawn beside or ahead of the rider. The wedge is lightened, not the rest dimmed.
+- **The vehicles carry the alert**: grey, amber fill at level 2, red fill + glow at level 3.
+- **Pedestrians and cyclists are upright figures** (Tesla style), 1.6x scale, white halo,
+  ground ring at level 3. Grey unless `demo` is true, matching ThreatEngine.
+- **You are a nav puck** (white-collared blue disc, chevron up), not a bike drawing.
+- **Blue route ribbon** (Apple Maps): solid ahead and turning where you turn, fading behind.
+- **Screen-edge alert, drawn last over everything**, on the side of the grip that is buzzing,
+  flashing the grip's own beat from CONTRACTS.md: one 150 ms pulse at level 1, two 120 ms pulses
+  100 ms apart at level 2, 4 Hz sustained at level 3. Band width 46 / 88 / 150 pt. A track
+  within 0.8 m of centre (straight behind) lights all four edges.
+- **Nav chrome**: black manoeuvre banner, flat bottom edge, 190 pt: arrow, distance (36 pt bold),
+  street, then a `Then` row with the step after. Speed badge and route/mute buttons float over
+  the map. White arrival bar: arrival / min / km.
 
-Tokens:
-
-| token | value | use |
-|---|---|---|
-| bg | #0B0D10 | screen background |
-| ground | #171B21 | wedge fill |
-| line | #2A313B | lane lines, range arcs |
-| silhouette | #8A929E | level 0 fill |
-| edge | #B5BCC6 | silhouette edge |
-| amber | #FFB020 | level 1 outline, level 2 fill, turn_r arrow |
-| red | #FF3B30 | level 3 fill, ring, edge glow |
-| text | #F2F4F7 | primary text |
-| textDim | #A6ADB8 | secondary text |
-| green | #34C759 | link ok dot |
-
-Type: `.system(.rounded)`, manoeuvre distance 40 pt bold, street 22 pt semibold, ETA line 17 pt,
-status strip 13 pt monospacedDigit, `THREAT` label 13 pt bold. Primary text #F2F4F7 on #0B0D10
-and amber/red on #0B0D10 all pass 4.5:1; never put text on amber or red fills.
-
-Rules: SF Symbols only, system fonts, no image assets, no third-party packages. Tap targets on
-the start/destination screen ≥ 44 pt. Dark only, no light mode.
+Rules: SF Symbols for icons where one exists, system fonts, no image assets, no third-party
+packages. Tap targets ≥ 44 pt.
 
 ## Architecture
 
@@ -80,8 +67,10 @@ All files under `4sight/Front/` (synchronized folder: files appear in the build 
 Never edit `project.pbxproj`. Keep every file under 300 lines. SwiftUI only. iOS 26 target.
 
 Views:
-- `FrontRootView` composes the three bands and picks the feed from launch arguments.
-- `SurroundView` is a `Canvas` inside a `TimelineView(.periodic(from: .now, by: 1/20))`.
+- `FrontRootView` composes the banner, the map and the arrival bar, and picks the feed from
+  launch arguments.
+- `SurroundView` is a `Canvas` inside a `TimelineView(.periodic(from: .now, by: 1/20))`. Keep the
+  vehicle rendering: the follow view needs it. Port the projection and drawing from the mock.
 - `NavHUDView`, `StatusStripView`, `DestinationPickerView` (search field + results list).
 
 Data:
