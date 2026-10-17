@@ -1,10 +1,7 @@
 import CoreLocation
 
-/// The real route, turned to face where the rider is going: heading-up, like Google
-/// Maps. The puck stays fixed pointing up and the route rotates under it.
-///
-/// Only the route needs this. The rear camera's tracks are already in the bike's own
-/// frame, so they are right-way-up whichever way the rider faces.
+/// The real route and the rider's pose, for the heading-up map: like Google Maps, the
+/// puck stays fixed pointing up and the map rotates under it.
 struct LiveRoute {
     var coordinates: [CLLocationCoordinate2D] = []
     private(set) var rider: CLLocation?
@@ -21,24 +18,8 @@ struct LiveRoute {
         return from + (to - from) * f
     }
 
-    /// The path actually ridden, newest fix first, about the last 70 m. Fixes worse
-    /// than 15 m, or under 1.5 m from the previous one, are dropped: the first is noise
-    /// and the second is standing still.
-    private(set) var trail: [CLLocation] = []
-    static let trailLength = 70.0
-
     mutating func update(_ loc: CLLocation, heading: Double?, at t: Double) {
         rider = loc
-        if loc.horizontalAccuracy >= 0, loc.horizontalAccuracy <= 15,
-           trail.first.map({ $0.distance(from: loc) >= 1.5 }) ?? true {
-            trail.insert(loc, at: 0)
-            var length = 0.0, keep = 1
-            while keep < trail.count, length <= Self.trailLength {
-                length += trail[keep - 1].distance(from: trail[keep])
-                keep += 1
-            }
-            trail.removeSubrange(keep...)
-        }
         guard let heading else { return }
         if !hasHeading {
             from = heading; to = heading; hasHeading = true
@@ -56,44 +37,25 @@ struct LiveRoute {
         return x
     }
 
-    /// One coordinate in the scene's rider frame: x metres to the right, z metres
-    /// behind (so the way ahead is negative z, as in `Camera`).
-    static func local(_ c: CLLocationCoordinate2D, from origin: CLLocationCoordinate2D,
-                      heading degrees: Double) -> (Double, Double) {
-        let mLat = 111_320.0, mLon = 111_320.0 * cos(origin.latitude * .pi / 180)
-        let east = (c.longitude - origin.longitude) * mLon
-        let north = (c.latitude - origin.latitude) * mLat
+    /// Where the rider is now, carried forward along the GPS course from the last fix
+    /// (fixes arrive about once a second), so the map glides instead of hopping.
+    /// Capped at 1.5 s: past that the fix is stale and guessing further only drifts.
+    func riderCoordinate(at date: Date) -> CLLocationCoordinate2D? {
+        guard let rider else { return nil }
+        guard rider.speed > 1.5, rider.course >= 0 else { return rider.coordinate }
+        let ahead = rider.speed * min(max(date.timeIntervalSince(rider.timestamp), 0), 1.5)
+        return Self.offset(rider.coordinate, x: 0, z: -ahead, heading: rider.course)
+    }
+
+    /// A point given in the rider's frame — x metres to the right, z metres behind —
+    /// as a map coordinate, for a rider at `origin` facing `degrees` from north.
+    static func offset(_ origin: CLLocationCoordinate2D, x: Double, z: Double,
+                       heading degrees: Double) -> CLLocationCoordinate2D {
         let h = degrees * .pi / 180
-        return (east * cos(h) - north * sin(h), -(east * sin(h) + north * cos(h)))
-    }
-
-    /// The way already ridden, from the rider backward, in the scene's frame.
-    func trailLine(at t: Double) -> [(Double, Double)] {
-        guard let rider, hasHeading else { return [] }
-        let h = heading(at: t)
-        var out: [(Double, Double)] = [(0, 0)]
-        for fix in trail {
-            let p = Self.local(fix.coordinate, from: rider.coordinate, heading: h)
-            if let last = out.last, hypot(p.0 - last.0, p.1 - last.1) < 0.5 { continue }
-            out.append(p)
-        }
-        return out
-    }
-
-    /// The way still to ride, from the rider forward, in the scene's frame. Starts at
-    /// the puck so the ribbon leaves from under the arrow, not from the nearest vertex.
-    func line(at t: Double) -> [(Double, Double)] {
-        guard let rider, hasHeading, coordinates.count > 1 else { return [] }
-        let h = heading(at: t)
-        let pts = coordinates.map { Self.local($0, from: rider.coordinate, heading: h) }
-        let near = pts.indices.min { hypot(pts[$0].0, pts[$0].1) < hypot(pts[$1].0, pts[$1].1) } ?? 0
-        var out: [(Double, Double)] = [(0, 0)]
-        // Stop past the far plane, or if the route doubles back behind the camera,
-        // where the projection is no longer defined.
-        for p in pts[(near + 1)...] where out.count < 400 {
-            if p.1 < World.zFar || p.1 > 25 { break }
-            out.append(p)
-        }
-        return out.count > 1 ? out : []
+        let east = x * cos(h) - z * sin(h)
+        let north = -x * sin(h) - z * cos(h)
+        let mLat = 111_320.0, mLon = 111_320.0 * cos(origin.latitude * .pi / 180)
+        return CLLocationCoordinate2D(latitude: origin.latitude + north / mLat,
+                                      longitude: origin.longitude + east / mLon)
     }
 }

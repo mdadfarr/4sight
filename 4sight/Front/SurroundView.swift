@@ -11,6 +11,10 @@ struct SurroundView: View {
     @ObservedObject var model: FrontModel
 
     var body: some View {
+        if model.scripted { scripted } else { LiveMapView(model: model) }
+    }
+
+    private var scripted: some View {
         TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
             Canvas { ctx, size in
                 let t = model.now(timeline.date)
@@ -23,24 +27,13 @@ struct SurroundView: View {
         .background(Palette.ground)
     }
 
-    /// The scripted ride keeps the mock's whole invented street. The live feed gets only
-    /// what is real: the road, the route the rider chose, and what the rear camera saw.
+    /// The scripted ride keeps the mock's whole invented street. The live feed is drawn
+    /// on the real map instead (`LiveMapView`).
     private func draw(_ ctx: inout GraphicsContext, t: Double) {
-        if model.scripted {
-            SceneRenderer.ground(&ctx, t)
-            SceneRenderer.blocks(&ctx, t)
-            RouteRibbon.draw(&ctx, t)
-            SceneRenderer.parked(&ctx, t)
-        } else {
-            // The straight road stays the fallback, unchanged, wherever there is no
-            // trail to trust: indoors, no fix, or the first 10 m.
-            if let line = CurvedRoad.centerline(model.route, at: t) {
-                CurvedRoad.draw(&ctx, line, travelled: model.travelled)
-            } else {
-                SceneRenderer.road(&ctx, travelled: model.travelled)
-            }
-            RouteRibbon.draw(&ctx, line: model.route.line(at: t))
-        }
+        SceneRenderer.ground(&ctx, t)
+        SceneRenderer.blocks(&ctx, t)
+        RouteRibbon.draw(&ctx, t)
+        SceneRenderer.parked(&ctx, t)
         let blocker = MergeBanner.current(model.frame, link: model.link)?.blockedBy
         for track in model.tracks(at: t) {
             var c = ctx
@@ -50,7 +43,7 @@ struct SurroundView: View {
         }
         VehicleSprite.puck(&ctx)
         SceneRenderer.haze(&ctx)
-        if model.scripted { SceneRenderer.labels(&ctx, t) }
+        SceneRenderer.labels(&ctx, t)
     }
 
     /// Only what the rear camera can actually see, painted far-behind last because
@@ -79,6 +72,10 @@ struct AlertOverlay: View {
     @ObservedObject var model: FrontModel
 
     var body: some View {
+        if model.scripted { scripted } else { LiveMapView(model: model) }
+    }
+
+    private var scripted: some View {
         TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
             Canvas { ctx, size in
                 var c = ctx

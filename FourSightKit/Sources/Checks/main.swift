@@ -95,6 +95,30 @@ do {
         ids3.formUnion(tr3.update(detections: dets, dt: 0.1).map(\.id))
     }
     check(ids3.count == 1, "jittered fast car with 1 s dropout keeps one id (\(ids3.count))")
+    // Ride footage: a person close behind walks across the frame faster than their own
+    // width per frame at 10 fps, so IoU with the last box is zero.
+    let tr4 = Tracker(); var ids4 = Set<Int>(), most4 = 0
+    for i in 0..<20 {
+        let out = tr4.update(detections: [Detection(box: Box(x: 100 + Double(i) * 70, y: 100, w: 90, h: 400), cls: .person, confidence: 0.8)], dt: 0.1)
+        ids4.formUnion(out.map(\.id)); most4 = max(most4, out.filter { $0.misses == 0 }.count)
+    }
+    check(ids4.count == 1 && most4 == 1, "fast close person keeps one id (\(ids4.count) ids)")
+    // The detector double-fires on one person (whole body and upper body).
+    let tr5 = Tracker(); var ids5 = Set<Int>()
+    for _ in 0..<10 {
+        let whole = Detection(box: Box(x: 300, y: 100, w: 120, h: 400), cls: .person, confidence: 0.9)
+        let upper = Detection(box: Box(x: 305, y: 100, w: 110, h: 200), cls: .person, confidence: 0.6)
+        ids5.formUnion(tr5.update(detections: [whole, upper], dt: 0.1).map(\.id))
+    }
+    check(ids5.count == 1, "double detection on one person -> one id (\(ids5.count))")
+    // Two people walking side by side must stay two.
+    let tr6 = Tracker(); var n6 = Set<Int>()
+    for i in 0..<10 {
+        let a = Detection(box: Box(x: 300 + Double(i) * 5, y: 100, w: 100, h: 380), cls: .person, confidence: 0.8)
+        let b = Detection(box: Box(x: 420 + Double(i) * 5, y: 110, w: 100, h: 370), cls: .person, confidence: 0.8)
+        n6.insert(tr6.update(detections: [a, b], dt: 0.1).count)
+    }
+    check(n6.subtracting([0]) == [2], "two people side by side stay two tracks")
 }
 
 // TTC

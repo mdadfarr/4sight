@@ -109,38 +109,6 @@ enum SceneRenderer {
         ctx.stroke(cone, with: .color(Palette.cone), lineWidth: 1.5)
     }
 
-    /// Live mode: the road under the rider and nothing invented on it. No buildings,
-    /// cross streets or parked cars — on the live feed those would read as things the
-    /// camera saw. Lane dashes slide by the distance actually ridden, so a stopped bike
-    /// is a still picture.
-    static func road(_ ctx: inout GraphicsContext, travelled: Double) {
-        ctx.fill(Path(CGRect(x: 0, y: 0, width: Design.width, height: Design.height)),
-                 with: .color(Palette.ground))
-        ctx.fill(strip(Road.farEdge, Road.kerb), with: .color(Palette.road))
-
-        let lane = GraphicsContext.Shading.color(Palette.lane)
-        let period = 7.0                                   // one dash and its gap, metres
-        let shift = travelled.truncatingRemainder(dividingBy: period)
-        for x in Road.dividers {
-            var w = -80.0
-            while w < 300 {
-                let z1 = shift - w, z0 = z1 - 3
-                if !(z1 < World.zFar || z0 > World.zNear) {
-                    ctx.fill(poly(Camera.slab(x, (z0 + z1) / 2, 0.17, 3)), with: lane)
-                }
-                w += period
-            }
-        }
-        for x in [Road.kerb, Road.farEdge] {
-            ctx.fill(poly([Camera.pt(x - 0.06, World.zFar), Camera.pt(x + 0.06, World.zFar),
-                           Camera.pt(x + 0.06, World.zNear), Camera.pt(x - 0.06, World.zNear)]), with: lane)
-        }
-
-        let cone = conePath()
-        ctx.fill(cone, with: .color(Palette.coneTint))
-        ctx.stroke(cone, with: .color(Palette.cone), lineWidth: 1.5)
-    }
-
     // MARK: - Blocks
 
     private static func blockWall(_ ax: Double, _ az: Double, _ bx: Double, _ bz: Double,

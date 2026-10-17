@@ -28,10 +28,7 @@ enum RouteRibbon {
     }
 
     static func draw(_ ctx: inout GraphicsContext, _ t: Double) {
-        draw(&ctx, line: World.routeLine(t))
-    }
-
-    static func draw(_ ctx: inout GraphicsContext, line: [(Double, Double)]) {
+        let line = World.routeLine(t)
         guard line.count > 1 else { return }
         ctx.fill(path(line, width: 2.1), with: .color(Palette.routeCase))
         ctx.fill(path(line, width: 1.5), with: .color(Palette.routeCore))
