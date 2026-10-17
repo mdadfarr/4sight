@@ -50,19 +50,13 @@ optional: a front build that does not know it ignores it.
 
 Rules for the front UI: draw every track; colour by `level`; only the camera's field of view (±35°, 0–40 m behind) is ever drawn.
 
-## Rear ↔ ESP32 (Wi-Fi, UDP) — replaced BLE on day 1, 15:20
+## Rear ↔ ESP32 (BLE)
 
-- **The ESP32 hosts its own Wi-Fi network** (soft access point): SSID `4sight-bike`, WPA2, 2.4 GHz.
-  The password lives in `firmware/src/secrets.h`, which is gitignored (template: `secrets.example.h`).
-  No iPhone Personal Hotspot is involved, so the rear phone never has to leave the app.
-- The rear phone joins `4sight-bike` once in Settings → Wi-Fi; iOS rejoins it automatically after.
-  It shows "No Internet Connection" there, which is expected; cellular still carries internet.
-- ESP32 address `192.168.4.1`, **UDP port 4210**. One ASCII command per datagram, no terminator.
-- ESP32 → phone: replies to the sender's address and port. `A` in answer to every `H` (link alive),
-  `ML` / `MR` on a merge button press.
-- The phone counts the link as connected while an `A` has arrived within the last 1 s.
-- The front phone does not join this network.
-- Commands, patterns, timeouts and the merge rules below are unchanged from the BLE version.
+- ESP32 is a NimBLE peripheral advertising name `4sight`.
+- Service UUID: `5db17fa8-6860-4cd4-bd95-50e90510e072`
+- Command characteristic UUID: `2490e4c3-b5b8-40db-8ab6-8cc856e1fa31`, properties: write-without-response, max 4 bytes.
+- Event characteristic UUID: `0f343fab-5e83-41a9-afb1-07dc42818c5f`, properties: notify, max 4 bytes. ESP32 → phone.
+- The rear phone is a CoreBluetooth central. It writes ASCII strings, no terminator:
 
 | command | meaning |
 |---|---|
@@ -79,7 +73,7 @@ Rules for the front UI: draw every track; colour by `level`; only the camera's f
   - 3: LED flashing 4 Hz, motor 100 ms on / 80 ms off × 4, restarted on each new `3` command
   - LED turns off 2 s after the last command for that side.
 - No message of any kind for 0.5 s → "offline" pattern once (400 ms both motors), then everything off.
-### Merge check (ESP32 → phone, as UDP datagrams)
+### Merge check (ESP32 → phone)
 
 Each handlebar has a button with a green and a red LED. Pressing it asks "may I move into the
 lane on this side?".

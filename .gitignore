@@ -29,6 +29,3 @@ ml/out/
 .swarm/
 agentdb.rvf*
 ruvector.db
-
-# ESP32 Wi-Fi password, never committed (repo is public)
-firmware/src/secrets.h
