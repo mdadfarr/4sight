@@ -11,13 +11,19 @@ xcuserdata/
 firmware/.pio/
 # Python
 tools/.venv/
+.venv/
 __pycache__/
+*.pyc
+ml/out/
+*.pt
 # local agent state
 .claude-flow/
 .claude/settings.local.json
 # footage (share by AirDrop/Drive, not git)
 *.mov
 *.mp4
+*.zip
+.env
 .DS_Store
 # ruflo/agent tooling state
 .swarm/

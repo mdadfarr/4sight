@@ -1,0 +1,3 @@
+ultralytics
+lapx
+numpy<2.3
