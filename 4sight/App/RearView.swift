@@ -177,17 +177,9 @@ struct RearView: View {
 
     private var controls: some View {
         VStack(spacing: 0) {
-            option("Count people and bikes",
-                   "Pedestrians and cyclists can trigger alerts too. For demos; on the road only vehicles do.",
-                   isOn: $pipeline.demoMode)
-            Divider().overlay(Theme.line)
             option("Dim screen when mounted",
                    "Saves battery and heat. Tap the screen to brighten it for \(Int(Self.wakeSeconds)) s.",
                    isOn: $dimWhenMounted)
-            Divider().overlay(Theme.line)
-            option("Record video",
-                   "GPS and near misses are always logged. Video files are large; record only test rides.",
-                   isOn: $pipeline.logging)
             Divider().overlay(Theme.line)
             ShareLink(items: GPSLog.shareable) {
                 HStack {
@@ -231,6 +223,10 @@ struct RearView: View {
                     GridRow { stat("events", "\(pipeline.eventCount)"); stat("source", pipeline.replayURL?.lastPathComponent ?? "camera") }
                 }
                 .font(.system(size: 14, design: .rounded).monospacedDigit())
+                // Developer tools: off for real rides. People count for indoor demos;
+                // video is for collecting test footage (GPS and near misses always log).
+                Toggle("Demo: people and bikes trigger alerts", isOn: $pipeline.demoMode).tint(Theme.amber)
+                Toggle("Record video to Documents", isOn: $pipeline.logging).tint(Theme.amber)
                 Toggle("Bench (10 s average)", isOn: $bench).tint(Theme.amber)
                 if bench {
                     Text(String(format: "%.1f ms", pipeline.benchMs))
