@@ -89,6 +89,12 @@ lane on this side?".
   never shown as green: a dead phone link, a backgrounded app or a thermal stall must read as
   "do not merge". The red blink is visibly different from a steady red answer.
 - Button debounce 25 ms; a press while an answer is already showing on that side restarts it.
+- **An answer that arrives after that side's 1.5 s window, or with no press pending, is ignored.**
+  The tracks behind a late answer are at least 1.5 s old, about 12 m of closing at city speed, so a
+  late `GL` must never replace a red blink with green. The rider presses again for a fresh answer.
+- `X` does not touch the merge LEDs, and neither does the offline pattern. Clearing them on a dead
+  link would hide the blink that exists precisely to signal a dead link.
+- The two sides are independent and may show answers at the same time.
 - The merge LEDs are separate from the amber alert LEDs and never share a pin.
 
 - Never both motor pairs on at the same time (3V3 rail budget); if both sides are commanded, left wins and right is queued.

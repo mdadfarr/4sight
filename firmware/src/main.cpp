@@ -89,8 +89,16 @@ static void handleCmd(const char* cmd, uint32_t now) {
     else if (s == L && active == R) { pending[R] = activePat; stopPlayer(); }  // left wins, right re-queued
   } else if ((cmd[0] == 'G' || cmd[0] == 'N') && (cmd[1] == 'L' || cmd[1] == 'R') && cmd[2] == 0) {
     Side s = cmd[1] == 'L' ? L : R;          // merge answer: G = clear (green), N = blocked (red)
-    mergeState[s] = cmd[0] == 'G' ? M_GREEN : M_RED;
-    mergeT0[s] = now;
+    // Only an answer to a press still waiting counts. Once the 1.5 s window has passed
+    // the question is dead: the tracks behind a late answer are at least that old, which
+    // is ~12 m of closing at city speed, so a late "clear" must not overwrite the red
+    // blink. The rider presses again and gets a fresh answer.
+    if (mergeState[s] == M_WAIT) {
+      mergeState[s] = cmd[0] == 'G' ? M_GREEN : M_RED;
+      mergeT0[s] = now;
+    } else {
+      Serial.printf("late/unsolicited merge answer ignored: %s\n", cmd);
+    }
   } else {
     Serial.printf("bad cmd: %s\n", cmd);
     return;
