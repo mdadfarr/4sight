@@ -26,7 +26,6 @@ struct PassiveHomeView: View {
     // `-homeSheet peek|full` opens it there, for simulator screenshots.
     @State private var detent = Detent(rawValue: UserDefaults.standard.string(forKey: "homeSheet") ?? "") ?? .half
     private var expanded: Bool { detent == .full }
-    @GestureState private var drag = 0.0
 
     static let peekHeight = 196.0
     static let restingHeight = 470.0
@@ -35,11 +34,6 @@ struct PassiveHomeView: View {
     var body: some View {
         GeometryReader { geo in
             let full = geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
-            let top = switch detent {
-            case .peek: full - Self.peekHeight
-            case .half: full - Self.restingHeight
-            case .full: Self.expandedTop
-            }
             ZStack(alignment: .topLeading) {
                 Map(position: $camera) { UserAnnotation() }
                     .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
@@ -52,8 +46,7 @@ struct PassiveHomeView: View {
                         .onLongPressGesture(minimumDuration: 1.5, perform: onDemo)
                 }
 
-                sheet(height: full - top)
-                    .offset(y: min(max(top + drag, Self.expandedTop), full - Self.peekHeight + 40))
+                SheetFrame(detent: $detent, full: full) { sheetContent }
             }
             .ignoresSafeArea()
             .animation(.spring(response: 0.35, dampingFraction: 0.86), value: detent)
@@ -114,45 +107,26 @@ struct PassiveHomeView: View {
 
     // MARK: - Sheet
 
-    private func sheet(height: Double) -> some View {
+    private var sheetContent: some View {
         VStack(spacing: 0) {
-            Capsule().fill(Light.handle).frame(width: 40, height: 5)
-                .padding(.top, 9).padding(.bottom, 12)
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-                .gesture(DragGesture()
-                    .updating($drag) { v, s, _ in s = v.translation.height }
-                    .onEnded { v in
-                        let up = v.predictedEndTranslation.height < -80, down = v.predictedEndTranslation.height > 80
-                        switch detent {
-                        case .peek: if up { detent = .half }
-                        case .half: if up { detent = .full } else if down { detent = .peek }
-                        case .full: if down { detent = .half }
-                        }
-                    })
-
             searchRow.padding(.horizontal, 16)
 
             if detent == .peek {
                 chips.padding(.horizontal, 16).padding(.top, 14)
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        if expanded { bikeCard }
-                        places
-                        recents
-                        if expanded { rides }
-                    }
-                    .padding(.horizontal, 16).padding(.top, 22).padding(.bottom, 40)
-                }
-                .scrollDisabled(!expanded)
             }
+            // Always laid out, below the fold when the sheet is low, so pulling it up
+            // reveals the real places and recents as it moves, never an empty sheet.
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    if expanded { bikeCard.transition(.opacity) }
+                    places
+                    recents
+                    rides
+                }
+                .padding(.horizontal, 16).padding(.top, 22).padding(.bottom, 40)
+            }
+            .scrollDisabled(!expanded)
         }
-        .frame(maxWidth: .infinity, alignment: .top)
-        .frame(height: height, alignment: .top)
-        .background(Light.sheet)
-        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 30, topTrailingRadius: 30))
-        .shadow(color: Light.shadow, radius: 14, y: -3)
     }
 
     private var searchRow: some View {
@@ -392,19 +366,51 @@ struct PassiveHomeView: View {
     }
 }
 
-/// The home screen's light palette, Apple Maps' daytime look. Contrast-checked on white:
-/// `dim` 5.9:1, `green` 4.6:1, `red` 4.5:1.
-private enum Light {
-    static let sheet = Color(hex: 0xF4F5F7)
-    static let field = Color(hex: 0xE8EBEF)
-    static let ink = Color(hex: 0x111418)
-    static let dim = Color(hex: 0x5B616B)
-    static let faint = Color(hex: 0xB4BAC3)
-    static let line = Color(hex: 0xECEEF1)
-    static let handle = Color(hex: 0xC9CED6)
-    static let blue = Color(hex: 0x0A6CDF)
-    static let blueSoft = Color(hex: 0xDFE8F5)
-    static let green = Color(hex: 0x1E7A37)
-    static let red = Color(hex: 0xD93025)
-    static let shadow = Color(hex: 0x0C121A).opacity(0.14)
+/// The draggable sheet. Its own view, so a drag redraws only the sheet and never the map
+/// behind it; always full height, so moving it is a pure slide with nothing re-laid out;
+/// and the drag is measured on the screen, not on the handle that is moving with it.
+private struct SheetFrame<Content: View>: View {
+    @Binding var detent: PassiveHomeView.Detent
+    let full: Double
+    @ViewBuilder let content: () -> Content
+    @State private var dragY = 0.0
+
+    private func top(_ d: PassiveHomeView.Detent) -> Double {
+        switch d {
+        case .peek: full - PassiveHomeView.peekHeight
+        case .half: full - PassiveHomeView.restingHeight
+        case .full: PassiveHomeView.expandedTop
+        }
+    }
+
+    var body: some View {
+        let drag = DragGesture(minimumDistance: 6, coordinateSpace: .global)
+            .onChanged { dragY = $0.translation.height }
+            .onEnded { v in
+                // Settle where the flick was heading, the nearest of the three heights.
+                let aim = top(detent) + v.predictedEndTranslation.height
+                let next = [PassiveHomeView.Detent.peek, .half, .full].min { abs(top($0) - aim) < abs(top($1) - aim) }!
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { detent = next; dragY = 0 }
+            }
+        VStack(spacing: 0) {
+            Capsule().fill(Light.handle).frame(width: 40, height: 5)
+                .padding(.top, 9).padding(.bottom, 12)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .gesture(drag)
+            content()
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: full - PassiveHomeView.expandedTop, alignment: .top)
+        .background(Light.sheet)
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 30, topTrailingRadius: 30))
+        .shadow(color: Light.shadow, radius: 14, y: -3)
+        // Pulled up, the list scrolls and only the handle moves the sheet; lower down the
+        // whole sheet can be dragged. High priority, so a drag that starts on the search bar
+        // or a place moves the sheet and does not also tap what ends up under the finger.
+        .highPriorityGesture(drag, including: detent == .full ? .subviews : .all)
+        .offset(y: min(max(top(detent) + dragY, PassiveHomeView.expandedTop), top(.peek) + 40))
+        .animation(.spring(response: 0.35, dampingFraction: 0.86), value: detent)
+    }
 }

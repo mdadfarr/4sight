@@ -88,3 +88,23 @@ enum Palette {
         return (VRU.body, VRU.limb)
     }
 }
+
+/// The front phone's light palette, Apple Maps' daytime look, for every screen but the ride
+/// view's black banner. Contrast-checked on white:
+/// `dim` 5.9:1, `green` 4.6:1, `red` 4.5:1.
+enum Light {
+    static let sheet = Color(hex: 0xF4F5F7)
+    static let field = Color(hex: 0xE8EBEF)
+    static let ink = Color(hex: 0x111418)
+    static let dim = Color(hex: 0x5B616B)
+    static let faint = Color(hex: 0xB4BAC3)
+    static let line = Color(hex: 0xECEEF1)
+    static let handle = Color(hex: 0xC9CED6)
+    static let blue = Color(hex: 0x0A6CDF)
+    static let blueSoft = Color(hex: 0xDFE8F5)
+    static let green = Color(hex: 0x1E7A37)
+    static let red = Color(hex: 0xD93025)
+    /// Amber that still reads on white (the map's amber is for dark and coloured grounds).
+    static let amber = Color(hex: 0xB86E00)
+    static let shadow = Color(hex: 0x0C121A).opacity(0.14)
+}

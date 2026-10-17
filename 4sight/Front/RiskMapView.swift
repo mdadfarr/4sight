@@ -16,11 +16,11 @@ struct RiskMapView: View {
             ForEach(store.cells) { cell in
                 MapPolygon(coordinates: cell.corners)
                     .foregroundStyle(Self.cellTint(cell))
-                    .stroke(Theme.line.opacity(0.5), lineWidth: 0.5)
+                    .stroke(Light.line.opacity(0.5), lineWidth: 0.5)
             }
             ForEach(store.tracks) { track in
                 MapPolyline(coordinates: track.points)
-                    .stroke(Theme.textDim.opacity(0.55), lineWidth: 3)
+                    .stroke(Light.dim.opacity(0.55), lineWidth: 3)
             }
             ForEach(store.events) { event in
                 if let c = event.coordinate {
@@ -29,7 +29,7 @@ struct RiskMapView: View {
             }
         }
         .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll, showsTraffic: false))
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .ignoresSafeArea()
         .overlay(alignment: .topLeading) { closeButton }
         .overlay(alignment: .bottom) { summary }
@@ -43,9 +43,9 @@ struct RiskMapView: View {
 
     private func dot(for event: RiskEvent) -> some View {
         Circle()
-            .fill(event.level >= 3 ? Theme.red : Theme.amber)
+            .fill(event.level >= 3 ? Light.red : Light.amber)
             .frame(width: event.level >= 3 ? 13 : 10, height: event.level >= 3 ? 13 : 10)
-            .overlay(Circle().stroke(Theme.bg.opacity(0.85), lineWidth: 1.5))
+            .overlay(Circle().stroke(Light.sheet.opacity(0.85), lineWidth: 1.5))
             .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
     }
 
@@ -53,9 +53,9 @@ struct RiskMapView: View {
         Button { dismiss() } label: {
             Image(systemName: "xmark")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Theme.text)
+                .foregroundStyle(Light.ink)
                 .frame(width: 40, height: 40)
-                .background(Theme.ground.opacity(0.92), in: Circle())
+                .background(Color.white.opacity(0.92), in: Circle())
         }
         .padding(.leading, 16)
         .padding(.top, 60)
@@ -74,21 +74,21 @@ struct RiskMapView: View {
             if store.events.isEmpty {
                 Text("No events logged yet. Ride with the rear phone recording, or relaunch with --demoevents.")
                     .font(.system(size: 13, design: .rounded))
-                    .foregroundStyle(Theme.textDim)
+                    .foregroundStyle(Light.dim)
                     .fixedSize(horizontal: false, vertical: true)
             } else if store.hasFile {
                 ShareLink(item: EventStore.eventsURL) {
                     Label("Share events", systemImage: "square.and.arrow.up")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Theme.text)
+                        .foregroundStyle(Light.ink)
                         .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(Theme.line.opacity(0.9), in: RoundedRectangle(cornerRadius: 12))
+                        .background(Light.line.opacity(0.9), in: RoundedRectangle(cornerRadius: 12))
                 }
             }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.bg.opacity(0.94))
+        .background(Light.sheet.opacity(0.94))
         .clipShape(UnevenRoundedRectangle(topLeadingRadius: 18, topTrailingRadius: 18))
         .ignoresSafeArea(edges: .bottom)
     }
@@ -97,10 +97,10 @@ struct RiskMapView: View {
         VStack(alignment: .leading, spacing: 1) {
             Text(value)
                 .font(.system(size: 26, weight: .semibold, design: .rounded).monospacedDigit())
-                .foregroundStyle(Theme.text)
+                .foregroundStyle(Light.ink)
             Text(label)
                 .font(.system(size: 12, design: .rounded))
-                .foregroundStyle(Theme.textDim)
+                .foregroundStyle(Light.dim)
         }
     }
 
@@ -109,7 +109,7 @@ struct RiskMapView: View {
     /// Denser cells read stronger; a cell holding any level 3 goes red.
     static func cellTint(_ cell: GridCell) -> Color {
         let weight = min(0.14 + Double(cell.count) * 0.055, 0.42)
-        return (cell.worstLevel >= 3 ? Theme.red : Theme.amber).opacity(weight)
+        return (cell.worstLevel >= 3 ? Light.red : Light.amber).opacity(weight)
     }
 
     /// Frames every located event with a margin; falls back to downtown Toronto.

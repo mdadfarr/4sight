@@ -12,20 +12,20 @@ struct RideSummaryView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("You're here")
                 .font(.system(size: 42, weight: .bold, design: .rounded))
-                .foregroundStyle(Theme.text)
+                .foregroundStyle(Light.ink)
             Text("\(summary.destination) · \(summary.minutes) min")
                 .font(.system(size: 15, design: .rounded))
-                .foregroundStyle(Theme.textDim)
+                .foregroundStyle(Light.dim)
                 .padding(.top, 6)
 
             Grid(horizontalSpacing: 14, verticalSpacing: 14) {
                 GridRow {
-                    tile("Distance", summary.distanceText, Theme.text)
-                    tile("Ride time", "\(summary.minutes) min", Theme.text)
+                    tile("Distance", summary.distanceText, Light.ink)
+                    tile("Ride time", "\(summary.minutes) min", Light.ink)
                 }
                 GridRow {
-                    tile("Close passes", "\(summary.closePasses)", Theme.amber)
-                    tile("Imminent", "\(summary.imminent)", Theme.red)
+                    tile("Close passes", "\(summary.closePasses)", Light.amber)
+                    tile("Imminent", "\(summary.imminent)", Light.red)
                 }
             }
             .padding(.top, 30)
@@ -35,9 +35,9 @@ struct RideSummaryView: View {
             Button(action: onRiskMap) {
                 Text("See them on the map")
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.text)
+                    .foregroundStyle(Light.ink)
                     .frame(maxWidth: .infinity, minHeight: 50)
-                    .background(Theme.ground, in: RoundedRectangle(cornerRadius: 13))
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: 13))
             }
             Button(action: onDone) {
                 Text("Done")
@@ -52,8 +52,8 @@ struct RideSummaryView: View {
         .padding(.top, 86)
         .padding(.bottom, 28)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Theme.bg)
-        .preferredColorScheme(.dark)
+        .background(Light.sheet)
+        .preferredColorScheme(.light)
     }
 
     private func tile(_ key: String, _ value: String, _ tint: Color) -> some View {
@@ -61,13 +61,13 @@ struct RideSummaryView: View {
             Text(key.uppercased())
                 .font(.system(size: 11.5, weight: .semibold, design: .rounded))
                 .kerning(0.7)
-                .foregroundStyle(Theme.silhouette)
+                .foregroundStyle(Light.faint)
             Text(value)
                 .font(.system(size: 27, weight: .bold, design: .rounded).monospacedDigit())
                 .foregroundStyle(tint)
         }
         .padding(.horizontal, 16).padding(.vertical, 15)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.ground, in: RoundedRectangle(cornerRadius: 14))
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 14))
     }
 }

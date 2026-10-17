@@ -34,9 +34,9 @@ struct FrontRootView: View {
                                 onRiskMap: { showingRiskMap = true },
                                 onDone: { flow.phase = .home })
             }
-            if routing { ProgressView().tint(Theme.text) }
+            if routing { RoutePreviewSkeleton() }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .sheet(isPresented: $flow.picking) {
             DestinationPickerView { item in
                 flow.picking = false
