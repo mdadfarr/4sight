@@ -42,7 +42,6 @@ struct NavHUDView: View {
                 .fixedSize().foregroundStyle(Palette.text).at(84, 116, anchor: .bottomLeading)
             Text(streetText).font(.system(size: 21, weight: .medium, design: .rounded))
                 .fixedSize().foregroundStyle(Palette.text).at(84, 144, anchor: .bottomLeading)
-            bikeLanePill.at(Design.width - 20, 100, anchor: .trailing)
 
             Rectangle().fill(Palette.hair)
                 .frame(width: Design.width - 40, height: 1).at(20, 160, anchor: .topLeading)
@@ -83,14 +82,6 @@ struct NavHUDView: View {
         .frame(width: 54, height: 50)
         .background(Palette.bar, in: RoundedRectangle(cornerRadius: 12))
         .shadow(color: Color(hex: 0x0C121A).opacity(0.22), radius: 4, y: 2)
-    }
-
-    private var bikeLanePill: some View {
-        Text("Bike Lane")
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .fixedSize().foregroundStyle(Palette.text)
-            .padding(.horizontal, 10).padding(.vertical, 5)
-            .background(Color(hex: 0x1F8B4C), in: Capsule())
     }
 
     private func circleButton(_ symbol: String, action: @escaping () -> Void) -> some View {
