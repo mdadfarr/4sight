@@ -16,7 +16,9 @@ nonisolated final class DangerAdapter {
         engine = DangerEngine(config: c)
     }
 
-    func update(tracks: [Track], t: Double, imageW w: Double, imageH h: Double)
+    /// `gaps`: rider-frame sideways gap per track id (GapEstimator), so FrameMessage.gap_pred
+    /// shows the same number as the ThreatEngine path. shortcut: current gap, no velocity term.
+    func update(tracks: [Track], gaps: [Int: Double], t: Double, imageW w: Double, imageH h: Double)
         -> (perTrack: [Decision], sides: [Decision]) {
         // Box is top-left origin already, so cy/h is the "1 - midY" her README asks for.
         // Confidence 1: DetectionFilter already dropped large+unsure boxes upstream.
@@ -34,7 +36,8 @@ nonisolated final class DangerAdapter {
             case .both: level = max(out.left, out.right)
             }
             // shortcut: a track dead behind (.both) is reported on the left grip, firmware's priority side
-            return Decision(id: tr.id, level: level.rawValue, grip: level == .off ? "-" : (side == .right ? "R" : "L"))
+            return Decision(id: tr.id, level: level.rawValue, grip: level == .off ? "-" : (side == .right ? "R" : "L"),
+                            gapPred: abs(gaps[tr.id] ?? 0))
         }
         var sides: [Decision] = []
         if out.left != .off { sides.append(Decision(id: Self.leftID, level: out.left.rawValue, grip: "L")) }

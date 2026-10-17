@@ -167,7 +167,8 @@ nonisolated final class RearWorker: @unchecked Sendable {
 
         let decisions: [Decision], gripDecisions: [Decision]
         if input.engine == .danger {
-            (decisions, gripDecisions) = danger.update(tracks: tracks, t: t, imageW: w, imageH: h)
+            let gaps = Dictionary(states.map { ($0.id, $0.gap) }, uniquingKeysWith: { a, _ in a })
+            (decisions, gripDecisions) = danger.update(tracks: tracks, gaps: gaps, t: t, imageW: w, imageH: h)
         } else {
             decisions = engine.update(tracks: states, bikeSpeed: input.speed, demoMode: input.demo, now: t)
             gripDecisions = decisions
