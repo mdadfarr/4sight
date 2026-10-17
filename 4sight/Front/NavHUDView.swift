@@ -4,6 +4,7 @@ import Protocol
 /// Top band: next manoeuvre, ETA line, status strip.
 struct NavHUDView: View {
     @ObservedObject var model: FrontModel
+    var onPickDestination: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,10 +37,15 @@ struct NavHUDView: View {
                                 link: model.link)
                     .padding(.top, 6)
             } else {
-                Text("No route")
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Theme.textDim)
-                    .frame(maxHeight: .infinity)
+                Button(action: onPickDestination) {
+                    Label("Set destination", systemImage: "magnifyingglass")
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.text)
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .background(Theme.ground, in: RoundedRectangle(cornerRadius: 14))
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
             }
             Spacer(minLength: 0)
         }
