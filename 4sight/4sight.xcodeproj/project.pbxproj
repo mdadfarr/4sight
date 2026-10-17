@@ -20,6 +20,11 @@
 			path = Front;
 			sourceTree = "<group>";
 		};
+		000000000000000000000011 /* App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = App;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -35,6 +40,7 @@
 		000000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
+				000000000000000000000011 /* App */,
 				000000000000000000000010 /* Front */,
 				000000000000000000000020 /* Products */,
 			);
@@ -63,6 +69,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				000000000000000000000010 /* Front */,
+				000000000000000000000011 /* App */,
 			);
 			name = 4sight;
 			packageProductDependencies = (
