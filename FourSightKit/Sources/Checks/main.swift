@@ -128,15 +128,36 @@ do {
     let est = GapEstimator(f: 1000, u0: 640, v0: 360, imageW: 1280, imageH: 720)
     check(near(est.gap(box: Box(x: 700, y: 300, w: 200, h: 100), cls: .car, z: 20), -1.47, 1e-9), "gap geometry un-mirrored -> -1.47")
     check(near(est.range(box: Box(x: 0, y: 310, w: 90, h: 100), cls: .car), 20, 1e-9), "ground-plane range 20 m")
-    check(near(est.range(box: Box(x: 0, y: 620, w: 90, h: 100), cls: .car), 20, 1e-9), "width fallback 20 m")
+    check(near(est.range(box: Box(x: 500, y: 620, w: 90, h: 100), cls: .car), 20, 1e-9), "width fallback 20 m")
     // People by apparent height: 1.7 m tall at 85 px with f=1000 is 20 m, wherever the feet are.
     check(near(est.range(box: Box(x: 0, y: 200, w: 30, h: 85), cls: .person), 20, 1e-9),
           "person range from height, 20 m")
     check(near(est.range(box: Box(x: 0, y: 450, w: 30, h: 85), cls: .person), 20, 1e-9),
           "person range ignores camera tilt (same height, lower in frame)")
     // Feet cut off by the bottom edge: the height is truncated, so it must not be used.
-    check(est.range(box: Box(x: 0, y: 300, w: 30, h: 600), cls: .person) != 1000 * 1.7 / 600,
+    check(est.range(box: Box(x: 600, y: 300, w: 30, h: 600), cls: .person) != 1000 * 1.7 / 600,
           "person cut off at the frame edge does not use truncated height")
+    // A person 1 m away fills the frame top to bottom; 0.5 m wide at f=1000 is 500 px.
+    // The old car-width fallback read 1000 * 1.8 / 500 = 3.6 m.
+    let close = est.range(box: Box(x: 390, y: 0, w: 500, h: 720), cls: .person)
+    check(near(close, 1, 0.05), "person 1 m away, cut off top and bottom -> \(String(format: "%.2f", close)) m, not 3.6")
+    let portrait = GapEstimator(f: 1000, u0: 360, v0: 640, imageW: 720, imageH: 1280)
+    check(near(portrait.range(box: Box(x: 110, y: 0, w: 500, h: 1280), cls: .person), 1, 0.05),
+          "portrait frame: person 1 m away, cut off top and bottom -> 1 m")
+    check(near(est.range(box: Box(x: 0, y: 0, w: 640, h: 720), cls: .person), 1000 * 0.5 / 640, 1e-9),
+          "person cut off on all sides -> the smaller of height and width estimates")
+    check(near(est.range(box: Box(x: 500, y: 400, w: 250, h: 320), cls: .bus), 10, 1e-9),
+          "bus cut off at the bottom -> bus width 2.5 m, 10 m (car width read 7.2)")
+}
+
+// RangeFilter (10 Hz, the detector rate)
+do {
+    let rf = RangeFilter(); var dev = 0.0
+    for i in 0..<20 { dev = max(dev, abs(rf.update(id: 1, z: i == 10 ? 1 : 4, t: Double(i) * 0.1) - 4)) }
+    check(dev < 0.75, "range filter: one-frame 4 -> 1 m jump moves z by \(String(format: "%.2f", dev)) m (< 1/4 of the jump)")
+    let rf2 = RangeFilter(); var z = 0.0
+    for i in 0...20 { z = rf2.update(id: 1, z: i < 10 ? 4 : 1, t: Double(i) * 0.1) }
+    check(near(z, 1, 0.1), "range filter: genuine 4 -> 1 m step within 1 s -> \(String(format: "%.2f", z)) m")
 }
 
 // Ride sidecars (replayed footage from tools/mcap_to_ride.py)

@@ -1,7 +1,7 @@
 import Foundation
 import Protocol
 
-/// Ground-plane range and sideways gap from a box. Output is already in the rider
+/// Range and sideways gap from a box. Output is already in the rider
 /// frame (un-mirrored): the rear camera's image right is the rider's left.
 public struct GapEstimator: Sendable {
     public var f: Double
@@ -17,36 +17,39 @@ public struct GapEstimator: Sendable {
         self.imageW = imageW; self.imageH = imageH
     }
 
-    /// Typical real height, metres, of what each class's box covers. YOLO's bicycle and
-    /// motorcycle boxes cover the machine, not the rider, who gets a person box of his own.
-    static func realHeight(_ cls: VehicleClass) -> Double? {
+    /// Typical real size, metres, seen from behind or in front (the camera looks back along
+    /// the road). YOLO's bicycle and motorcycle boxes cover the machine, not the rider, who
+    /// gets a person box of his own.
+    static func realSize(_ cls: VehicleClass) -> (h: Double, w: Double) {
         switch cls {
-        case .person: return 1.7
-        case .bicycle: return 1.1
-        case .motorcycle: return 1.2
-        default: return nil
+        case .person: return (1.7, 0.5)
+        case .bicycle: return (1.1, 0.6)
+        case .motorcycle: return (1.2, 0.8)
+        case .car: return (1.5, 1.8)
+        case .bus: return (3.2, 2.5)
+        case .truck: return (3.0, 2.5)
         }
     }
 
     /// Z (metres behind) for a box.
     ///
-    /// People and two-wheelers: from apparent height, Z = f * H / h. Ground-plane range
-    /// assumes the lens is level at a known height, and a handheld or bouncing phone is
-    /// neither, so a tilt of a few degrees put a person 8 m away at the rider's wheel.
-    /// Height needs neither. Vehicles keep the ground plane, which the replay validated.
+    /// Cars, buses, trucks: ground plane from the box bottom, which the replay validated.
+    /// Everything else, and vehicles whose bottom is cut off: Z = f * H / h, or f * W / w when
+    /// the top or bottom is cut off. Ground-plane range assumes a level lens at a known height;
+    /// a handheld or bouncing phone is neither, so a tilt of a few degrees put a person 8 m
+    /// away at the rider's wheel. Height and width need neither.
     public func range(box: Box, cls: VehicleClass) -> Double {
-        // A box cut off by the top or bottom edge is shorter than the object, so its
-        // height would read too far; fall through to the ground plane / width instead.
-        if let realH = Self.realHeight(cls), box.y > 2, box.bottom < imageH - 2, box.h > 4 {
-            return f * realH / box.h
-        }
-        let dv = box.bottom - v0
-        if box.bottom < imageH - 2, dv > 0 {
-            let z = f * cameraHeight / dv
+        if [.car, .bus, .truck].contains(cls), box.bottom < imageH - 2, box.bottom > v0 {
+            let z = f * cameraHeight / (box.bottom - v0)
             if z > 1, z < 150 { return z }
         }
-        // shortcut: 1.8 m width is only right for cars; good enough for other classes at demo range.
-        return f * 1.8 / max(box.w, 1)
+        let size = Self.realSize(cls)
+        let fromH = f * size.h / max(box.h, 1), fromW = f * size.w / max(box.w, 1)
+        if box.y > 2, box.bottom < imageH - 2 { return fromH }
+        if box.x > 2, box.x + box.w < imageW - 2 { return fromW }
+        // Cut off both ways, so very close. A truncated box is too small, which makes each
+        // estimate an upper bound: take the tighter one.
+        return max(0.5, min(fromH, fromW))
     }
 
     /// Rider-frame sideways offset of the vehicle's near corner (negative = rider's left).

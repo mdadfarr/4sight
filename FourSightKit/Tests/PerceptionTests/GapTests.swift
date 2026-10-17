@@ -19,7 +19,7 @@ final class GapTests: XCTestCase {
         // bottom at v=410 -> dv=50 -> Z = 1000*1/50 = 20
         XCTAssertEqual(est.range(box: Box(x: 0, y: 310, w: 90, h: 100), cls: .car), 20, accuracy: 1e-9)
         // bottom clipped at the image edge -> width fallback 1000*1.8/90 = 20
-        XCTAssertEqual(est.range(box: Box(x: 0, y: 620, w: 90, h: 100), cls: .car), 20, accuracy: 1e-9)
+        XCTAssertEqual(est.range(box: Box(x: 500, y: 620, w: 90, h: 100), cls: .car), 20, accuracy: 1e-9)
     }
 
     func testHeadingCorrection() {
