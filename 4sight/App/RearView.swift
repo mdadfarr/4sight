@@ -19,10 +19,12 @@ struct RearView: View {
     // `-skipMountCard YES` for simulator screenshots of the page behind it.
     @State private var mountCard = !UserDefaults.standard.bool(forKey: "skipMountCard")
     @State private var awakeUntil = Date.distantPast
-    /// Hidden: a double tap blacks the screen out while everything keeps running. iOS
-    /// stops the camera when the display truly sleeps, but an OLED pixel drawing black is
-    /// off, so this looks and costs like a screen that is off. One tap brings it back.
+    /// "Screen off" that keeps everything running: iOS stops the camera when the display
+    /// truly sleeps, but an OLED pixel drawing black is off, so this looks and costs like
+    /// a screen that is off. Any tap brings it back.
     @State private var blackout = false
+    @State private var blackoutHint = false
+    @State private var blackoutAt = Date.distantPast
     static let wakeSeconds = 15.0
 
     var body: some View {
@@ -31,20 +33,25 @@ struct RearView: View {
         .background(Theme.bg)
         .overlay { if mountCard { mountPrompt } }
         .overlay {
-            if blackout { Color.black.ignoresSafeArea().allowsHitTesting(false) }
+            if blackout {
+                ZStack {
+                    Color.black.ignoresSafeArea()
+                    Text("Tap anywhere to turn the screen back on")
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .foregroundStyle(Theme.textDim)
+                        .opacity(blackoutHint ? 1 : 0)
+                }
+                .allowsHitTesting(false)
+            }
         }
         .statusBarHidden(blackout)
         .persistentSystemOverlays(blackout ? .hidden : .automatic)
-        .simultaneousGesture(
-            TapGesture(count: 2).onEnded {
-                guard !mountCard else { return }
-                blackout = true
-                applyBrightness()
-            }
-            .exclusively(before: TapGesture().onEnded {
-                if blackout { blackout = false; awakeUntil = .distantPast }
-                wake()
-            }))
+        .simultaneousGesture(TapGesture().onEnded {
+            // The tap on the button itself also lands here; it must not undo it.
+            guard Date().timeIntervalSince(blackoutAt) > 0.5 else { return }
+            if blackout { blackout = false; awakeUntil = .distantPast }
+            wake()
+        })
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
             OrientationLock.set(.portrait)
@@ -103,6 +110,14 @@ struct RearView: View {
             .frame(maxWidth: 460)
             .padding(.horizontal, 22)
         }
+    }
+
+    private func screenOff() {
+        blackout = true
+        blackoutAt = Date()
+        blackoutHint = true
+        applyBrightness()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { withAnimation(.easeOut(duration: 0.6)) { blackoutHint = false } }
     }
 
     /// A tap on a dimmed screen brightens it, then it dims again on its own.
@@ -248,6 +263,21 @@ struct RearView: View {
             option("Dim screen when mounted",
                    "Saves battery and heat. Tap the screen to brighten it for \(Int(Self.wakeSeconds)) s.",
                    isOn: $dimWhenMounted)
+            Divider().overlay(Theme.line)
+            Button(action: screenOff) {
+                HStack {
+                    Image(systemName: "moon.fill")
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Screen off").font(.system(size: 16, weight: .semibold, design: .rounded))
+                        Text("Black screen, still watching. Tap anywhere to turn it back on.")
+                            .font(.system(size: 13, design: .rounded)).foregroundStyle(Theme.textDim)
+                    }
+                    Spacer()
+                }
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
             Divider().overlay(Theme.line)
             ShareLink(items: GPSLog.shareable) {
                 HStack {
