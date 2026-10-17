@@ -37,6 +37,7 @@ struct NavHUDView: View {
             Image(systemName: "arrow.turn.up.left")
                 .font(.system(size: 34, weight: .semibold))
                 .foregroundStyle(Palette.text).at(46, 104)
+                .opacity(hasRoute ? 1 : 0)
             Text(distanceText).font(.system(size: 36, weight: .bold, design: .rounded))
                 .fixedSize().foregroundStyle(Palette.text).at(84, 116, anchor: .bottomLeading)
             Text(streetText).font(.system(size: 21, weight: .medium, design: .rounded))
@@ -50,6 +51,7 @@ struct NavHUDView: View {
             Image(systemName: "arrow.turn.up.right")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Palette.text).at(72, 176)
+                .opacity(hasRoute ? 1 : 0)
             Text(thenText).font(.system(size: 15, weight: .medium, design: .rounded))
                 .fixedSize().foregroundStyle(Palette.text).at(90, 182, anchor: .bottomLeading)
 
@@ -104,7 +106,7 @@ struct NavHUDView: View {
 
     private var arrivalBar: some View {
         HStack(alignment: .top, spacing: 0) {
-            stat(arrivalText, "arrival").frame(width: 116, alignment: .leading)
+            stat(arrivalText, "arrival").frame(width: 140, alignment: .leading)
             stat(minutesText, "min").frame(width: 64, alignment: .leading)
             stat(kmText, "km").frame(width: 90, alignment: .leading)
             Spacer(minLength: 0)
@@ -124,7 +126,7 @@ struct NavHUDView: View {
     private func stat(_ value: String, _ label: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value).font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
-                .fixedSize().lineLimit(1).foregroundStyle(Palette.barInk)
+                .lineLimit(1).minimumScaleFactor(0.75).foregroundStyle(Palette.barInk)
             Text(label).font(.system(size: 13, weight: .medium, design: .rounded))
                 .fixedSize().foregroundStyle(Palette.barDim)
         }
@@ -136,27 +138,48 @@ struct NavHUDView: View {
 
     private var t: Double { model.now() }
 
+    /// The scripted ride counts down to its own turn. `now()` is seconds since the
+    /// reference date on a live feed, so this is only meaningful on the script's clock.
+    private var scriptedDistance: String {
+        let travelled = World.speed * t.truncatingRemainder(dividingBy: SyntheticFeed.loop)
+        return "\(max(5, Int((World.turnStreet.ahead - travelled) / 5).magnitude * 5)) m"
+    }
+
     private var distanceText: String {
         if let nav = model.nav { return Self.metres(nav.distanceToManoeuvre) }
-        return "\(max(5, Int((World.turnStreet.ahead - World.speed * t) / 5).magnitude * 5)) m"
+        return model.scripted ? scriptedDistance : ""
     }
-    private var streetText: String { model.nav?.current.street ?? World.turnStreet.name }
+    private var streetText: String {
+        if let nav = model.nav { return nav.current.street }
+        return model.scripted ? World.turnStreet.name : "No destination"
+    }
     private var thenText: String {
         guard let nav = model.nav, nav.currentIndex + 1 < nav.steps.count else {
-            return "900 m · Bloor St W"
+            return model.nav == nil && !model.scripted
+                ? "Set one from the route button" : "900 m · Bloor St W"
         }
         let next = nav.steps[nav.currentIndex + 1]
         return "\(Self.metres(next.distance)) · \(next.street)"
     }
-    private var speedText: String { "\(Int(((model.frame?.speed ?? World.speed) * 3.6).rounded()))" }
-    private var arrivalText: String { model.nav == nil ? "12:41" : Self.clock(model.nav!) }
+    /// A route or the script means there is a speed to show; a live feed with no frame
+    /// yet does not, and a standing-still readout of 13 km/h would be a lie.
+    private var hasRoute: Bool { model.nav != nil || model.scripted }
+
+    private var speedText: String {
+        guard let speed = model.frame?.speed ?? (hasRoute ? World.speed : nil) else { return "–" }
+        return "\(Int((speed * 3.6).rounded()))"
+    }
+    private var arrivalText: String {
+        guard let nav = model.nav else { return model.scripted ? "12:41" : "–" }
+        return Self.clock(nav)
+    }
     private var minutesText: String {
         guard let nav = model.nav, let eta = nav.eta(speed: model.frame?.speed ?? World.speed)
-        else { return "18" }
+        else { return model.nav == nil && !model.scripted ? "–" : "18" }
         return "\(Int((eta / 60).rounded(.up)))"
     }
     private var kmText: String {
-        guard let nav = model.nav else { return "4.2" }
+        guard let nav = model.nav else { return model.scripted ? "4.2" : "–" }
         return String(format: "%.1f", nav.remaining / 1000)
     }
 
