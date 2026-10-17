@@ -53,6 +53,7 @@ struct FrontRootView: View {
                        onPickDestination: { flow.picking = true },
                        onRiskMap: { showingRiskMap = true })
             AlertOverlay(model: model)
+            MergeBannerView(model: model)
         }
         .ignoresSafeArea()
     }

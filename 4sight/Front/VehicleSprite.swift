@@ -166,6 +166,19 @@ enum VehicleSprite {
         ctx.stroke(Path(ellipseIn: rect), with: .color(Palette.red.opacity(1 - phase)), lineWidth: 2.5)
     }
 
+    /// The vehicle that answered a merge check with "no". Drawn on the ground around
+    /// it, in the banner's own red, so the rider can see what stopped them rather than
+    /// taking the answer on trust.
+    static func blockedRing(_ ctx: inout GraphicsContext, _ tr: Track) {
+        let p = Camera.pt(tr.x, tr.z)
+        let (w, l) = World.size(tr.cls)
+        let rx = max(p.s * max(w, l) * 0.72, 14)
+        let rect = CGRect(x: p.x - rx, y: p.y - rx * 0.42, width: rx * 2, height: rx * 2 * 0.42)
+        ctx.stroke(Path(ellipseIn: rect), with: .color(MergeBanner.blockedFill), lineWidth: 3.5)
+        ctx.stroke(Path(ellipseIn: rect.insetBy(dx: 3.5, dy: 1.5)),
+                   with: .color(.white.opacity(0.85)), lineWidth: 1.5)
+    }
+
     /// You, as the navigation puck every map app uses: a chevron in a disc with a
     /// white collar, dead centre side to side.
     static func puck(_ ctx: inout GraphicsContext) {
