@@ -52,7 +52,7 @@
       <CommandLineArguments>
          <CommandLineArgument
             argument = "-role rear"
-            isEnabled = "YES">
+            isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
             argument = "-replay /Users/jasper/4sight-data/out/ride-bag3_1.mp4"

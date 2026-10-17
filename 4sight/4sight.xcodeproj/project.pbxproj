@@ -275,6 +275,12 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "App/FourSight-Info.plist";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Connects to the handlebar grip buzzer.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "4sight watches the road behind you with the rear camera.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Streams threat data to the front phone over peer-to-peer Wi-Fi.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Speed and heading tune the warnings and are logged for replay.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Handlebar yaw corrects the passing-gap estimate.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -313,6 +319,12 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "App/FourSight-Info.plist";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Connects to the handlebar grip buzzer.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "4sight watches the road behind you with the rear camera.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Streams threat data to the front phone over peer-to-peer Wi-Fi.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Speed and heading tune the warnings and are logged for replay.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Handlebar yaw corrects the passing-gap estimate.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

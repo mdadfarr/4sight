@@ -29,3 +29,7 @@ ml/out/
 .swarm/
 agentdb.rvf*
 ruvector.db
+
+# Agent worktrees and local Wi-Fi experiments (the latter hold a hotspot password)
+.claude/worktrees/
+scripts/esp32_wifi_*.ino

@@ -43,7 +43,7 @@ Same board setup as Mohammad's web-server guide (data cable, `cu.` port, hold BO
 
 1. **Library Manager → install `NimBLE-Arduino` by h2zero, version 2.x.** Any esp32 board package
    version works (2.x or 3.x); the motor PWM calls are version-guarded.
-2. New sketch named `foursight`, paste all of `src/main.cpp` into `foursight.ino`, board **ESP32 Dev
+2. **File → Open → `firmware/foursight/foursight.ino`** (the repo's own sketch, no copying), board **ESP32 Dev
    Module** (DOIT DEVKIT V1 works), Upload, then Serial Monitor at 115200.
 
 ## How the rear phone talks to the ESP32: Bluetooth LE, not Wi-Fi
