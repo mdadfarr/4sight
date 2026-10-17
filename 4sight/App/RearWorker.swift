@@ -26,8 +26,12 @@ nonisolated struct RearSnapshot: @unchecked Sendable {
     var previewImage: CGImage?
 }
 
+/// Which decision engine runs: metric ThreatEngine (default) or Arshiya's frame-fraction DangerEngine.
+nonisolated enum Engine: String, Sendable { case threat, danger }
+
 /// Sensor values the main actor pushes in; read once per frame.
 nonisolated struct RearInputs: Sendable {
+    var engine: Engine = .threat
     var speed = 0.0
     var heading = -1.0
     var yaw: Double?
@@ -50,6 +54,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
     private let tracker = Tracker()
     private let ttc = TTCEstimator()
     private let engine = ThreatEngine()
+    private let danger = DangerAdapter()
     private let sendHaptic: @Sendable (BLECommand) -> Void
     private let publish: @Sendable (RearSnapshot) -> Void
     private let wantsPreviewImage: Bool
@@ -143,9 +148,15 @@ nonisolated final class RearWorker: @unchecked Sendable {
         }
         lastGap = lastGap.filter { k, _ in tracks.contains { $0.id == k } }
 
-        let decisions = engine.update(tracks: states, bikeSpeed: input.speed, demoMode: input.demo, now: t)
+        let decisions: [Decision], gripDecisions: [Decision]
+        if input.engine == .danger {
+            (decisions, gripDecisions) = danger.update(tracks: tracks, t: t, imageW: w, imageH: h)
+        } else {
+            decisions = engine.update(tracks: states, bikeSpeed: input.speed, demoMode: input.demo, now: t)
+            gripDecisions = decisions
+        }
         let byID = Dictionary(decisions.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        driveHaptics(decisions: decisions, present: Set(tracks.map(\.id)))
+        driveHaptics(decisions: gripDecisions, present: Set(tracks.map(\.id)))
 
         frameTimes.append(t)
         frameTimes.removeAll { t - $0 > 1 }

@@ -10,6 +10,8 @@ struct RearView: View {
     @State private var bench = false
     @State private var showPicker = false
     @State private var savedBrightness: CGFloat = 1
+    /// "threat" | "danger"; `-engine danger` at launch overrides the stored value while present.
+    @AppStorage("engine") private var engineName = Engine.threat.rawValue
 
     var body: some View {
         VStack(spacing: 12) {
@@ -39,8 +41,10 @@ struct RearView: View {
             UIApplication.shared.isIdleTimerDisabled = true
             savedBrightness = screen?.brightness ?? 1
             screen?.brightness = 0.2
+            pipeline.engine = Engine(rawValue: engineName) ?? .threat
             pipeline.start()
         }
+        .onChange(of: engineName) { _, new in pipeline.engine = Engine(rawValue: new) ?? .threat }
         .onDisappear {
             pipeline.stop()
             UIApplication.shared.isIdleTimerDisabled = false
@@ -86,6 +90,11 @@ struct RearView: View {
             Toggle("Demo mode (bikes and people are threats)", isOn: $pipeline.demoMode)
             Toggle("Bench (10 s average)", isOn: $bench)
             Toggle("Log ride (video + GPS to Documents)", isOn: $pipeline.logging)
+            Picker("Engine", selection: $engineName) {
+                Text("Threat (metric gap)").tag(Engine.threat.rawValue)
+                Text("Danger (frame TTC)").tag(Engine.danger.rawValue)
+            }
+            .pickerStyle(.segmented)
             HStack {
                 Button("Replay file…") { showPicker = true }
                 if pipeline.replayURL != nil { Button("Camera") { pipeline.setReplay(nil) } }

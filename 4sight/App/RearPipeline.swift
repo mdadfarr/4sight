@@ -23,6 +23,7 @@ import os
     @Published private(set) var error: String?
     @Published var demoMode = false { didSet { syncInputs() } }
     @Published var logging = false { didSet { syncInputs() } }
+    @Published var engine: Engine = .threat { didSet { syncInputs() } }
     /// Frame-fraction rectangles hiding the bike's own parts; `-exclude x1,y1,x2,y2[;...]` at launch.
     @Published var exclusionZones: [DetectionFilter.Zone] = [] { didSet { syncInputs() } }
     @Published private(set) var replayURL: URL?
@@ -109,10 +110,10 @@ import os
 
     /// Copies the main-actor sensor/toggle values into the worker (yaw arrives separately).
     private func syncInputs() {
-        let (demo, log, temp, spd, hdg, zones) = (demoMode, logging, thermal, speed, heading, exclusionZones)
+        let (demo, log, temp, spd, hdg, zones, eng) = (demoMode, logging, thermal, speed, heading, exclusionZones, engine)
         worker?.inputs.withLock {
             $0.demo = demo; $0.logging = log; $0.thermal = temp; $0.speed = spd; $0.heading = hdg
-            $0.exclusionZones = zones
+            $0.exclusionZones = zones; $0.engine = eng
         }
     }
 
