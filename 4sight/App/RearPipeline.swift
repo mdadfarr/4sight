@@ -29,7 +29,7 @@ import os
     @Published var exclusionZones: [DetectionFilter.Zone] = [] { didSet { syncInputs() } }
     @Published private(set) var replayURL: URL?
 
-    let haptics = HapticsLink()
+    let haptics = WiFiHapticsLink()
     var captureSession: AVCaptureSession? { (worker?.source as? CameraSource)?.session }
     var trackCount: Int { overlay.count }
 
