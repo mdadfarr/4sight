@@ -94,7 +94,7 @@ struct FrontRootView: View {
     private func exitRide() {
         router.stop()
         model.nav = nil
-        model.route.coordinates = []
+        model.route = LiveRoute()
         if model.scripted { model.start(feed: PeerFeed()) }
         flow.phase = .home
     }
@@ -115,6 +115,7 @@ struct FrontRootView: View {
     private func start(_ plan: RoutePlan) {
         rideStarted = Date()
         model.beginRide()
+        model.route = LiveRoute()                         // no trail left from the last ride
         model.route.coordinates = plan.coordinates
         router.start(plan)
         flow.phase = .riding

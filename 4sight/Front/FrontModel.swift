@@ -120,7 +120,7 @@ final class FrontModel: ObservableObject {
         var next: [Int: Motion] = [:]
         var kept: [Int: CGPoint] = [:]
         for tr in f.tracks {
-            let raw = CGPoint(x: tr.x, y: tr.z)
+            let raw = CGPoint(x: centreX(tr.x, tr.cls.rawValue), y: tr.z)
             let target = smoothed[tr.id].map {
                 CGPoint(x: $0.x + (raw.x - $0.x) * a, y: $0.y + (raw.y - $0.y) * a)
             } ?? raw
@@ -140,6 +140,15 @@ final class FrontModel: ObservableObject {
 
     /// Visible tracks with their positions slid over the 0.1 s between frames, so
     /// traffic moves smoothly at 30 Hz on a 10 Hz feed.
+    /// The rear sends a vehicle's near side, the passing gap, not its centre. Drawn
+    /// centred on that, every vehicle sat half its width too close to the bike. The
+    /// scripted cues were written as centres, so the demo is left as it was.
+    private func centreX(_ x: Double, _ cls: String) -> Double {
+        guard !scripted, x != 0 else { return x }
+        let half = World.size(cls).w / 2
+        return x < 0 ? x - half : x + half
+    }
+
     func tracks(at t: Double) -> [VehicleSprite.Track] {
         // A frozen clock never advances a fade, so screenshots draw everything solid.
         func fadeIn(_ id: Int) -> Double {
@@ -147,7 +156,7 @@ final class FrontModel: ObservableObject {
             return min(max((t - b) / Self.fade, 0), 1)
         }
         let live = SurroundView.visibleTracks(frame).map { tr -> VehicleSprite.Track in
-            let p = motions[tr.id].map { position(of: $0, at: t) } ?? CGPoint(x: tr.x, y: tr.z)
+            let p = motions[tr.id].map { position(of: $0, at: t) } ?? CGPoint(x: centreX(tr.x, tr.cls), y: tr.z)
             return VehicleSprite.Track(id: tr.id, cls: tr.cls, x: p.x, z: p.y,
                                        level: tr.level, turnR: tr.turnR, opacity: fadeIn(tr.id))
         }

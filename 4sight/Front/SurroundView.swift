@@ -32,7 +32,13 @@ struct SurroundView: View {
             RouteRibbon.draw(&ctx, t)
             SceneRenderer.parked(&ctx, t)
         } else {
-            SceneRenderer.road(&ctx, travelled: model.travelled)
+            // The straight road stays the fallback, unchanged, wherever there is no
+            // trail to trust: indoors, no fix, or the first 10 m.
+            if let line = CurvedRoad.centerline(model.route, at: t) {
+                CurvedRoad.draw(&ctx, line, travelled: model.travelled)
+            } else {
+                SceneRenderer.road(&ctx, travelled: model.travelled)
+            }
             RouteRibbon.draw(&ctx, line: model.route.line(at: t))
         }
         let blocker = MergeBanner.current(model.frame, link: model.link)?.blockedBy
