@@ -11,6 +11,7 @@ struct NavHUDView: View {
     @ObservedObject var model: FrontModel
     var onPickDestination: () -> Void = {}
     var onRiskMap: () -> Void = {}
+    var onExit: () -> Void = {}
 
     var body: some View {
         GeometryReader { geo in
@@ -97,16 +98,19 @@ struct NavHUDView: View {
 
     private var arrivalBar: some View {
         HStack(alignment: .top, spacing: 0) {
-            stat(arrivalText, "arrival").frame(width: 140, alignment: .leading)
-            stat(minutesText, "min").frame(width: 64, alignment: .leading)
-            stat(kmText, "km").frame(width: 90, alignment: .leading)
+            stat(arrivalText, "arrival").frame(width: 122, alignment: .leading)
+            stat(minutesText, "min").frame(width: 54, alignment: .leading)
+            stat(kmText, "km").frame(width: 66, alignment: .leading)
             Spacer(minLength: 0)
-            Image(systemName: "chevron.up")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Palette.barDim)
-                .frame(width: 38, height: 38)
-                .background(Color(hex: 0xE7E9ED), in: Circle())
-                .padding(.top, 8)
+            // Where the dead chevron was. Big and red like Google Maps' Exit, because it
+            // is pressed with a gloved thumb on a moving bike.
+            Button(action: onExit) {
+                Text("Exit")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(width: 88, height: 54)
+                    .background(Color(hex: 0xE0342B), in: Capsule())
+            }
         }
         .padding(.horizontal, 24).padding(.top, 26)
         .frame(width: Design.width, height: 120, alignment: .topLeading)

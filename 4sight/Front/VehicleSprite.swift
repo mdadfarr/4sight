@@ -14,6 +14,8 @@ enum VehicleSprite {
         let x, z: Double
         let level: Int
         let turnR: Bool
+        /// Display only: fades a track in when it appears and out when it goes.
+        var opacity = 1.0
     }
 
     static func draw(_ ctx: inout GraphicsContext, _ tr: Track, _ t: Double) {

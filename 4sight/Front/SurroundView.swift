@@ -37,8 +37,10 @@ struct SurroundView: View {
         }
         let blocker = MergeBanner.current(model.frame, link: model.link)?.blockedBy
         for track in model.tracks(at: t) {
-            if track.id == blocker { VehicleSprite.blockedRing(&ctx, track) }
-            VehicleSprite.draw(&ctx, track, t)
+            var c = ctx
+            c.opacity = track.opacity
+            if track.id == blocker { VehicleSprite.blockedRing(&c, track) }
+            VehicleSprite.draw(&c, track, t)
         }
         VehicleSprite.puck(&ctx)
         SceneRenderer.haze(&ctx)

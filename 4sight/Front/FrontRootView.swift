@@ -51,7 +51,8 @@ struct FrontRootView: View {
             SurroundView(model: model)
             NavHUDView(model: model,
                        onPickDestination: { flow.picking = true },
-                       onRiskMap: { showingRiskMap = true })
+                       onRiskMap: { showingRiskMap = true },
+                       onExit: exitRide)
             AlertOverlay(model: model)
             MergeBannerView(model: model)
         }
@@ -86,6 +87,16 @@ struct FrontRootView: View {
         model.beginRide()
         model.start(feed: SyntheticFeed(freeze: nil, demo: true))
         flow.phase = .riding
+    }
+
+    /// Ends the ride and goes home. Leaving the scripted ride also puts the real link
+    /// back, so the home screen's pair strip is not reporting a script as a rear phone.
+    private func exitRide() {
+        router.stop()
+        model.nav = nil
+        model.route.coordinates = []
+        if model.scripted { model.start(feed: PeerFeed()) }
+        flow.phase = .home
     }
 
     private func preview(_ item: MKMapItem) {
