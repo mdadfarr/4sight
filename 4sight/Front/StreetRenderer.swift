@@ -14,7 +14,7 @@ enum StreetRenderer {
     static let radius = 320.0
 
     static func draw(_ ctx: inout GraphicsContext, map: StreetMap?, rider: CLLocationCoordinate2D?,
-                     heading h: Double, route: [CLLocationCoordinate2D]) {
+                     heading h: Double, route: [CLLocationCoordinate2D], plan: LanePlan? = nil) {
         ctx.fill(Path(CGRect(x: 0, y: 0, width: Design.width, height: Design.height)),
                  with: .color(Palette.liveGround))
         guard let rider else { return }
@@ -79,41 +79,113 @@ enum StreetRenderer {
                 ctx.stroke(roof, with: .color(Palette.blockBack), lineWidth: 0.5)
             }
         }
-        drawRoute(&ctx, route, rider: rider, heading: h)
+        drawRoute(&ctx, route, plan: plan, rider: rider, heading: h)
     }
 
     // MARK: - Route
 
-    /// The route the rider chose, Google-Maps style: a blue line with a dark edge, the
-    /// mock's widths, so it marks a lane rather than covering the road.
-    private static func drawRoute(_ ctx: inout GraphicsContext, _ route: [CLLocationCoordinate2D],
+    /// A route point in the rider frame; `c` marks a planned lane change.
+    typealias RoutePoint = (x: Double, z: Double, c: Bool)
+
+    /// The route, Google-Maps style: a blue line with a dark edge at the mock's widths,
+    /// on the lane the plan picked, smoothed, white with arrows where it moves across.
+    private static func drawRoute(_ ctx: inout GraphicsContext, _ route: [CLLocationCoordinate2D], plan: LanePlan?,
                                   rider: CLLocationCoordinate2D, heading h: Double) {
-        guard route.count > 1 else { return }
         let k = cos(rider.latitude * .pi / 180)
-        let line = route.map {
-            StreetMap.riderFrame(((($0.longitude - rider.longitude) * 111_320 * k), ($0.latitude - rider.latitude) * 111_320),
+        func frame(_ lat: Double, _ lon: Double) -> (Double, Double) {
+            StreetMap.riderFrame(((lon - rider.longitude) * 111_320 * k, (lat - rider.latitude) * 111_320),
                                  from: (0, 0), heading: h)
         }
-        for run in clip(fromRider(line)) {
-            ctx.fill(RouteRibbon.path(run, width: 2.1), with: .color(Palette.routeCase))
-            ctx.fill(RouteRibbon.path(run, width: 1.5), with: .color(Palette.routeCore))
+        var line: [RoutePoint]
+        if let plan, let map = StreetMap.bundled {
+            let r = map.local(rider)
+            line = plan.samples.map {
+                let (x, z) = StreetMap.riderFrame(($0.e, $0.n), from: r, heading: h)
+                return (x, z, $0.changing)
+            }
+        } else {
+            line = route.map { let (x, z) = frame($0.latitude, $0.longitude); return (x, z, false) }
+        }
+        guard line.count > 1 else { return }
+        line = smooth(fromRider(line))
+        // Split into runs at each change of kind, sharing the boundary point.
+        var runs: [(c: Bool, pts: [(Double, Double)])] = []
+        for (i, p) in line.enumerated() {
+            if i > 0, let last = runs.last, last.c == line[i - 1].c {
+                runs[runs.count - 1].pts.append((p.x, p.z))
+                if p.c != last.c { runs.append((p.c, [(p.x, p.z)])) }
+            } else {
+                runs.append((p.c, [(p.x, p.z)]))
+            }
+        }
+        for run in runs where run.pts.count > 1 {
+            for piece in clip(run.pts) {
+                ctx.fill(RouteRibbon.path(piece, width: 2.1), with: .color(Palette.routeCase))
+                ctx.fill(RouteRibbon.path(piece, width: 1.5), with: .color(run.c ? Palette.lane : Palette.routeCore))
+                if run.c { ctx.fill(chevrons(piece), with: .color(Palette.routeCore)) }
+            }
         }
     }
 
     /// The route from where the rider is: everything before the nearest point dropped,
     /// and a lead-in from under the puck that joins the route 8 m on, so a few metres of
-    /// GPS error reads as a gentle merge instead of a line ending beside the arrow.
-    static func fromRider(_ line: [(Double, Double)]) -> [(Double, Double)] {
-        var best = (d: Double.infinity, i: 1, q: (0.0, 0.0))
+    /// GPS error reads as a gentle merge instead of a line ending beside the arrow. A
+    /// lead-in that crosses more than 1.5 m sideways is itself a move (onto the road,
+    /// into the lane) and is drawn as one.
+    static func fromRider(_ line: [RoutePoint]) -> [RoutePoint] {
+        var best = (d: Double.infinity, i: 1, q: (x: 0.0, z: 0.0))
         for i in 1..<line.count {
-            let a = line[i - 1], b = line[i], dx = b.0 - a.0, dz = b.1 - a.1, l2 = dx * dx + dz * dz
-            let t = l2 > 0 ? min(max(-(a.0 * dx + a.1 * dz) / l2, 0), 1) : 0
-            let q = (a.0 + dx * t, a.1 + dz * t), d = hypot(q.0, q.1)
+            let a = line[i - 1], b = line[i], dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz
+            let t = l2 > 0 ? min(max(-(a.x * dx + a.z * dz) / l2, 0), 1) : 0
+            let q = (x: a.x + dx * t, z: a.z + dz * t), d = hypot(q.x, q.z)
             if d < best.d { best = (d, i, q) }
         }
         guard best.d < 30 else { return line }          // off route: draw it where it is
-        let rest = [best.q] + line[best.i...]
-        return [(0, 0)] + (cutFront(rest, by: 8) ?? rest)
+        var rest = [(best.q.x, best.q.z, line[best.i - 1].c)] + line[best.i...]
+        var left = 8.0
+        while rest.count > 2 {
+            let len = hypot(rest[1].x - rest[0].x, rest[1].z - rest[0].z)
+            if len > left { break }
+            left -= len; rest.removeFirst()
+        }
+        return [(0, 0, best.d > 1.5)] + rest
+    }
+
+    /// Chaikin corner cutting, three rounds: every corner becomes a smooth curve. A new
+    /// point keeps the lane-change mark of the segment it was cut from; ends stay put.
+    static func smooth(_ line: [RoutePoint]) -> [RoutePoint] {
+        var p = line
+        for _ in 0..<3 where p.count > 2 {
+            var out = [p[0]]
+            for i in 0..<(p.count - 1) {
+                let a = p[i], b = p[i + 1]
+                out.append((a.x * 0.75 + b.x * 0.25, a.z * 0.75 + b.z * 0.25, a.c))
+                out.append((a.x * 0.25 + b.x * 0.75, a.z * 0.25 + b.z * 0.75, a.c))
+            }
+            out.append(p[p.count - 1])
+            p = out
+        }
+        return p
+    }
+
+    /// Small arrowheads every 5 m pointing along the line, as Google draws a lane change.
+    private static func chevrons(_ line: [(Double, Double)]) -> Path {
+        var path = Path(), next = 2.0, s = 0.0
+        for i in 1..<line.count {
+            let a = line[i - 1], b = line[i], len = hypot(b.0 - a.0, b.1 - a.1)
+            guard len > 0 else { continue }
+            let ux = (b.0 - a.0) / len, uz = (b.1 - a.1) / len
+            while next <= s + len {
+                let f = next - s, cx = a.0 + ux * f, cz = a.1 + uz * f
+                let tip = Camera.pt(cx + ux * 0.5, cz + uz * 0.5)
+                let l = Camera.pt(cx - ux * 0.3 - uz * 0.5, cz - uz * 0.3 + ux * 0.5)
+                let r = Camera.pt(cx - ux * 0.3 + uz * 0.5, cz - uz * 0.3 - ux * 0.5)
+                path.move(to: tip.cg); path.addLine(to: l.cg); path.addLine(to: r.cg); path.closeSubpath()
+                next += 5
+            }
+            s += len
+        }
+        return path
     }
 
     // MARK: - Markings

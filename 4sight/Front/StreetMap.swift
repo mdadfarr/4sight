@@ -59,6 +59,12 @@ struct StreetMap {
          (c.latitude - origin.latitude) * 111_320)
     }
 
+    /// Map metres back to a coordinate; inverse of `local`.
+    func coordinate(_ p: (e: Double, n: Double)) -> CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: origin.latitude + p.n / 111_320,
+                               longitude: origin.longitude + p.e / (111_320 * cos(origin.latitude * .pi / 180)))
+    }
+
     /// Ways whose bounding box comes within `radius` metres of `p`.
     func near(_ p: (e: Double, n: Double), radius r: Double) -> [Way] {
         ways.filter { $0.lo.e - r < p.e && $0.hi.e + r > p.e && $0.lo.n - r < p.n && $0.hi.n + r > p.n }

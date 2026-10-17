@@ -64,12 +64,13 @@ struct MergeBannerView: View {
                     .font(.system(size: 38, weight: .semibold))
                     .frame(width: 48)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(merge.clear ? "Clear" : "Blocked")
+                    Text(merge.clear ? "Clear" : "Danger")
                         .font(.system(size: 36, weight: .bold, design: .rounded))
-                    Text(merge.clear ? "Safe to merge \(left ? "left" : "right")"
-                                     : "Vehicle on your \(left ? "left" : "right")")
-                        .font(.system(size: 19, weight: .medium, design: .rounded))
-                        .opacity(0.9)
+                    if merge.clear {
+                        Text("Safe to merge \(left ? "left" : "right")")
+                            .font(.system(size: 19, weight: .medium, design: .rounded))
+                            .opacity(0.9)
+                    }
                 }
             }
             .foregroundStyle(.white)

@@ -41,7 +41,16 @@ final class FrontModel: ObservableObject {
     private(set) var scripted = false
 
     /// Live mode only: the real route and which way the rider faces.
-    var route = LiveRoute()
+    var route = LiveRoute() {
+        didSet {
+            let c = route.coordinates
+            guard c.count != oldValue.coordinates.count || c.first?.latitude != oldValue.coordinates.first?.latitude
+                    || c.last?.latitude != oldValue.coordinates.last?.latitude else { return }
+            lanePlan = StreetMap.bundled.flatMap { LanePlan(route: c, map: $0) }
+        }
+    }
+    /// Which part of the street to ride along the route; rebuilt when the route changes.
+    private(set) var lanePlan: LanePlan?
 
     func pose(_ loc: CLLocation, heading: Double?) {
         route.update(loc, heading: heading, at: now())

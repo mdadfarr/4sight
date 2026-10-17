@@ -33,7 +33,8 @@ struct SurroundView: View {
             SceneRenderer.parked(&ctx, t)
         } else {
             StreetRenderer.draw(&ctx, map: StreetMap.bundled, rider: model.route.riderCoordinate(at: date),
-                                heading: model.route.heading(at: t), route: model.route.coordinates)
+                                heading: model.route.heading(at: t), route: model.route.coordinates,
+                                plan: model.lanePlan)
         }
         let blocker = MergeBanner.current(model.frame, link: model.link)?.blockedBy
         for track in model.tracks(at: t) {

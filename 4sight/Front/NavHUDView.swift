@@ -44,14 +44,24 @@ struct NavHUDView: View {
 
             Rectangle().fill(Palette.hair)
                 .frame(width: Design.width - 40, height: 1).at(20, 160, anchor: .topLeading)
-            Text("Then").font(.system(size: 15, design: .rounded))
-                .fixedSize().foregroundStyle(Palette.textDim).at(22, 182, anchor: .bottomLeading)
-            Image(systemName: thenSymbol)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Palette.text).at(72, 176)
-                .opacity(hasRoute ? 1 : 0)
-            Text(thenText).font(.system(size: 15, weight: .medium, design: .rounded))
-                .fixedSize().foregroundStyle(Palette.text).at(90, 182, anchor: .bottomLeading)
+            // A planned lane move outranks "Then": it is what to do in the next 150 m.
+            if let cue = laneCue {
+                Image(systemName: cue.symbol)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(Palette.amber).at(32, 176)
+                Text("\(cue.text) · \(Self.metres(max(cue.metres, 5)))")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .fixedSize().foregroundStyle(Palette.text).at(50, 182, anchor: .bottomLeading)
+            } else {
+                Text("Then").font(.system(size: 15, design: .rounded))
+                    .fixedSize().foregroundStyle(Palette.textDim).at(22, 182, anchor: .bottomLeading)
+                Image(systemName: thenSymbol)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Palette.text).at(72, 176)
+                    .opacity(hasRoute ? 1 : 0)
+                Text(thenText).font(.system(size: 15, weight: .medium, design: .rounded))
+                    .fixedSize().foregroundStyle(Palette.text).at(90, 182, anchor: .bottomLeading)
+            }
 
             speedBadge.at(16, Design.bannerH + 14, anchor: .topLeading)
 
@@ -139,6 +149,10 @@ struct NavHUDView: View {
         guard let nav = model.nav, nav.currentIndex + ahead < nav.steps.count else { return nil }
         return nav.steps[nav.currentIndex + ahead]
     }
+    private var laneCue: (text: String, symbol: String, metres: Double)? {
+        guard let rider = model.route.riderCoordinate(at: Date()) else { return nil }
+        return model.lanePlan?.cue(at: rider)
+    }
     private var turnSymbol: String {
         if model.nav != nil { return step(1)?.symbol ?? "flag.checkered" }
         return "arrow.turn.up.left"
@@ -163,7 +177,9 @@ struct NavHUDView: View {
     private var hasRoute: Bool { model.nav != nil || model.scripted }
 
     private var speedText: String {
-        guard let speed = model.frame?.speed ?? (hasRoute ? World.speed : nil) else { return "–" }
+        // This phone's own GPS first; the rear phone's reading, then the script's, after.
+        let own = model.route.rider.flatMap { $0.speed >= 0 ? $0.speed : nil }
+        guard let speed = own ?? model.frame?.speed ?? (hasRoute ? World.speed : nil) else { return "–" }
         return "\(Int((speed * 3.6).rounded()))"
     }
     private var arrivalText: String {

@@ -94,7 +94,8 @@ struct FrontRootView: View {
         let ride = PreviewRide()
         ride.onFix = { loc, course, ahead, nav in
             model.pose(loc, heading: course)
-            model.route.coordinates = ahead
+            // Only when the segment changes, as a real route is set once, not every fix.
+            if model.route.coordinates.first?.latitude != ahead.first?.latitude { model.route.coordinates = ahead }
             model.nav = nav
         }
         model.beginRide()
