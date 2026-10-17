@@ -2,9 +2,11 @@
 import Foundation
 import Network
 import Protocol
+import os
 
 public enum PeerLink {
     public static let serviceType = "_foursight._tcp"
+    static let log = Logger(subsystem: "com.zupersun.foursight", category: "peer")
 
     static var parameters: NWParameters {
         let p = NWParameters.tcp
@@ -35,7 +37,10 @@ public enum PeerLink {
             guard let data = try? msg.encodeLine() else { return }
             queue.async {
                 guard let c = self.connection, self.state == .connected else { return }
-                c.send(content: data, completion: .contentProcessed { _ in })
+                c.send(content: data, completion: .contentProcessed { err in
+                    if let err { PeerLink.log.error("rear send failed: \(err.localizedDescription)") }
+                    else { PeerLink.log.debug("rear sent frame t=\(msg.t) tracks=\(msg.tracks.count)") }
+                })
             }
         }
 
@@ -44,10 +49,13 @@ public enum PeerLink {
             let b = NWBrowser(for: .bonjour(type: PeerLink.serviceType, domain: nil), using: PeerLink.parameters)
             browser = b
             b.browseResultsChangedHandler = { [weak self] results, _ in
-                guard let self, self.connection == nil, let first = results.first else { return }
+                guard let self else { return }
+                PeerLink.log.info("rear browser results=\(results.count)")
+                guard self.connection == nil, let first = results.first else { return }
                 self.connect(to: first.endpoint)
             }
             b.stateUpdateHandler = { [weak self] st in
+                PeerLink.log.info("rear browser state=\(String(describing: st))")
                 if case .failed = st { self?.queue.asyncAfter(deadline: .now() + 1) { self?.browse() } }
             }
             b.start(queue: queue)
@@ -59,6 +67,7 @@ public enum PeerLink {
             connection = c
             c.stateUpdateHandler = { [weak self] st in
                 guard let self else { return }
+                PeerLink.log.info("rear connection to \(String(describing: endpoint)) state=\(String(describing: st))")
                 switch st {
                 case .ready: self.state = .connected
                 case .failed, .cancelled:
@@ -93,6 +102,7 @@ public enum PeerLink {
             l.service = NWListener.Service(name: "4sight", type: PeerLink.serviceType)
             l.newConnectionHandler = { [weak self] c in
                 guard let self else { return }
+                PeerLink.log.info("front accepted connection from \(String(describing: c.endpoint))")
                 // Only one rear phone; a newcomer replaces a stale connection.
                 self.connection?.cancel()
                 self.connection = c
@@ -100,6 +110,7 @@ public enum PeerLink {
                 c.start(queue: self.queue)
                 self.receive(on: c)
             }
+            l.stateUpdateHandler = { st in PeerLink.log.info("front listener state=\(String(describing: st))") }
             listener = l
             l.start(queue: queue)
         }
@@ -122,7 +133,10 @@ public enum PeerLink {
             while let nl = buffer.firstIndex(of: 0x0A) {
                 let line = buffer[buffer.startIndex..<nl]
                 buffer.removeSubrange(buffer.startIndex...nl)
-                if let msg = try? FrameMessage.decode(line: Data(line)) { continuation?.yield(msg) }
+                if let msg = try? FrameMessage.decode(line: Data(line)) {
+                    PeerLink.log.debug("front decoded frame t=\(msg.t) tracks=\(msg.tracks.count)")
+                    continuation?.yield(msg)
+                } else { PeerLink.log.error("front undecodable line (\(line.count) bytes)") }
             }
         }
     }
