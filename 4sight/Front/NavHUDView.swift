@@ -33,34 +33,31 @@ struct NavHUDView: View {
             // The mock paints a status bar because a canvas has none; the real one
             // already sits over this banner, so drawing a second would double it.
 
-            Image(systemName: turnSymbol)
-                .font(.system(size: 34, weight: .semibold))
-                .foregroundStyle(Palette.text).at(46, 104)
+            // Read at a glance from a moving bike: one big arrow for what to do now,
+            // one big number, one short line. The arrow only turns near the turn.
+            Image(systemName: bannerSymbol)
+                .font(.system(size: 54, weight: .semibold))
+                .foregroundStyle(Palette.text).frame(width: 64).at(52, 106)
                 .opacity(hasRoute ? 1 : 0)
-            Text(distanceText).font(.system(size: 36, weight: .bold, design: .rounded))
-                .fixedSize().foregroundStyle(Palette.text).at(84, 116, anchor: .bottomLeading)
-            Text(streetText).font(.system(size: 21, weight: .medium, design: .rounded))
-                .fixedSize().foregroundStyle(Palette.text).at(84, 144, anchor: .bottomLeading)
+            Text(bannerTitle).font(.system(size: 42, weight: .bold, design: .rounded).monospacedDigit())
+                .fixedSize().foregroundStyle(Palette.text).at(100, 116, anchor: .bottomLeading)
+            Text(bannerLine).font(.system(size: 20, weight: .medium, design: .rounded))
+                .lineLimit(1).frame(maxWidth: Design.width - 116, alignment: .leading)
+                .foregroundStyle(Palette.text.opacity(0.8)).at(100, 144, anchor: .bottomLeading)
 
-            Rectangle().fill(Palette.hair)
-                .frame(width: Design.width - 40, height: 1).at(20, 160, anchor: .topLeading)
-            // A planned lane move outranks "Then": it is what to do in the next 150 m.
+            // A planned lane move: quiet, in the banner's own white-on-black, because
+            // amber and red already mean warnings on this screen.
             if let cue = laneCue {
-                Image(systemName: cue.symbol)
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Palette.amber).at(32, 176)
-                Text("\(cue.text) · \(Self.metres(max(cue.metres, 5)))")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .fixedSize().foregroundStyle(Palette.text).at(50, 182, anchor: .bottomLeading)
-            } else {
-                Text("Then").font(.system(size: 15, design: .rounded))
-                    .fixedSize().foregroundStyle(Palette.textDim).at(22, 182, anchor: .bottomLeading)
-                Image(systemName: thenSymbol)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Palette.text).at(72, 176)
-                    .opacity(hasRoute ? 1 : 0)
-                Text(thenText).font(.system(size: 15, weight: .medium, design: .rounded))
-                    .fixedSize().foregroundStyle(Palette.text).at(90, 182, anchor: .bottomLeading)
+                HStack(spacing: 7) {
+                    Image(systemName: cue.symbol).font(.system(size: 13, weight: .bold))
+                    Text("\(cue.text) · \(Self.metres(max(cue.metres, 5)))")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                }
+                .foregroundStyle(Palette.text)
+                .padding(.horizontal, 12).frame(height: 28)
+                .background(Palette.hair, in: Capsule())
+                .fixedSize()
+                .at(20, 154, anchor: .topLeading)
             }
 
             speedBadge.at(16, Design.bannerH + 14, anchor: .topLeading)
@@ -139,12 +136,11 @@ struct NavHUDView: View {
         return "\(max(5, Int((World.turnStreet.ahead - travelled) / 5).magnitude * 5)) m"
     }
 
-    private var distanceText: String {
-        if let nav = model.nav { return Self.metres(nav.distanceToManoeuvre) }
-        return model.scripted ? scriptedDistance : ""
-    }
+    /// Within this of the turn the banner switches from "continue" to the turn itself.
+    static let turnNear = 150.0
+
     /// MKRoute steps start with their manoeuvre, so the turn at the end of the current
-    /// step is the next step's: "↱ 228 m, Ellesmere Road", like Google Maps.
+    /// step is the next step's.
     private func step(_ ahead: Int) -> NavStep? {
         guard let nav = model.nav, nav.currentIndex + ahead < nav.steps.count else { return nil }
         return nav.steps[nav.currentIndex + ahead]
@@ -153,24 +149,29 @@ struct NavHUDView: View {
         guard let rider = model.route.riderCoordinate(at: Date()) else { return nil }
         return model.lanePlan?.cue(at: rider)
     }
-    private var turnSymbol: String {
-        if model.nav != nil { return step(1)?.symbol ?? "flag.checkered" }
-        return "arrow.turn.up.left"
+    private var nearTurn: Bool { (model.nav?.distanceToManoeuvre ?? 0) <= Self.turnNear }
+
+    private var bannerSymbol: String {
+        guard model.nav != nil else { return "arrow.turn.up.left" }      // the script's turn
+        guard nearTurn else { return "arrow.up" }
+        return step(1)?.symbol ?? "flag.checkered"
     }
-    private var thenSymbol: String {
-        if model.nav != nil { return step(2)?.symbol ?? "flag.checkered" }
-        return "arrow.turn.up.right"
-    }
-    private var streetText: String {
-        if let nav = model.nav { return step(1)?.street ?? nav.current.street }
-        return model.scripted ? World.turnStreet.name : "No destination"
-    }
-    private var thenText: String {
-        guard model.nav != nil else {
-            return model.scripted ? "900 m · Bloor St W" : "Set one from the route button"
+    private var bannerTitle: String {
+        if let nav = model.nav {
+            let m = Self.metres(nav.distanceToManoeuvre)
+            return nearTurn ? "In \(m)" : m
         }
-        guard let then = step(2) else { return step(1) == nil ? "Arrive" : "Then arrive" }
-        return "\(Self.metres(step(1)?.distance ?? 0)) · \(then.street)"
+        return model.scripted ? "In \(scriptedDistance)" : ""
+    }
+    private var bannerLine: String {
+        guard model.nav != nil else {
+            return model.scripted ? "Turn onto \(World.turnStreet.name)" : "No destination"
+        }
+        guard nearTurn else { return "Continue straight" }
+        guard let next = step(1) else { return "Arrive at destination" }
+        if next.symbol.contains("uturn") { return "Make a U-turn" }
+        if next.symbol == "flag.checkered" { return "Arrive at \(next.street)" }
+        return "Turn onto \(next.street)"
     }
     /// A route or the script means there is a speed to show; a live feed with no frame
     /// yet does not, and a standing-still readout of 13 km/h would be a lie.
