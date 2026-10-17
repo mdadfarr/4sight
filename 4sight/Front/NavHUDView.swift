@@ -93,9 +93,6 @@ struct NavHUDView: View {
         .background(Palette.bar)
         .clipShape(UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24))
         .shadow(color: Color(hex: 0x0C121A).opacity(0.12), radius: 12, y: -2)
-        .overlay(alignment: .top) {
-            Capsule().fill(Palette.hairDark).frame(width: 36, height: 4).padding(.top, 7)
-        }
     }
 
     /// Google Maps' bottom card, pared down: time left is the one number that matters

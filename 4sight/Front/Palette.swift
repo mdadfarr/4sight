@@ -23,7 +23,6 @@ enum Palette {
     static let sidewalkEdge = Color(hex: 0xC9D0D8)
     /// Time-to-arrive, the Google Maps green that stays legible on white.
     static let eta = Color(hex: 0x188038)
-    static let hairDark = Color(hex: 0x13161A).opacity(0.12)
     static let parkBay = Color(hex: 0xD9DEE4)
     static let cone = Color.white.opacity(0.5)
     static let body = Color(hex: 0xC3C9D1)
