@@ -10,8 +10,13 @@ public final class HapticsLink: NSObject, ObservableObject, CBCentralManagerDele
 
     @Published public private(set) var state: State = .off
 
+    /// Called on the CoreBluetooth queue when the rider presses a handlebar button.
+    /// The rear pipeline answers; nothing here decides anything.
+    public var onEvent: ((BLEEvent) -> Void)?
+
     private let serviceUUID = CBUUID(string: BLEIDs.service)
     private let commandUUID = CBUUID(string: BLEIDs.command)
+    private let eventUUID = CBUUID(string: BLEIDs.event)
     private var central: CBCentralManager!
     private var peripheral: CBPeripheral?
     private var characteristic: CBCharacteristic?
@@ -62,11 +67,21 @@ public final class HapticsLink: NSObject, ObservableObject, CBCentralManagerDele
 
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard let s = peripheral.services?.first(where: { $0.uuid == serviceUUID }) else { return }
-        peripheral.discoverCharacteristics([commandUUID], for: s)
+        peripheral.discoverCharacteristics([commandUUID, eventUUID], for: s)
+    }
+
+    public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic,
+                           error: Error?) {
+        guard characteristic.uuid == eventUUID, let data = characteristic.value,
+              let event = BLEEvent.parse(data) else { return }
+        onEvent?(event)
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService,
                            error: Error?) {
+        if let e = service.characteristics?.first(where: { $0.uuid == eventUUID }) {
+            peripheral.setNotifyValue(true, for: e)   // button presses arrive here
+        }
         guard let c = service.characteristics?.first(where: { $0.uuid == commandUUID }) else { return }
         characteristic = c
         state = .connected
