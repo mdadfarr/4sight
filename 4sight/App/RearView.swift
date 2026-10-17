@@ -12,41 +12,19 @@ struct RearView: View {
     @State private var bench = false
     @State private var showPicker = false
     @State private var diagnostics = false
+    @State private var showDiagnostics = false
     @State private var savedBrightness: CGFloat = 1
     /// Dimming is explained before it happens, never sprung on the rider: the card says
     /// what it does, and a tap on the dimmed screen brightens it for a while.
     @AppStorage("rearDim") private var dimWhenMounted = true
-    @State private var mountCard = true
+    // `-skipMountCard YES` for simulator screenshots of the page behind it.
+    @State private var mountCard = !UserDefaults.standard.bool(forKey: "skipMountCard")
     @State private var awakeUntil = Date.distantPast
     static let wakeSeconds = 15.0
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                chips
-                RearPreview(session: nil, image: pipeline.previewImage, tracks: pipeline.overlay)
-                    .aspectRatio(aspect, contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: 520)
-                    .background(Theme.ground)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .overlay(alignment: .topLeading) {
-                        if pipeline.logging {
-                            Label("REC", systemImage: "circle.fill")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 8).padding(.vertical, 4)
-                                .background(Theme.red, in: Capsule())
-                                .padding(10)
-                        }
-                    }
-                statusLine
-                controls
-                diagnosticsSection
-                if let e = pipeline.error {
-                    Text(e).font(.system(size: 12, design: .monospaced)).foregroundStyle(Theme.red)
-                }
-            }
-            .padding(16)
+        GeometryReader { geo in
+            if geo.size.width > geo.size.height { landscape(geo.size) } else { portrait }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.bg)
@@ -105,6 +83,7 @@ struct RearView: View {
             .foregroundStyle(Theme.text)
             .padding(22)
             .background(Theme.ground, in: RoundedRectangle(cornerRadius: 24))
+            .frame(maxWidth: 460)
             .padding(.horizontal, 22)
         }
     }
@@ -120,6 +99,88 @@ struct RearView: View {
     private func applyBrightness() {
         let dim = dimWhenMounted && !mountCard && Date() >= awakeUntil
         screen?.brightness = dim ? 0.2 : savedBrightness
+    }
+
+    private var portrait: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                chips
+                preview.frame(maxWidth: .infinity, maxHeight: 520)
+                statusLine
+                controls
+                diagnosticsSection
+                errorText
+            }
+            .padding(16)
+        }
+    }
+
+    /// Mounted sideways the whole page fits without scrolling: the camera on top, where
+    /// it shows through the mount, status beside it, the few controls in one row below.
+    private func landscape(_ size: CGSize) -> some View {
+        VStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                preview.frame(maxHeight: size.height - 76)
+                VStack(alignment: .leading, spacing: 10) {
+                    statusGrid
+                    statusLine
+                    errorText
+                }
+                .frame(width: min(260, size.width * 0.3))
+            }
+            HStack(spacing: 10) {
+                Toggle(isOn: $dimWhenMounted) {
+                    Text("Dim when mounted").font(.system(size: 15, weight: .semibold, design: .rounded))
+                }
+                .tint(Theme.amber)
+                .padding(.horizontal, 14).frame(height: 50)
+                .background(Theme.ground, in: RoundedRectangle(cornerRadius: 14))
+                ShareLink(items: GPSLog.shareable) {
+                    Label("Share ride data · \(pipeline.eventCount)", systemImage: "square.and.arrow.up")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .padding(.horizontal, 14).frame(height: 50)
+                        .background(Theme.ground, in: RoundedRectangle(cornerRadius: 14))
+                }
+                Button { showDiagnostics = true } label: {
+                    Label("Diagnostics", systemImage: "gauge.with.dots.needle.33percent")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .padding(.horizontal, 14).frame(height: 50)
+                        .background(Theme.ground, in: RoundedRectangle(cornerRadius: 14))
+                }
+            }
+            .foregroundStyle(Theme.text)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .sheet(isPresented: $showDiagnostics) {
+            ScrollView { diagnosticsSection.padding(20) }
+                .background(Theme.bg)
+                .presentationDetents([.medium, .large])
+                .preferredColorScheme(.dark)
+        }
+    }
+
+    private var preview: some View {
+        RearPreview(session: nil, image: pipeline.previewImage, tracks: pipeline.overlay)
+            .aspectRatio(aspect, contentMode: .fit)
+            .background(Theme.ground)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(alignment: .topLeading) {
+                if pipeline.logging {
+                    Label("REC", systemImage: "circle.fill")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(Theme.red, in: Capsule())
+                        .padding(10)
+                }
+            }
+    }
+
+    @ViewBuilder private var errorText: some View {
+        if let e = pipeline.error {
+            Text(e).font(.system(size: 12, design: .monospaced)).foregroundStyle(Theme.red)
+        }
     }
 
     private var screen: UIScreen? {
@@ -147,30 +208,46 @@ struct RearView: View {
 
     // MARK: - Status
 
-    private var chips: some View {
-        let front: (Color, String) = switch pipeline.peerState {
+    private var frontState: (Color, String) {
+        switch pipeline.peerState {
         case .connected: (Theme.green, "Connected")
         case .connecting: (Theme.amber, "Connecting")
         case .browsing: (Theme.red, "Not found")
         }
-        let grips: (Color, String) = pipeline.haptics.state == .connected
-            ? (Theme.green, "Paired") : (Theme.red, "Searching")
-        let gps: (Color, String) = switch pipeline.gpsAccuracy {
+    }
+    private var gripsState: (Color, String) {
+        pipeline.haptics.state == .connected ? (Theme.green, "Paired") : (Theme.red, "Searching")
+    }
+    private var gpsState: (Color, String) {
+        switch pipeline.gpsAccuracy {
         case nil: (Theme.red, "No fix")
         case let a? where a <= 15: (Theme.green, String(format: "±%.0f m", a))
         case let a?: (Theme.amber, String(format: "±%.0f m", a))
         }
-        // One row of four, label over value, so it never wraps to a second line.
-        return HStack(spacing: 0) {
-            cell("Front", front)
+    }
+
+    // One row of four, label over value, so it never wraps to a second line.
+    private var chips: some View {
+        HStack(spacing: 0) {
+            cell("Front", frontState)
             divider
-            cell("Grips", grips)
+            cell("Grips", gripsState)
             divider
-            cell("GPS", gps)
+            cell("GPS", gpsState)
             divider
             cell("Battery", battery)
         }
         .padding(.vertical, 10)
+        .background(Theme.ground, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    /// The same four, two by two, for the narrow column beside the landscape preview.
+    private var statusGrid: some View {
+        Grid(horizontalSpacing: 0, verticalSpacing: 12) {
+            GridRow { cell("Front", frontState); cell("Grips", gripsState) }
+            GridRow { cell("GPS", gpsState); cell("Battery", battery) }
+        }
+        .padding(.vertical, 12)
         .background(Theme.ground, in: RoundedRectangle(cornerRadius: 14))
     }
 
