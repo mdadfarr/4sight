@@ -19,6 +19,10 @@ struct RearView: View {
     // `-skipMountCard YES` for simulator screenshots of the page behind it.
     @State private var mountCard = !UserDefaults.standard.bool(forKey: "skipMountCard")
     @State private var awakeUntil = Date.distantPast
+    /// Hidden: a double tap blacks the screen out while everything keeps running. iOS
+    /// stops the camera when the display truly sleeps, but an OLED pixel drawing black is
+    /// off, so this looks and costs like a screen that is off. One tap brings it back.
+    @State private var blackout = false
     static let wakeSeconds = 15.0
 
     var body: some View {
@@ -26,7 +30,21 @@ struct RearView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.bg)
         .overlay { if mountCard { mountPrompt } }
-        .simultaneousGesture(TapGesture().onEnded { wake() })
+        .overlay {
+            if blackout { Color.black.ignoresSafeArea().allowsHitTesting(false) }
+        }
+        .statusBarHidden(blackout)
+        .persistentSystemOverlays(blackout ? .hidden : .automatic)
+        .simultaneousGesture(
+            TapGesture(count: 2).onEnded {
+                guard !mountCard else { return }
+                blackout = true
+                applyBrightness()
+            }
+            .exclusively(before: TapGesture().onEnded {
+                if blackout { blackout = false; awakeUntil = .distantPast }
+                wake()
+            }))
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
             OrientationLock.set(.portrait)
@@ -89,13 +107,14 @@ struct RearView: View {
 
     /// A tap on a dimmed screen brightens it, then it dims again on its own.
     private func wake() {
-        guard dimWhenMounted, !mountCard else { return }
+        guard dimWhenMounted, !mountCard else { applyBrightness(); return }
         awakeUntil = Date().addingTimeInterval(Self.wakeSeconds)
         applyBrightness()
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.wakeSeconds + 0.1) { applyBrightness() }
     }
 
     private func applyBrightness() {
+        if blackout { screen?.brightness = 0; return }
         let dim = dimWhenMounted && !mountCard && Date() >= awakeUntil
         screen?.brightness = dim ? 0.2 : savedBrightness
     }
