@@ -12,14 +12,18 @@ public final class Tracker {
         var age = 1
     }
 
-    public var iouThreshold = 0.3
+    public var iouThreshold = 0.2   // ByteTrack match_thresh 0.8 on 1-IoU cost
+    /// Second (low-confidence) pass; looser so glare-jittered boxes still re-attach.
+    public var lowIouThreshold = 0.2
     public var highConfidence = 0.5
     public var lowConfidence = 0.1
     public var minHits = 2
-    public var maxMisses = 8
+    public var maxMisses = 15   // 1.5 s at 10 fps
 
     private var slots: [Slot] = []
     private var nextID = 1
+    /// Ids handed out so far (fragmentation metric for ReplayBoxes).
+    public var allocatedIDs: Int { nextID - 1 }
 
     public init() {}
 
@@ -32,8 +36,8 @@ public final class Tracker {
         let low = detections.filter { $0.confidence >= lowConfidence && $0.confidence < highConfidence }
 
         var free = Set(slots.indices)
-        var unmatchedHigh = match(high, free: &free)
-        _ = match(low, free: &free)
+        var unmatchedHigh = match(high, free: &free, minIoU: iouThreshold)
+        _ = match(low, free: &free, minIoU: lowIouThreshold)
 
         for i in free {
             slots[i].misses += 1
@@ -52,13 +56,13 @@ public final class Tracker {
     }
 
     /// Greedy best-IoU-first assignment. Returns the indices of unmatched detections.
-    private func match(_ dets: [Detection], free: inout Set<Int>) -> [Int] {
+    private func match(_ dets: [Detection], free: inout Set<Int>, minIoU: Double) -> [Int] {
         var pairs: [(iou: Double, s: Int, d: Int)] = []
         for s in free {
             let pb = slots[s].kf.box
             for (d, det) in dets.enumerated() {
                 let iou = pb.iou(det.box)
-                if iou >= iouThreshold { pairs.append((iou, s, d)) }
+                if iou >= minIoU { pairs.append((iou, s, d)) }
             }
         }
         pairs.sort { $0.iou > $1.iou }

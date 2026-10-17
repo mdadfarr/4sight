@@ -34,6 +34,11 @@ public struct KalmanBox: Sendable {
 
     public init(box: Box) {
         cx = KF2(box.cx); cy = KF2(box.cy); w = KF2(box.w); h = KF2(box.h)
+        // Pixel scale: a passing car moves ~300 px/s, so let position velocity lock on after
+        // one update. Size jitters far more than position (headlight glare): trust w/h
+        // measurements less and keep their velocity prior small.
+        cx.p11 = 1e4; cy.p11 = 1e4; cx.qVel = 500; cy.qVel = 500
+        w.r = 16; h.r = 16
     }
 
     public mutating func predict(dt: Double) {

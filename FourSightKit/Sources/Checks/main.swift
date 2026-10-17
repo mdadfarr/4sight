@@ -80,6 +80,14 @@ do {
         if i >= 1 { pairs.insert(out.sorted { $0.box.x < $1.box.x }.map(\.id)) }
     }
     check(pairs.count == 1 && Set(pairs.first ?? []).count == 2, "two boxes keep distinct ids")
+    // Night drive: a fast passing car with glare-jittered size and a 1 s detector dropout (10 fps).
+    let tr3 = Tracker(); var ids3 = Set<Int>()
+    for i in 0..<40 {
+        let j = i % 2 == 0 ? 1.15 : 0.87, cx = 1000 - Double(i) * 30
+        let dets = (12...21).contains(i) ? [] : [Detection(box: Box(x: cx - 75 * j, y: 570 - 40 * j, w: 150 * j, h: 80 * j), cls: .car, confidence: i % 3 == 0 ? 0.3 : 0.7)]
+        ids3.formUnion(tr3.update(detections: dets, dt: 0.1).map(\.id))
+    }
+    check(ids3.count == 1, "jittered fast car with 1 s dropout keeps one id (\(ids3.count))")
 }
 
 // TTC
