@@ -154,3 +154,11 @@ When I ask for help, give me checklists, shopping lists (Canada Robotix, Creatro
 
 Current task: <paste>.
 ```
+
+## Decisions added day 1 (morning)
+
+- **Front role:** the cloud session's follow-view design wins (3D sketch of nearby objects stays; see docs/mock/front.html). Edge-flash-only map design is dropped. Local frontend terminal owns only the Risk map screen.
+- **Routing:** Apple MapKit (`MKDirections` cycling, `MKLocalSearchCompleter`), already on `front/destination-picker`. No Google. Verify Toronto cycling coverage in the Maps app before the demo. GPS drift moves rider and detections together, so it doesn't change the danger picture.
+- **Outside data:** no detector training this hackathon (Jasper's call). The rosbag drive (`tools/mcap_to_ride.py`, `replay-sidecars` branch) and our own ride footage are for TESTING and for tuning danger thresholds in `ml/replay_danger.py` against: recall ≥ 90 %, < 1 false alert/km, ≥ 2 s lead. Toronto KSI collisions, wards, census: pitch map and near-miss analysis only.
+- **Map context at runtime (stretch):** MapKit route steps / OSM tags could raise right-hook sensitivity before an intersection with a right turn and shift gap thresholds in a bike lane. Rule inputs, cheap; only after the core loop is verified on the bike.
+- **Near-miss log:** `Documents/events.jsonl` on the rear phone (EventLogger.swift), `tools/riskmap.py` renders the map; `--demo` gives a synthetic Bloor/College set labelled SYNTHETIC for the pitch.
