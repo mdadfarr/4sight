@@ -1,3 +1,4 @@
+import MapKit
 import SwiftUI
 
 /// The first screen on every launch: which phone is this? One tap, the last choice marked,
@@ -40,39 +41,50 @@ struct RolePickerView: View {
                 .foregroundStyle(Light.ink)
                 .padding(.bottom, 16)
             HStack(spacing: 12) {
-                choice("front", title: "Handlebar", detail: "Maps and alerts", symbol: "bicycle")
-                choice("rear", title: "Rear rack", detail: "Watches behind you", symbol: "camera.fill")
+                choice("front", title: "Handlebar", symbol: "bicycle")
+                choice("rear", title: "Rear rack", symbol: "camera.fill")
             }
 
             Spacer(minLength: 20)
-            Text("Choose the other one on your second phone.\nThey pair on their own.")
-                .font(.system(size: 14, design: .rounded))
-                .foregroundStyle(Light.dim)
-                .multilineTextAlignment(.center)
         }
         .padding(.horizontal, 20).padding(.bottom, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Light.sheet)
+        .background { backdrop }
         .preferredColorScheme(.light)
     }
 
+    /// The rider's own streets behind the logo, fading into the sheet colour where the
+    /// choices are: every other screen in the app sits on the map, so this one does too.
+    private var backdrop: some View {
+        ZStack {
+            Light.sheet
+            Map(initialPosition: .userLocation(fallback: .region(MKCoordinateRegion(
+                center: .init(latitude: 43.7845, longitude: -79.1873),
+                span: MKCoordinateSpan(latitudeDelta: 0.03, longitudeDelta: 0.03)))), interactionModes: []) {}
+                .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
+                .allowsHitTesting(false)
+            LinearGradient(stops: [.init(color: Light.sheet.opacity(0.35), location: 0),
+                                   .init(color: Light.sheet.opacity(0.75), location: 0.3),
+                                   .init(color: Light.sheet, location: 0.55)],
+                           startPoint: .top, endPoint: .bottom)
+        }
+        .ignoresSafeArea()
+    }
+
     /// One role, in the Places circles' style from the home screen.
-    private func choice(_ value: String, title: String, detail: String, symbol: String) -> some View {
+    private func choice(_ value: String, title: String, symbol: String) -> some View {
         let last = lastRole == value
         return Button {
             lastRole = value
             role = value
         } label: {
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 Image(systemName: symbol)
                     .font(.system(size: 30, weight: .semibold))
                     .foregroundStyle(last ? .white : Light.blue)
                     .frame(width: 72, height: 72)
                     .background(last ? Light.blue : Light.blueSoft, in: Circle())
-                VStack(spacing: 2) {
-                    Text(title).font(.system(size: 18, weight: .bold, design: .rounded)).foregroundStyle(Light.ink)
-                    Text(detail).font(.system(size: 14, design: .rounded)).foregroundStyle(Light.dim)
-                }
+                Text(title).font(.system(size: 18, weight: .bold, design: .rounded)).foregroundStyle(Light.ink)
                 Text(last ? "Last used" : " ")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(Light.blue)
@@ -81,8 +93,9 @@ struct RolePickerView: View {
             .frame(maxWidth: .infinity)
             .background(.white, in: RoundedRectangle(cornerRadius: 22))
             .overlay(RoundedRectangle(cornerRadius: 22).stroke(last ? Light.blue : .clear, lineWidth: 2))
+            .shadow(color: Light.shadow, radius: 12, y: 4)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(title): \(detail)")
+        .accessibilityLabel(title)
     }
 }
