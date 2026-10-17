@@ -16,6 +16,8 @@ enum VehicleSprite {
         let turnR: Bool
         /// Display only: fades a track in when it appears and out when it goes.
         var opacity = 1.0
+        /// Travelling the other way: drawn with its windscreen away from the rider.
+        var oncoming = false
     }
 
     static func draw(_ ctx: inout GraphicsContext, _ tr: Track, _ t: Double) {
@@ -35,6 +37,7 @@ enum VehicleSprite {
         let col = Palette.paint(tr.level)
         let s = Camera.ppm(tr.z)
         let r = max(2, 0.34 * s)
+        let d = tr.oncoming ? -1.0 : 1.0                 // which end is the front
 
         if tr.level >= 3 {                                   // glow, breathing at 1 Hz
             var layer = ctx
@@ -52,11 +55,11 @@ enum VehicleSprite {
         ctx.stroke(body, with: .color(col.edge), lineWidth: 1.2)
 
         ctx.fill(SceneRenderer.roundQuad(
-            Camera.slab(tr.x, tr.z + l * 0.06, w * 0.74, l * (big ? 0.74 : 0.44), hRoof), r * 0.6),
+            Camera.slab(tr.x, tr.z + d * l * 0.06, w * 0.74, l * (big ? 0.74 : 0.44), hRoof), r * 0.6),
                  with: .color(col.roof))
 
         ctx.fill(SceneRenderer.poly(
-            Camera.slab(tr.x, tr.z - l * (big ? 0.3 : 0.12), w * 0.68, l * 0.09, hRoof)),
+            Camera.slab(tr.x, tr.z - d * l * (big ? 0.3 : 0.12), w * 0.68, l * 0.09, hRoof)),
                  with: .color(col.glass))
 
         if tr.turnR && sin(.pi * 1.6 * t) > 0 {              // right indicator, blinking
@@ -185,10 +188,8 @@ enum VehicleSprite {
     /// white collar, dead centre side to side.
     static func puck(_ ctx: inout GraphicsContext) {
         let p = Camera.pt(0, 0)
-        // One bike length across, at the puck's own range, so it doubles as the ruler
-        // for how far back things are. The mock's 17 pt covered 2.6 m of road and
-        // swallowed the first metre behind the rider.
-        let r = 0.95 * Camera.ppm(0)
+        // Big enough to find at a glance on a moving bike; the route runs in under it.
+        let r = 1.6 * Camera.ppm(0)
         let k = r / 17                                   // the chevron was drawn for 17 pt
         var layer = ctx
         layer.addFilter(.shadow(color: Color(hex: 0x081830).opacity(0.45), radius: 5, y: 2))

@@ -57,6 +57,13 @@ final class SyntheticFeed: TrackFeed {
             z0: 7, z1: 7 + 5 * (3.6 - 1.3), vru: true),
         Cue(id: 8, cls: .person, from: 12.5, to: 16.5, x0: 6.3, x1: 6.3,
             z0: 9, z1: 9 + 4 * (3.6 + 1.4), vru: true),
+        // Safe passes, the common case: a car a full lane over and a slow truck in the
+        // far lane. Seen, drawn grey, no edge glow and no buzz.
+        Cue(id: 9, cls: .car, from: 1, to: 6, x0: -4.6, x1: -4.6, z0: 36, z1: 1, level: 0),
+        Cue(id: 10, cls: .truck, from: 13, to: 21, x0: -4.4, x1: -4.4, z0: 34, z1: 14, level: 0),
+        // An oncoming car that has just passed, pulling away in the far lane: drawn facing
+        // away, in the oncoming lane, never an alert.
+        Cue(id: 11, cls: .car, from: 7, to: 12, x0: -5.4, x1: -5.4, z0: 1, z1: 42, level: 0),
         // Straight behind: no side to steer towards, so the whole frame carries it.
         Cue(id: 5, cls: .car, from: 17.5, to: 21, x0: -0.25, x1: -0.25, z0: 24, z1: 2,
             thresholds: [(6, 3), (12, 2), (20, 1)]),
@@ -111,7 +118,8 @@ final class SyntheticFeed: TrackFeed {
             if cue.vru && !demo { level = 0 }
 
             tracks.append(TrackMessage(
-                id: cue.id, cls: cue.cls, x: x, z: z, invTTC: 0, gapPred: abs(x),
+                id: cue.id, cls: cue.cls, x: x, z: z,
+                invTTC: -(cue.z1 - cue.z0) / (cue.to - cue.from) / max(z, 0.5), gapPred: abs(x),
                 level: level, grip: x < -0.8 ? "L" : x > 0.8 ? "R" : "-", turnR: cue.turnR))
         }
         // The newest answer still inside its window, on the same clock the front

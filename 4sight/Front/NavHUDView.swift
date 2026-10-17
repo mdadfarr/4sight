@@ -1,16 +1,14 @@
 import Protocol
 import SwiftUI
 
-/// The nav chrome from `docs/mock/front.html`: a black manoeuvre banner with a flat
-/// bottom edge so the map runs under it rather than under a floating card, the speed
-/// badge and two controls over the map, and a white arrival bar.
+/// The nav chrome: a black manoeuvre banner with a flat bottom edge so the map runs
+/// under it, the speed badge, and the arrival card. Nothing else floats over the map;
+/// destination and risk map live on the home and summary screens.
 ///
 /// Laid out at the mock's own coordinates in the 393 x 852 design space and scaled
 /// once, so every position below is the number from the mock.
 struct NavHUDView: View {
     @ObservedObject var model: FrontModel
-    var onPickDestination: () -> Void = {}
-    var onRiskMap: () -> Void = {}
     var onExit: () -> Void = {}
 
     var body: some View {
@@ -35,40 +33,36 @@ struct NavHUDView: View {
             // The mock paints a status bar because a canvas has none; the real one
             // already sits over this banner, so drawing a second would double it.
 
-            Image(systemName: "arrow.turn.up.left")
-                .font(.system(size: 34, weight: .semibold))
-                .foregroundStyle(Palette.text).at(46, 104)
+            // Read at a glance from a moving bike: one big arrow for what to do now,
+            // one big number, one short line. The arrow only turns near the turn.
+            Image(systemName: bannerSymbol)
+                .font(.system(size: 54, weight: .semibold))
+                .foregroundStyle(Palette.text).frame(width: 64).at(52, 106)
                 .opacity(hasRoute ? 1 : 0)
-            Text(distanceText).font(.system(size: 36, weight: .bold, design: .rounded))
-                .fixedSize().foregroundStyle(Palette.text).at(84, 116, anchor: .bottomLeading)
-            Text(streetText).font(.system(size: 21, weight: .medium, design: .rounded))
-                .fixedSize().foregroundStyle(Palette.text).at(84, 144, anchor: .bottomLeading)
+            Text(bannerTitle).font(.system(size: 42, weight: .bold, design: .rounded).monospacedDigit())
+                .fixedSize().foregroundStyle(Palette.text).at(100, 116, anchor: .bottomLeading)
+            Text(bannerLine).font(.system(size: 20, weight: .medium, design: .rounded))
+                .lineLimit(1).frame(maxWidth: Design.width - 116, alignment: .leading)
+                .foregroundStyle(Palette.text.opacity(0.8)).at(100, 144, anchor: .bottomLeading)
 
-            Rectangle().fill(Palette.hair)
-                .frame(width: Design.width - 40, height: 1).at(20, 160, anchor: .topLeading)
-            Text("Then").font(.system(size: 15, design: .rounded))
-                .fixedSize().foregroundStyle(Palette.textDim).at(22, 182, anchor: .bottomLeading)
-            Image(systemName: "arrow.turn.up.right")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Palette.text).at(72, 176)
-                .opacity(hasRoute ? 1 : 0)
-            Text(thenText).font(.system(size: 15, weight: .medium, design: .rounded))
-                .fixedSize().foregroundStyle(Palette.text).at(90, 182, anchor: .bottomLeading)
+            // A planned lane move: quiet, in the banner's own white-on-black, because
+            // amber and red already mean warnings on this screen.
+            if let cue = laneCue {
+                HStack(spacing: 7) {
+                    Image(systemName: cue.symbol).font(.system(size: 13, weight: .bold))
+                    Text("\(cue.text) · \(Self.metres(max(cue.metres, 5)))")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                }
+                .foregroundStyle(Palette.text)
+                .padding(.horizontal, 12).frame(height: 28)
+                .background(Palette.hair, in: Capsule())
+                .fixedSize()
+                .at(20, 154, anchor: .topLeading)
+            }
 
-            // Over the map: speed, and the two controls a rider reaches for.
             speedBadge.at(16, Design.bannerH + 14, anchor: .topLeading)
-            circleButton("point.topleft.down.to.point.bottomright.curvepath", action: onPickDestination)
-                .at(Design.width - 38, Design.bannerH + 30)
-            circleButton("speaker.wave.2.fill", action: {})
-                .at(Design.width - 38, Design.bannerH + 84)
-            // Not in the mock: the risk map needs a way in, and this column is where
-            // the mock already puts the map's own controls.
-            circleButton("map.fill", action: onRiskMap)
-                .at(Design.width - 38, Design.bannerH + 138)
-            Circle().fill(model.link == .connected ? Palette.green : Palette.exit)
-                .frame(width: 9, height: 9).at(Design.width - 22, Design.bannerH + 14)
 
-            arrivalBar.at(0, height - 96, anchor: .topLeading)
+            arrivalBar.at(0, height - Self.cardH, anchor: .topLeading)
         }
         .frame(width: Design.width, height: height, alignment: .topLeading)
     }
@@ -82,48 +76,59 @@ struct NavHUDView: View {
         }
         .frame(width: 54, height: 50)
         .background(Palette.bar, in: RoundedRectangle(cornerRadius: 12))
-        .shadow(color: Color(hex: 0x0C121A).opacity(0.22), radius: 4, y: 2)
-    }
-
-    private func circleButton(_ symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Palette.puck)
-                .frame(width: 44, height: 44)
-                .background(Palette.bar, in: Circle())
+        // Rear-phone link: green while frames arrive.
+        .overlay(alignment: .topTrailing) {
+            Circle().fill(model.link == .connected ? Palette.green : Palette.exit)
+                .frame(width: 8, height: 8).offset(x: -6, y: 6)
         }
         .shadow(color: Color(hex: 0x0C121A).opacity(0.22), radius: 4, y: 2)
     }
+
+    static let cardH = 112.0
 
     private var arrivalBar: some View {
-        HStack(alignment: .top, spacing: 0) {
-            stat(arrivalText, "arrival").frame(width: 122, alignment: .leading)
-            stat(minutesText, "min").frame(width: 54, alignment: .leading)
-            stat(kmText, "km").frame(width: 66, alignment: .leading)
-            Spacer(minLength: 0)
-            // Where the dead chevron was. Big and red like Google Maps' Exit, because it
-            // is pressed with a gloved thumb on a moving bike.
-            Button(action: onExit) {
-                Text("Exit")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .frame(width: 88, height: 54)
-                    .background(Color(hex: 0xE0342B), in: Capsule())
-            }
-        }
-        .padding(.horizontal, 24).padding(.top, 26)
-        .frame(width: Design.width, height: 120, alignment: .topLeading)
+        currentCard
+        .padding(.horizontal, 24).padding(.top, 18)
+        .frame(width: Design.width, height: Self.cardH, alignment: .top)
         .background(Palette.bar)
-        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 18, topTrailingRadius: 18))
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24))
+        .shadow(color: Color(hex: 0x0C121A).opacity(0.12), radius: 12, y: -2)
     }
 
-    private func stat(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value).font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
-                .lineLimit(1).minimumScaleFactor(0.75).foregroundStyle(Palette.barInk)
-            Text(label).font(.system(size: 13, weight: .medium, design: .rounded))
-                .fixedSize().foregroundStyle(Palette.barDim)
+    /// Google Maps' bottom card, pared down: time left is the one number that matters
+    /// on a bike, so it leads in green; distance and arrival clock sit under it.
+    private var currentCard: some View {
+        HStack(alignment: .center, spacing: 12) {
+            etaStack
+            Spacer(minLength: 0)
+            exitButton(width: 84)
+        }
+    }
+
+    private var etaStack: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(minutesText)
+                    .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+                Text("min").font(.system(size: 18, weight: .semibold, design: .rounded))
+            }
+            .foregroundStyle(Palette.eta)
+            Text("\(kmText) km  ·  \(arrivalText)")
+                .font(.system(size: 15, weight: .medium, design: .rounded).monospacedDigit())
+                .foregroundStyle(Palette.barDim)
+        }
+        .lineLimit(1)
+    }
+
+    /// Big enough for a gloved thumb on a moving bike, quiet enough not to compete
+    /// with a warning.
+    private func exitButton(width: Double) -> some View {
+        Button(action: onExit) {
+            Text("Exit")
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: width, height: 48)
+                .background(Palette.exit, in: Capsule())
         }
     }
 
@@ -140,28 +145,52 @@ struct NavHUDView: View {
         return "\(max(5, Int((World.turnStreet.ahead - travelled) / 5).magnitude * 5)) m"
     }
 
-    private var distanceText: String {
-        if let nav = model.nav { return Self.metres(nav.distanceToManoeuvre) }
-        return model.scripted ? scriptedDistance : ""
+    /// Within this of the turn the banner switches from "continue" to the turn itself:
+    /// about 12 s of warning at 15 km/h.
+    static let turnNear = 50.0
+
+    /// MKRoute steps start with their manoeuvre, so the turn at the end of the current
+    /// step is the next step's.
+    private func step(_ ahead: Int) -> NavStep? {
+        guard let nav = model.nav, nav.currentIndex + ahead < nav.steps.count else { return nil }
+        return nav.steps[nav.currentIndex + ahead]
     }
-    private var streetText: String {
-        if let nav = model.nav { return nav.current.street }
-        return model.scripted ? World.turnStreet.name : "No destination"
+    private var laneCue: (text: String, symbol: String, metres: Double)? {
+        guard let rider = model.route.riderCoordinate(at: Date()) else { return nil }
+        return model.lanePlan?.cue(at: rider)
     }
-    private var thenText: String {
-        guard let nav = model.nav, nav.currentIndex + 1 < nav.steps.count else {
-            return model.nav == nil && !model.scripted
-                ? "Set one from the route button" : "900 m · Bloor St W"
+    private var nearTurn: Bool { (model.nav?.distanceToManoeuvre ?? 0) <= Self.turnNear }
+
+    private var bannerSymbol: String {
+        guard model.nav != nil else { return "arrow.turn.up.left" }      // the script's turn
+        guard nearTurn else { return "arrow.up" }
+        return step(1)?.symbol ?? "flag.checkered"
+    }
+    private var bannerTitle: String {
+        if let nav = model.nav {
+            let m = Self.metres(nav.distanceToManoeuvre)
+            return nearTurn ? "In \(m)" : m
         }
-        let next = nav.steps[nav.currentIndex + 1]
-        return "\(Self.metres(next.distance)) · \(next.street)"
+        return model.scripted ? "In \(scriptedDistance)" : ""
+    }
+    private var bannerLine: String {
+        guard model.nav != nil else {
+            return model.scripted ? "Turn onto \(World.turnStreet.name)" : "No destination"
+        }
+        guard nearTurn else { return "Continue straight" }
+        guard let next = step(1) else { return "Arrive at destination" }
+        if next.symbol.contains("uturn") { return "Make a U-turn" }
+        if next.symbol == "flag.checkered" { return "Arrive at \(next.street)" }
+        return "Turn onto \(next.street)"
     }
     /// A route or the script means there is a speed to show; a live feed with no frame
     /// yet does not, and a standing-still readout of 13 km/h would be a lie.
     private var hasRoute: Bool { model.nav != nil || model.scripted }
 
     private var speedText: String {
-        guard let speed = model.frame?.speed ?? (hasRoute ? World.speed : nil) else { return "–" }
+        // This phone's own GPS first; the rear phone's reading, then the script's, after.
+        let own = model.route.rider.flatMap { $0.speed >= 0 ? $0.speed : nil }
+        guard let speed = own ?? model.frame?.speed ?? (hasRoute ? World.speed : nil) else { return "–" }
         return "\(Int((speed * 3.6).rounded()))"
     }
     private var arrivalText: String {
@@ -169,9 +198,8 @@ struct NavHUDView: View {
         return Self.clock(nav)
     }
     private var minutesText: String {
-        guard let nav = model.nav, let eta = nav.eta(speed: model.frame?.speed ?? World.speed)
-        else { return model.nav == nil && !model.scripted ? "–" : "18" }
-        return "\(Int((eta / 60).rounded(.up)))"
+        guard let nav = model.nav else { return model.scripted ? "18" : "–" }
+        return "\(max(1, Int((nav.eta / 60).rounded(.up))))"
     }
     private var kmText: String {
         guard let nav = model.nav else { return model.scripted ? "4.2" : "–" }
@@ -184,7 +212,7 @@ struct NavHUDView: View {
     }
 
     private static func clock(_ nav: NavState) -> String {
-        let eta = nav.eta(speed: World.speed) ?? 0
+        let eta = nav.eta
         return Date(timeIntervalSinceNow: eta).formatted(date: .omitted, time: .shortened)
     }
 }

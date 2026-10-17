@@ -121,6 +121,51 @@ do {
     check(n6.subtracting([0]) == [2], "two people side by side stay two tracks")
 }
 
+// Camera mounted off the centreline
+do {
+    var g = GapEstimator(f: 750, u0: 533, v0: 300, imageW: 1066, imageH: 600)
+    g.cameraOffset = 0.10
+    // A car whose near edge sits exactly on the optical axis is straight behind the lens,
+    // so 0.10 m to the rider's right of the bike, not on its centreline.
+    let b = Box(x: 533, y: 250, w: 100, h: 60)
+    check(near(g.gap(box: b, cls: .car, z: 10), 0.10, 1e-9), "camera offset: on-axis car sits at the lens offset")
+}
+
+// Ego mask: the rear wheel under the camera
+do {
+    let W = 1066.0, H = 600.0
+    func det(_ cx: Double, _ cy: Double, _ w: Double, _ h: Double, _ cls: VehicleClass = .person) -> Detection {
+        Detection(box: Box(x: (cx - w / 2) * W, y: (cy - h / 2) * H, w: w * W, h: h * H), cls: cls, confidence: 0.3)
+    }
+    var m = EgoMask()
+    var t = 0.0, kept: [Detection] = []
+    // The wheel as the footage showed it: bottom right, 0.22 x 0.2 of the frame, jittering.
+    for i in 0..<30 {
+        let j = Double(i % 3) * 0.005
+        kept = m.apply([det(0.70 + j, 0.89 - j, 0.23, 0.20)], imageW: W, imageH: H, t: t); t += 0.1
+    }
+    check(kept.isEmpty && m.zones.count == 1, "ego mask: still bottom-anchored wheel learned and dropped")
+    // As in the footage: the wheel seen only every other frame, still learned.
+    var m3 = EgoMask(); var t3 = 0.0, kept3: [Detection] = [det(0, 0, 0, 0)]
+    for i in 0..<40 {
+        let seen = i % 2 == 0 ? [det(0.68 + Double(i % 4) * 0.01, 0.9, 0.22, 0.18)] : []
+        kept3 = m3.apply(seen, imageW: W, imageH: H, t: t3); t3 += 0.1
+    }
+    check(m3.zones.count == 1 && m3.apply([det(0.7, 0.89, 0.21, 0.19, .car)], imageW: W, imageH: H, t: t3).isEmpty,
+          "ego mask: wheel detected in half the frames is still learned")
+    _ = kept3
+    // A real person walking up the middle of the frame is untouched.
+    check(m.apply([det(0.45, 0.5, 0.15, 0.6)], imageW: W, imageH: H, t: t).count == 1,
+          "ego mask: person elsewhere still detected")
+    // A car right behind, filling the frame bottom, is never masked even over the wheel.
+    check(m.apply([det(0.65, 0.7, 0.6, 0.6, .car)], imageW: W, imageH: H, t: t).count == 1,
+          "ego mask: large close vehicle over the wheel zone is kept")
+    // Something bottom-anchored but moving across never becomes a zone.
+    var m2 = EgoMask(); var t2 = 0.0
+    for i in 0..<30 { _ = m2.apply([det(0.2 + Double(i) * 0.02, 0.9, 0.15, 0.18)], imageW: W, imageH: H, t: t2); t2 += 0.1 }
+    check(m2.zones.isEmpty, "ego mask: moving bottom object is not learned")
+}
+
 // TTC
 do {
     let est = TTCEstimator(); let T = 10.0; var t = 0.0; var r: Double?
@@ -217,6 +262,9 @@ runDangerChecks()
 
 // Merge-check button, see MergeChecks.swift
 runMergeChecks(check)
+
+// ThreatEngine + DangerEngine fused, see FusionChecks.swift
+runFusionChecks(check)
 
 print(failures == 0 ? "ALL CHECKS PASSED" : "\(failures) CHECK(S) FAILED")
 exit(failures == 0 ? 0 : 1)

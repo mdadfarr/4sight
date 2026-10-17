@@ -9,7 +9,7 @@ let args = CommandLine.arguments
 guard args.count >= 2, let text = try? String(contentsOfFile: args[1], encoding: .utf8) else {
     print("usage: ReplayBoxes <boxes.csv> [stride]"); exit(2)
 }
-let stride = args.count > 2 ? Int(args[2]) ?? 2 : 2
+let stride = args.count > 2 ? Double(args[2]) ?? 2 : 2   // may be fractional: 1.5 turns 30 fps into 20 Hz
 var lines = text.split(whereSeparator: \.isNewline).map { $0.split(separator: ",", omittingEmptySubsequences: false) }
 let header = lines.removeFirst().map(String.init)
 func col(_ name: String) -> Int { header.firstIndex(of: name)! }
@@ -27,11 +27,18 @@ for l in lines where l.count == header.count {
 let frames = byFrame.keys.sorted()
 let tracker = Tracker()
 let filter = DetectionFilter()
+let hz = fps / stride
+tracker.maxMisses = Int((1.5 * hz).rounded())   // the app keeps a lost track 1.5 s at any rate
+tracker.minHits = max(2, Int((0.2 * hz).rounded()))   // and confirms on 0.2 s of sightings
+var ego = EgoMask()
 var lifetime: [Int: Int] = [:]   // frames with a real hit (coasting excluded)
 var birth: [Int: (Int, Box)] = [:]
-for fr in Swift.stride(from: frames.first!, through: frames.last!, by: stride) {
-    let dets = filter.apply(byFrame[fr] ?? [], imageW: imageW, imageH: imageH)
-    for t in tracker.update(detections: dets, dt: Double(stride) / fps) where t.misses == 0 {
+for k in 0... {
+    let fr = frames.first! + Int((Double(k) * stride).rounded())
+    if fr > frames.last! { break }
+    let dets = ego.apply(filter.apply(byFrame[fr] ?? [], imageW: imageW, imageH: imageH),
+                         imageW: imageW, imageH: imageH, t: Double(fr) / fps)
+    for t in tracker.update(detections: dets, dt: stride / fps) where t.misses == 0 {
         lifetime[t.id, default: 0] += 1
         if birth[t.id] == nil { birth[t.id] = (fr, t.box) }
     }
@@ -43,3 +50,9 @@ if ProcessInfo.processInfo.environment["VERBOSE"] != nil {
     }
 }
 print("frames=\(frames.count) stride=\(stride) confirmed_ids=\(lives.count) allocated=\(tracker.allocatedIDs) median_life=\(lives.isEmpty ? 0 : lives[lives.count / 2]) max_life=\(lives.last ?? 0)")
+// Seconds, so different rates compare: how long a confirmed track lives, and how many
+// flicker in for under half a second (the ghosts and duplicates a rider sees).
+let secs = lives.map { Double($0) / hz }
+print(String(format: "rate=%.0fHz confirmed=%d median_life=%.2fs short(<0.5s)=%d long(>3s)=%d",
+             hz, lives.count, secs.isEmpty ? 0 : secs[secs.count / 2],
+             secs.filter { $0 < 0.5 }.count, secs.filter { $0 > 3 }.count))

@@ -84,4 +84,11 @@ func runMergeChecks(_ check: (Bool, String) -> Void) {
         check(String(data: line, encoding: .utf8)?.contains("merge") == false,
               "merge: absent when no answer, old fronts unaffected")
     }
+    var status = plain
+    status.grips = "connected"; status.battery = 0.84
+    if let line = try? status.encodeLine(), let back = try? FrameMessage.decode(line: line) {
+        check(back.grips == "connected" && back.battery == 0.84, "status: grips and battery round trip")
+    }
+    let old = #"{"t":1,"fps":10,"temp":"nominal","speed":5,"heading":90,"demo":false,"tracks":[]}"#
+    check((try? FrameMessage.decode(line: old))?.grips == nil, "status: older rear without grips still decodes")
 }

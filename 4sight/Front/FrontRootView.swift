@@ -22,7 +22,8 @@ struct FrontRootView: View {
         ZStack {
             switch flow.phase {
             case .home:
-                PassiveHomeView(model: model, flow: flow, onPick: preview, onDemo: startDemo)
+                PassiveHomeView(model: model, flow: flow, onPick: preview, onDemo: startDemo,
+                                onRiskMap: { showingRiskMap = true })
             case .preview:
                 RoutePreviewView(model: model, plans: plans, destination: destination,
                                  chosen: $chosen, onStart: start, onCancel: { flow.phase = .home })
@@ -33,13 +34,18 @@ struct FrontRootView: View {
                                 onRiskMap: { showingRiskMap = true },
                                 onDone: { flow.phase = .home })
             }
-            if routing { ProgressView().tint(Theme.text) }
+            if routing { RoutePreviewSkeleton() }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .sheet(isPresented: $flow.picking) {
             DestinationPickerView { item in
                 flow.picking = false
-                preview(item)
+                if let slot = flow.pickingFor {
+                    flow.save(item, as: slot)
+                    flow.pickingFor = nil
+                } else {
+                    preview(item)
+                }
             }
         }
         .sheet(isPresented: $showingRiskMap) { RiskMapView(demo: args.demoEvents) }
@@ -49,10 +55,7 @@ struct FrontRootView: View {
     private var ride: some View {
         ZStack {
             SurroundView(model: model)
-            NavHUDView(model: model,
-                       onPickDestination: { flow.picking = true },
-                       onRiskMap: { showingRiskMap = true },
-                       onExit: exitRide)
+            NavHUDView(model: model, onExit: exitRide)
             AlertOverlay(model: model)
             MergeBannerView(model: model)
         }
@@ -66,7 +69,9 @@ struct FrontRootView: View {
         model.freeze = args.freeze
         router.onUpdate = advance
         router.onPose = { model.pose($0, heading: $1) }
+        router.onReroute = { model.route.coordinates = $0.coordinates }
         if args.mockRoute { model.nav = .mock }
+        if args.previewRide { return startPreviewRide() }
         // The scripted ride and the frozen screenshots start mid-ride; a real launch
         // starts stopped, with nowhere to go yet.
         if args.synthetic || args.mockRoute {
@@ -86,6 +91,22 @@ struct FrontRootView: View {
         model.nav = .mock
         model.beginRide()
         model.start(feed: SyntheticFeed(freeze: nil, demo: true))
+        flow.phase = .riding
+    }
+
+    /// `-previewRide`: the live renderer on a pretend lap, for the simulator. Fixes go
+    /// through `model.pose` exactly as NavRouter's do; nav is set directly so the lap
+    /// never counts as an arrival.
+    private func startPreviewRide() {
+        let ride = PreviewRide(tracks: args.replayRear.map { RearReplayFeed(file: $0) as TrackFeed } ?? SyntheticFeed(freeze: nil, demo: true))
+        ride.onFix = { loc, course, ahead, nav in
+            model.pose(loc, heading: course)
+            // Only when the segment changes, as a real route is set once, not every fix.
+            if model.route.coordinates.first?.latitude != ahead.first?.latitude { model.route.coordinates = ahead }
+            model.nav = nav
+        }
+        model.beginRide()
+        model.start(feed: ride)
         flow.phase = .riding
     }
 

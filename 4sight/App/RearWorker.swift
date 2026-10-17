@@ -32,31 +32,50 @@ nonisolated struct RearSnapshot: @unchecked Sendable {
     var focalFromLens: Bool
 }
 
-/// Which decision engine runs: metric ThreatEngine (default) or Arshiya's frame-fraction DangerEngine.
-nonisolated enum Engine: String, Sendable { case threat, danger }
-
 /// Sensor values the main actor pushes in; read once per frame.
 nonisolated struct RearInputs: Sendable {
-    var engine: Engine = .threat
     var speed = 0.0
     var heading = -1.0
     var yaw: Double?
     var demo = false
     var thermal: ThermalLabel = .nominal
     var logging = false
+    var grips = "searching"
+    var battery: Double?
     var exclusionZones: [DetectionFilter.Zone] = []
 }
 
 /// Everything off the main actor: capture → detect → track → TTC/gap → ThreatEngine → links.
 nonisolated final class RearWorker: @unchecked Sendable {
-    static let detectionHz = 10.0
+    /// Detection rate by thermal state: 15 Hz while cool, 10 Hz once warm, 5 Hz near
+    /// shutdown. Chosen on the ride footage (ReplayBoxes, frame counts timed per rate):
+    /// 15 Hz kept twice as many people as one track for over 3 s as 10 Hz did, with no
+    /// more flicker; 20 and 30 Hz fragmented more, the detector's jitter outweighing the
+    /// shorter gaps. Inference is ~11–15 ms, under a quarter of each 67 ms.
+    static func detectionHz(_ thermal: ThermalLabel) -> Double {
+        switch thermal {
+        case .nominal, .fair: 15
+        case .serious: 10
+        case .critical: 5
+        }
+    }
+    private var timedFor = 0.0
     static let cameraHeight = 1.0
+    /// Lens right of the bike's centreline, metres. 0.10 from the wheel's place in the ride
+    /// footage (70% across a 0.70 f/W frame, ~0.4 m below the lens); `-cameraOffset 0.12`
+    /// once someone measures the mount.
+    static let cameraOffset = UserDefaults.standard.string(forKey: "cameraOffset").flatMap(Double.init) ?? 0.10
 
     let inputs = OSAllocatedUnfairLock(initialState: RearInputs())
     let source: CaptureSource
     let peer = PeerLink.Rear()
     private let detector: Detector
     private var filter = DetectionFilter()
+    /// The wheel's place from earlier rides, "WxH|x1,y1,x2,y2;…", used only when this
+    /// frame is the same shape (a replayed clip or a remount starts over).
+    private var egoMask = EgoMask()
+    static let egoKey = "egoZones"
+    private var savedEgoZones = -1
     private let tracker = Tracker()
     private let ttc = TTCEstimator()
     private let rangeFilter = RangeFilter()
@@ -138,8 +157,9 @@ nonisolated final class RearWorker: @unchecked Sendable {
         }
         lastFrameT = t
 
-        let hz = input.thermal == .serious || input.thermal == .critical ? 5.0 : Self.detectionHz
+        let hz = Self.detectionHz(input.thermal)
         guard t - lastDetectT >= 1 / hz - 0.001 else { return }
+        if hz != timedFor { retime(hz) }
         let dt = lastDetectT.isFinite ? t - lastDetectT : 1 / hz
         lastDetectT = t
 
@@ -153,12 +173,23 @@ nonisolated final class RearWorker: @unchecked Sendable {
                                         v0: frame.intrinsics?.cy ?? h / 2,
                                         cameraHeight: frame.cameraHeight ?? Self.cameraHeight,
                                         imageW: w, imageH: h)
+            gapEstimator?.cameraOffset = Self.cameraOffset
+            let saved = (UserDefaults.standard.string(forKey: Self.egoKey) ?? "").split(separator: "|")
+            egoMask = EgoMask(zones: saved.count == 2 && saved[0] == "\(Int(w))x\(Int(h))"
+                ? saved[1].split(separator: ";").compactMap { DetectionFilter.Zone(String($0)) } : [])
+            savedEgoZones = egoMask.zones.count
         }
         let geo = gapEstimator!
 
         let t0 = ContinuousClock.now
         filter.exclusionZones = input.exclusionZones
-        let detections = filter.apply(detector.detect(frame.pixelBuffer), imageW: w, imageH: h)
+        let detections = egoMask.apply(filter.apply(detector.detect(frame.pixelBuffer), imageW: w, imageH: h),
+                                       imageW: w, imageH: h, t: t)
+        if egoMask.zones.count != savedEgoZones {
+            savedEgoZones = egoMask.zones.count
+            let zones = egoMask.zones.map { "\($0.x1),\($0.y1),\($0.x2),\($0.y2)" }.joined(separator: ";")
+            UserDefaults.standard.set("\(Int(w))x\(Int(h))|\(zones)", forKey: Self.egoKey)
+        }
         let took = (ContinuousClock.now - t0).components
         let ms = Double(took.seconds) * 1000 + Double(took.attoseconds) / 1e15
         let tracks = tracker.update(detections: detections, dt: dt)
@@ -169,7 +200,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
         // Draw and send only what was detected in the last 0.2 s. The tracker keeps a lost
         // track alive 1.5 s so its id survives a dropout, but its box is then a drifting guess;
         // shown, it reads as a second box beside the real one. The engine still sees it.
-        let visible = Set(tracks.filter { $0.misses <= 2 }.map(\.id))
+        let visible = Set(tracks.filter { $0.misses <= visibleMisses }.map(\.id))
 
         let yawCorrection = headingDelta(yaw: input.yaw, t: t)
         let states: [TrackState] = tracks.map { tr in
@@ -183,17 +214,15 @@ nonisolated final class RearWorker: @unchecked Sendable {
         }
         lastGap = lastGap.filter { k, _ in tracks.contains { $0.id == k } }
 
-        let decisions: [Decision], gripDecisions: [Decision]
-        if input.engine == .danger {
-            let gaps = Dictionary(states.map { ($0.id, $0.gap) }, uniquingKeysWith: { a, _ in a })
-            (decisions, gripDecisions) = danger.update(tracks: tracks, gaps: gaps, t: t, imageW: w, imageH: h)
-        } else {
-            decisions = engine.update(tracks: states, bikeSpeed: input.speed, demoMode: input.demo, now: t)
-            gripDecisions = decisions
-        }
+        // One decision path, both engines every frame (Fusion.swift): ThreatEngine decides,
+        // DangerEngine's range-free votes confirm, sharpen or rescue, never alert alone.
+        let votes = danger.votes(tracks: tracks, t: t, imageW: w, imageH: h)
+        let threat = engine.update(tracks: states, bikeSpeed: input.speed, demoMode: input.demo, now: t,
+                                   corroborated: Fusion.corroborated(votes))
+        let decisions = Fusion.fuse(threat, votes: votes, states: states)
         latest.withLock { $0 = LatestView(states: states, t: t, wall: Date()) }
         let byID = Dictionary(decisions.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        driveHaptics(decisions: gripDecisions, present: Set(tracks.map(\.id)))
+        driveHaptics(decisions: decisions, present: Set(tracks.map(\.id)))
         EventLogger.shared.record(decisions: decisions, states: states, input: input)
 
         let lag = Date().timeIntervalSince(wallStart!) - (t - firstPTS)
@@ -236,7 +265,8 @@ nonisolated final class RearWorker: @unchecked Sendable {
                 // The front shows an answer for 3 s; stop sending it once it is spent.
                 if let current = m, t - current.t > 3 { m = nil }
                 return m
-            })
+            },
+            grips: input.grips, battery: input.battery)
         if t - lastSendT >= 1.0 / 15 {
             lastSendT = t
             peer.send(message)
@@ -308,6 +338,19 @@ nonisolated final class RearWorker: @unchecked Sendable {
             $0 = MergeMessage(side: raw, clear: verdict.clear, blockedBy: verdict.blockedBy, t: view.t)
         }
         Self.log.log("\(String(format: "merge %@ -> %@ (%@)", raw, verdict.clear ? "CLEAR" : "BLOCKED", verdict.reason), privacy: .public)")
+    }
+
+    /// Everything counted in frames keeps its meaning in seconds at any rate: a 0.4 s
+    /// debounce (0.2 s when both cues agree), a track confirmed on 0.2 s of sightings,
+    /// a lost track kept 1.5 s and drawn for 0.2 s.
+    private var visibleMisses = 2
+    private func retime(_ hz: Double) {
+        timedFor = hz
+        engine.config.debounceFrames = max(2, Int((0.4 * hz).rounded()))
+        engine.config.corroboratedDebounceFrames = max(1, Int((0.2 * hz).rounded()))
+        tracker.maxMisses = Int((1.5 * hz).rounded())
+        tracker.minHits = max(2, Int((0.2 * hz).rounded()))
+        visibleMisses = max(1, Int((0.2 * hz).rounded()))
     }
 
     private func syncLogger(on: Bool, frame: CapturedFrame) {

@@ -19,6 +19,8 @@ import os
     @Published private(set) var thermal: ThermalLabel = .nominal
     @Published private(set) var speed = 0.0
     @Published private(set) var heading = -1.0
+    /// Horizontal accuracy of the last fix in metres; nil before the first.
+    @Published private(set) var gpsAccuracy: Double?
     @Published private(set) var peerState: PeerLink.Rear.State = .browsing
     @Published private(set) var overlay: [OverlayTrack] = []
     @Published private(set) var previewImage: CGImage?
@@ -26,7 +28,6 @@ import os
     @Published private(set) var eventCount = EventLogger.shared.count
     @Published var demoMode = false { didSet { syncInputs() } }
     @Published var logging = false { didSet { syncInputs() } }
-    @Published var engine: Engine = .threat { didSet { syncInputs() } }
     /// Frame-fraction rectangles hiding the bike's own parts; `-exclude x1,y1,x2,y2[;...]` at launch.
     @Published var exclusionZones: [DetectionFilter.Zone] = [] { didSet { syncInputs() } }
     @Published private(set) var replayURL: URL?
@@ -39,6 +40,11 @@ import os
     private let location = CLLocationManager()
     private let motion = CMMotionManager()
     private var thermalObserver: NSObjectProtocol?
+    /// This ride's GPS track, always written while the live camera runs.
+    private var gpsLog: GPSLog?
+    /// The grips' link and this phone's battery go to the front with every frame.
+    private var gripsWatch: AnyCancellable?
+    private var batteryObserver: NSObjectProtocol?
     /// GPS log of the clip being replayed; the Simulator's own location is useless for this.
     private var rideTrack: RideTrack?
     private var firstFrameT: Double?
@@ -85,6 +91,7 @@ import os
             self.error = "\(error)"
             return
         }
+        gpsLog = replayURL == nil ? GPSLog() : nil
         location.requestWhenInUseAuthorization()
         location.startUpdatingLocation()
         if motion.isDeviceMotionAvailable {
@@ -94,6 +101,13 @@ import os
                 self?.worker?.inputs.withLock { $0.yaw = yaw }
             }
         }
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        gripsWatch = haptics.$state.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in
+            Task { @MainActor in self?.syncInputs() }
+        }
+        batteryObserver = NotificationCenter.default.addObserver(
+            forName: UIDevice.batteryLevelDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in Task { @MainActor in self?.syncInputs() } }
         thermalObserver = NotificationCenter.default.addObserver(
             forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -108,8 +122,11 @@ import os
         worker?.stop()
         worker = nil
         location.stopUpdatingLocation()
+        gpsLog = nil
         motion.stopDeviceMotionUpdates()
         if let o = thermalObserver { NotificationCenter.default.removeObserver(o) }
+        if let o = batteryObserver { NotificationCenter.default.removeObserver(o) }
+        gripsWatch = nil
         thermalObserver = nil
     }
 
@@ -150,10 +167,13 @@ import os
 
     /// Copies the main-actor sensor/toggle values into the worker (yaw arrives separately).
     private func syncInputs() {
-        let (demo, log, temp, spd, hdg, zones, eng) = (demoMode, logging, thermal, speed, heading, exclusionZones, engine)
+        let (demo, log, temp, spd, hdg, zones) = (demoMode, logging, thermal, speed, heading, exclusionZones)
+        let grips = haptics.state == .connected ? "connected" : "searching"
+        let level = UIDevice.current.batteryLevel
+        let battery: Double? = level >= 0 ? Double(level) : nil
         worker?.inputs.withLock {
             $0.demo = demo; $0.logging = log; $0.thermal = temp; $0.speed = spd; $0.heading = hdg
-            $0.exclusionZones = zones; $0.engine = eng
+            $0.exclusionZones = zones; $0.grips = grips; $0.battery = battery
         }
     }
 
@@ -173,6 +193,8 @@ import os
         guard let loc = locations.last else { return }
         speed = max(loc.speed, 0)
         heading = loc.course >= 0 ? loc.course : -1
+        gpsAccuracy = loc.horizontalAccuracy >= 0 ? loc.horizontalAccuracy : nil
+        gpsLog?.append(loc)
         EventLogger.shared.setFix(lat: loc.coordinate.latitude, lon: loc.coordinate.longitude)
         syncInputs()
         // t matches the camera clock (host uptime) so the jsonl lines up with the .mov.

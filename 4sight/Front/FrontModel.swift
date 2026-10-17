@@ -24,6 +24,7 @@ final class FrontModel: ObservableObject {
     private var smoothed: [Int: CGPoint] = [:]
     private var born: [Int: Double] = [:]
     private var ghosts: [Int: (track: VehicleSprite.Track, lostAt: Double)] = [:]
+    private var oncomingIDs = Set<Int>()
     /// When set, every clock in the UI reads this value (deterministic screenshots).
     var freeze: Double?
 
@@ -41,7 +42,16 @@ final class FrontModel: ObservableObject {
     private(set) var scripted = false
 
     /// Live mode only: the real route and which way the rider faces.
-    var route = LiveRoute()
+    var route = LiveRoute() {
+        didSet {
+            let c = route.coordinates
+            guard c.count != oldValue.coordinates.count || c.first?.latitude != oldValue.coordinates.first?.latitude
+                    || c.last?.latitude != oldValue.coordinates.last?.latitude else { return }
+            lanePlan = StreetMap.bundled.flatMap { LanePlan(route: c, map: $0) }
+        }
+    }
+    /// Which part of the street to ride along the route; rebuilt when the route changes.
+    private(set) var lanePlan: LanePlan?
 
     func pose(_ loc: CLLocation, heading: Double?) {
         route.update(loc, heading: heading, at: now())
@@ -126,6 +136,7 @@ final class FrontModel: ObservableObject {
         }
         smoothed = kept
         born = born.filter { kept[$0.key] != nil }
+        oncomingIDs = oncomingIDs.filter { kept[$0] != nil }
         motions = next
         for tr in f.tracks { worstSeen[tr.id] = max(worstSeen[tr.id] ?? 0, tr.level) }
         frame = f
@@ -152,8 +163,11 @@ final class FrontModel: ObservableObject {
         }
         let live = SurroundView.visibleTracks(frame).map { tr -> VehicleSprite.Track in
             let p = motions[tr.id].map { position(of: $0, at: t) } ?? CGPoint(x: centreX(tr.x, tr.cls), y: tr.z)
+            // Once seen going the other way it stays so, so a noisy frame cannot flip it.
+            if tr.oncoming { oncomingIDs.insert(tr.id) }
             return VehicleSprite.Track(id: tr.id, cls: tr.cls, x: p.x, z: p.y,
-                                       level: tr.level, turnR: tr.turnR, opacity: fadeIn(tr.id))
+                                       level: tr.level, turnR: tr.turnR, opacity: fadeIn(tr.id),
+                                       oncoming: oncomingIDs.contains(tr.id))
         }
         let leaving = ghosts.values.compactMap { g -> VehicleSprite.Track? in
             let alpha = 1 - (t - g.lostAt) / Self.fade

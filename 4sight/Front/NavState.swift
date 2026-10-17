@@ -16,8 +16,12 @@ struct NavState {
 
     var current: NavStep { steps[currentIndex] }
 
-    /// Seconds to destination at the given speed; nil when stationary.
-    func eta(speed: Double) -> Double? { speed > 0.5 ? remaining / speed : nil }
+    /// City cycling pace including lights, about 15 km/h: the ETA holds steady at a red
+    /// light instead of jumping with the speedometer.
+    static let pace = 4.2
+
+    /// Seconds to destination at a steady riding pace.
+    var eta: Double { remaining / Self.pace }
 
     /// `--mockroute`: 5 steps, rider frozen 120 m before the end of step 2.
     static let mock: NavState = {

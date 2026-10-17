@@ -13,30 +13,30 @@ struct DestinationPickerView: View {
         VStack(spacing: 0) {
             TextField("Where to?", text: $completer.query)
                 .font(.system(size: 22, weight: .semibold, design: .rounded))
-                .foregroundStyle(Theme.text)
+                .foregroundStyle(Light.ink)
                 .padding(16)
                 .frame(minHeight: 56)
-                .background(Theme.ground, in: RoundedRectangle(cornerRadius: 14))
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 14))
                 .padding(16)
                 .autocorrectionDisabled()
             List(completer.results, id: \.self) { r in
                 Button { pick(r) } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(r.title).font(.system(size: 20, weight: .semibold, design: .rounded))
-                            .foregroundStyle(Theme.text)
+                            .foregroundStyle(Light.ink)
                         Text(r.subtitle).font(.system(size: 15, design: .rounded))
-                            .foregroundStyle(Theme.textDim)
+                            .foregroundStyle(Light.dim)
                     }
                     .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
                 }
-                .listRowBackground(Theme.bg)
+                .listRowBackground(Light.sheet)
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
         }
-        .background(Theme.bg)
-        .overlay { if busy { ProgressView().tint(Theme.text) } }
-        .preferredColorScheme(.dark)
+        .background(Light.sheet)
+        .overlay { if busy { ProgressView().tint(Light.ink) } }
+        .preferredColorScheme(.light)
     }
 
     private func pick(_ completion: MKLocalSearchCompletion) {

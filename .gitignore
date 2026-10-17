@@ -33,3 +33,7 @@ ruvector.db
 # Agent worktrees and local Wi-Fi experiments (the latter hold a hotspot password)
 .claude/worktrees/
 scripts/esp32_wifi_*.ino
+
+# Raw ride GPS stays off the public repo; only the trimmed web/data output is committed
+data/real/
+data/synthetic/

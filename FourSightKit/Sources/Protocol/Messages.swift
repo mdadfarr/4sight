@@ -76,11 +76,18 @@ public struct FrameMessage: Codable, Equatable, Sendable {
     /// The most recent merge answer, absent until the rider presses a bar button.
     /// Optional on the wire: an older front build simply ignores it.
     public var merge: MergeMessage?
+    /// Whether the rear phone has the handlebar grips: "connected" or "searching".
+    /// Optional on the wire, like `merge`: absent from older rear builds.
+    public var grips: String?
+    /// Rear phone battery, 0–1, absent when iOS does not report it.
+    public var battery: Double?
 
     public init(t: Double, fps: Int, temp: ThermalLabel, speed: Double, heading: Double,
-                demo: Bool, tracks: [TrackMessage], merge: MergeMessage? = nil) {
+                demo: Bool, tracks: [TrackMessage], merge: MergeMessage? = nil,
+                grips: String? = nil, battery: Double? = nil) {
         self.t = t; self.fps = fps; self.temp = temp; self.speed = speed
         self.heading = heading; self.demo = demo; self.tracks = tracks; self.merge = merge
+        self.grips = grips; self.battery = battery
     }
 
     /// One JSON object terminated by "\n", the wire format of the rear→front link.

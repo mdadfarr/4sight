@@ -10,6 +10,10 @@ public struct GapEstimator: Sendable {
     public var cameraHeight: Double
     public var imageW: Double
     public var imageH: Double
+    /// Where the lens sits right of the bike's centreline, metres (negative = left). The
+    /// rear phone is not mounted dead centre, so "straight behind the camera" is this far
+    /// to the rider's right.
+    public var cameraOffset = 0.0
 
     public init(f: Double, u0: Double, v0: Double, cameraHeight: Double = 1.0,
                 imageW: Double, imageH: Double) {
@@ -56,7 +60,7 @@ public struct GapEstimator: Sendable {
     public func gap(box: Box, cls: VehicleClass, z: Double) -> Double {
         let uNear = box.cx > u0 ? box.x : box.x + box.w
         let imageGap = (uNear - u0) / f * (z + cls.length)
-        return -imageGap
+        return -imageGap + cameraOffset
     }
 
     /// Amount to subtract from the gap when the bike has yawed by delta since the box was seen.

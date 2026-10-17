@@ -10,12 +10,16 @@ protocol TrackFeed {
 /// Launch arguments: --synthetic, --freeze T, --mockroute, --demo (FrameMessage.demo,
 /// which makes bicycles and people count as threats, matching ThreatEngine) and
 /// --demoevents (scripted near misses on the risk map, for a phone that has not ridden).
+/// `-previewRide YES` (with `-role front`) laps a pretend live ride for the simulator.
 struct LaunchArgs {
     let synthetic: Bool
     let freeze: Double?
     let mockRoute: Bool
     let demo: Bool
     let demoEvents: Bool
+    let previewRide: Bool
+    /// `-replayRear <file in Documents>`: with `-previewRide`, real rear-pipeline tracks.
+    let replayRear: String?
 
     init(_ args: [String] = ProcessInfo.processInfo.arguments) {
         func value(after flag: String) -> String? {
@@ -27,5 +31,7 @@ struct LaunchArgs {
         mockRoute = args.contains("--mockroute")
         demo = args.contains("--demo")
         demoEvents = args.contains("--demoevents")
+        previewRide = args.contains("-previewRide")
+        replayRear = value(after: "-replayRear")
     }
 }

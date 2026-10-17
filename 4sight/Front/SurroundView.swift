@@ -11,31 +11,39 @@ struct SurroundView: View {
     @ObservedObject var model: FrontModel
 
     var body: some View {
-        if model.scripted { scripted } else { LiveMapView(model: model) }
-    }
-
-    private var scripted: some View {
         TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
             Canvas { ctx, size in
                 let t = model.now(timeline.date)
                 let scale = size.width / Design.width
                 var c = ctx
                 c.scaleBy(x: scale, y: scale)
-                draw(&c, t: t)
+                draw(&c, t: t, date: timeline.date)
             }
         }
         .background(Palette.ground)
     }
 
-    /// The scripted ride keeps the mock's whole invented street. The live feed is drawn
-    /// on the real map instead (`LiveMapView`).
-    private func draw(_ ctx: inout GraphicsContext, t: Double) {
-        SceneRenderer.ground(&ctx, t)
-        SceneRenderer.blocks(&ctx, t)
-        RouteRibbon.draw(&ctx, t)
-        SceneRenderer.parked(&ctx, t)
+    /// The scripted ride keeps the mock's whole invented street. The live feed draws the
+    /// real streets around the rider from OpenStreetMap (`StreetRenderer`).
+    private func draw(_ ctx: inout GraphicsContext, t: Double, date: Date) {
+        if model.scripted {
+            SceneRenderer.ground(&ctx, t)
+            SceneRenderer.blocks(&ctx, t)
+            RouteRibbon.draw(&ctx, t)
+            SceneRenderer.parked(&ctx, t)
+        } else {
+            StreetRenderer.draw(&ctx, map: StreetMap.bundled, rider: model.route.riderCoordinate(at: date),
+                                heading: model.route.heading(at: t), route: model.route.coordinates,
+                                plan: model.lanePlan)
+        }
         let blocker = MergeBanner.current(model.frame, link: model.link)?.blockedBy
-        for track in model.tracks(at: t) {
+        let rider = model.scripted ? nil : model.route.riderCoordinate(at: date)
+        for var track in model.tracks(at: t) {
+            if track.oncoming, let lane = StreetRenderer.oncomingLane(
+                map: StreetMap.bundled, rider: rider, heading: model.route.heading(at: t), x: track.x, z: track.z) {
+                track = VehicleSprite.Track(id: track.id, cls: track.cls, x: lane, z: track.z, level: track.level,
+                                            turnR: track.turnR, opacity: track.opacity, oncoming: true)
+            }
             var c = ctx
             c.opacity = track.opacity
             if track.id == blocker { VehicleSprite.blockedRing(&c, track) }
@@ -43,7 +51,7 @@ struct SurroundView: View {
         }
         VehicleSprite.puck(&ctx)
         SceneRenderer.haze(&ctx)
-        SceneRenderer.labels(&ctx, t)
+        if model.scripted { SceneRenderer.labels(&ctx, t) }
     }
 
     /// Only what the rear camera can actually see, painted far-behind last because
@@ -52,6 +60,14 @@ struct SurroundView: View {
     ///
     /// Vulnerable road users stay grey unless the frame is in demo mode, matching
     /// ThreatEngine, which ignores bicycles and people outside it.
+    /// A vehicle on the rider's left pulling away faster than the rider rides is going the
+    /// other way: it passed and is leaving. A parked car recedes at exactly riding speed,
+    /// so the 3 m/s margin keeps it out.
+    static func oncoming(_ tr: TrackMessage, riderSpeed: Double) -> Bool {
+        guard ![.person, .bicycle].contains(tr.cls), tr.x < -1.5 else { return false }
+        return tr.z * tr.invTTC < -(riderSpeed + 3)
+    }
+
     static func visibleTracks(_ frame: FrameMessage?) -> [VehicleSprite.Track] {
         guard let frame else { return [] }
         return frame.tracks
@@ -61,7 +77,8 @@ struct SurroundView: View {
                 let vru = tr.cls == .person || tr.cls == .bicycle
                 return VehicleSprite.Track(
                     id: tr.id, cls: tr.cls.rawValue, x: tr.x, z: tr.z,
-                    level: vru && !frame.demo ? 0 : tr.level, turnR: tr.turnR)
+                    level: vru && !frame.demo ? 0 : tr.level, turnR: tr.turnR,
+                    oncoming: oncoming(tr, riderSpeed: frame.speed))
             }
     }
 }
@@ -72,10 +89,6 @@ struct AlertOverlay: View {
     @ObservedObject var model: FrontModel
 
     var body: some View {
-        if model.scripted { scripted } else { LiveMapView(model: model) }
-    }
-
-    private var scripted: some View {
         TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
             Canvas { ctx, size in
                 var c = ctx
