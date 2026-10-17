@@ -22,7 +22,7 @@ struct FrontRootView: View {
         ZStack {
             switch flow.phase {
             case .home:
-                PassiveHomeView(model: model, flow: flow, onPick: preview)
+                PassiveHomeView(model: model, flow: flow, onPick: preview, onDemo: startDemo)
             case .preview:
                 RoutePreviewView(model: model, plans: plans, destination: destination,
                                  chosen: $chosen, onStart: start, onCancel: { flow.phase = .home })
@@ -76,6 +76,15 @@ struct FrontRootView: View {
         model.start(feed: args.synthetic
                     ? SyntheticFeed(freeze: args.freeze, demo: args.demo)
                     : PeerFeed())
+    }
+
+    /// The same ride `--synthetic --demo --mockroute` starts, reachable on an untethered
+    /// phone. Relaunch the app to get back to the live link.
+    private func startDemo() {
+        model.nav = .mock
+        model.beginRide()
+        model.start(feed: SyntheticFeed(freeze: nil, demo: true))
+        flow.phase = .riding
     }
 
     private func preview(_ item: MKMapItem) {
