@@ -45,6 +45,26 @@ public struct TrackMessage: Codable, Equatable, Sendable {
     }
 }
 
+/// The answer to one handlebar merge button press, carried to the front phone.
+/// The front shows it for 3 s from `t` and then drops it; it is never latched.
+public struct MergeMessage: Codable, Equatable, Sendable {
+    /// "L" or "R", the lane the rider asked about.
+    public var side: String
+    public var clear: Bool
+    public var blockedBy: Int?
+    /// Rear-phone time the answer was computed.
+    public var t: Double
+
+    public init(side: String, clear: Bool, blockedBy: Int? = nil, t: Double) {
+        self.side = side; self.clear = clear; self.blockedBy = blockedBy; self.t = t
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case side, clear, t
+        case blockedBy = "blocked_by"
+    }
+}
+
 public struct FrameMessage: Codable, Equatable, Sendable {
     public var t: Double
     public var fps: Int
@@ -53,11 +73,14 @@ public struct FrameMessage: Codable, Equatable, Sendable {
     public var heading: Double
     public var demo: Bool
     public var tracks: [TrackMessage]
+    /// The most recent merge answer, absent until the rider presses a bar button.
+    /// Optional on the wire: an older front build simply ignores it.
+    public var merge: MergeMessage?
 
     public init(t: Double, fps: Int, temp: ThermalLabel, speed: Double, heading: Double,
-                demo: Bool, tracks: [TrackMessage]) {
+                demo: Bool, tracks: [TrackMessage], merge: MergeMessage? = nil) {
         self.t = t; self.fps = fps; self.temp = temp; self.speed = speed
-        self.heading = heading; self.demo = demo; self.tracks = tracks
+        self.heading = heading; self.demo = demo; self.tracks = tracks; self.merge = merge
     }
 
     /// One JSON object terminated by "\n", the wire format of the rear→front link.

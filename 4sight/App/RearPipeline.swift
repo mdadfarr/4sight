@@ -74,6 +74,8 @@ import os
                                    sendHaptic: { [haptics] cmd in DispatchQueue.main.async { haptics.send(cmd) } },
                                    publish: { [weak self] snap in Task { @MainActor in self?.apply(snap) } })
             worker = w
+            // Handlebar button presses arrive on the Bluetooth queue and are answered there.
+            haptics.onEvent = { [weak w] event in w?.handle(event: event) }
             thermal = Self.label(ProcessInfo.processInfo.thermalState)
             syncInputs()
             try w.start()

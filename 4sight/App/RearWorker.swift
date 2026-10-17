@@ -55,6 +55,11 @@ nonisolated final class RearWorker: @unchecked Sendable {
     private let ttc = TTCEstimator()
     private let engine = ThreatEngine()
     private let danger = DangerAdapter()
+    /// The last frame's tracks, read from the Bluetooth queue when a button is pressed.
+    private struct LatestView { var states: [TrackState] = []; var t = 0.0; var wall = Date.distantPast }
+    private let latest = OSAllocatedUnfairLock(initialState: LatestView())
+    /// The merge answer to attach to outgoing frames, until it ages out.
+    private let lastMerge = OSAllocatedUnfairLock<MergeMessage?>(initialState: nil)
     private let sendHaptic: @Sendable (BLECommand) -> Void
     private let publish: @Sendable (RearSnapshot) -> Void
     private let wantsPreviewImage: Bool
@@ -173,6 +178,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
             decisions = engine.update(tracks: states, bikeSpeed: input.speed, demoMode: input.demo, now: t)
             gripDecisions = decisions
         }
+        latest.withLock { $0 = LatestView(states: states, t: t, wall: Date()) }
         let byID = Dictionary(decisions.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         driveHaptics(decisions: gripDecisions, present: Set(tracks.map(\.id)))
         EventLogger.shared.record(decisions: decisions, states: states, input: input)
@@ -212,6 +218,11 @@ nonisolated final class RearWorker: @unchecked Sendable {
                 return TrackMessage(id: s.id, cls: s.cls, x: s.gap, z: s.z, invTTC: s.invTTC,
                                     gapPred: d?.gapPred ?? abs(s.gap), level: d?.level ?? 0,
                                     grip: d?.grip ?? "-", turnR: s.turnR)
+            },
+            merge: lastMerge.withLock { (m: inout MergeMessage?) -> MergeMessage? in
+                // The front shows an answer for 3 s; stop sending it once it is spent.
+                if let current = m, t - current.t > 3 { m = nil }
+                return m
             })
         if t - lastSendT >= 1.0 / 15 {
             lastSendT = t
@@ -267,6 +278,20 @@ nonisolated final class RearWorker: @unchecked Sendable {
         sentLevel = sentLevel.filter { present.contains($0.key) || holding.contains($0.key) }
         let hasAlert = sentLevel.values.contains { $0.level >= 2 }
         if hadAlert && !hasAlert { sendHaptic(.clear) }
+    }
+
+    /// A handlebar button press. Called on the CoreBluetooth queue, never the worker's,
+    /// so it reads the last published view rather than touching the pipeline.
+    func handle(event: BLEEvent) {
+        guard case .mergeRequest(let raw) = event, let side = MergeSide(rawValue: raw) else { return }
+        let view = latest.withLock { $0 }
+        let verdict = mergeCheck(side: side, tracks: view.states,
+                                 age: Date().timeIntervalSince(view.wall))
+        sendHaptic(verdict.clear ? .mergeClear(side: raw) : .mergeBlocked(side: raw))
+        lastMerge.withLock {
+            $0 = MergeMessage(side: raw, clear: verdict.clear, blockedBy: verdict.blockedBy, t: view.t)
+        }
+        Self.log.log("\(String(format: "merge %@ -> %@ (%@)", raw, verdict.clear ? "CLEAR" : "BLOCKED", verdict.reason), privacy: .public)")
     }
 
     private func syncLogger(on: Bool, frame: CapturedFrame) {

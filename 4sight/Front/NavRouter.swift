@@ -24,15 +24,23 @@ final class NavRouter: NSObject, CLLocationManagerDelegate {
         location.requestWhenInUseAuthorization()
     }
 
-    func route(to destination: MKMapItem) async throws {
+    /// Every cycling route MapKit will offer, for the rider to choose between before
+    /// setting off. Nothing starts here: asking is separate from going.
+    func plans(to destination: MKMapItem) async throws -> [RoutePlan] {
         let req = MKDirections.Request()
         req.source = .forCurrentLocation()
         req.destination = destination
         req.transportType = .cycling
-        guard let route = try await MKDirections(request: req).calculate().routes.first else { return }
-        steps = route.steps.filter { $0.distance > 0 || $0 == route.steps.last }.map(NavStep.init)
-        load(points: Array(UnsafeBufferPointer(start: route.polyline.points(), count: route.polyline.pointCount)),
-             stepDistances: steps.map(\.distance))
+        req.requestsAlternateRoutes = true
+        let name = destination.name ?? "Destination"
+        return try await MKDirections(request: req).calculate().routes
+            .enumerated().map { RoutePlan(id: $0.offset, route: $0.element, destination: name) }
+    }
+
+    /// Commit to one of them and begin following it.
+    func start(_ plan: RoutePlan) {
+        steps = plan.steps
+        load(points: plan.coordinates.map { MKMapPoint($0) }, stepDistances: steps.map(\.distance))
         location.startUpdatingLocation()
         if let loc = location.location { update(with: loc) } else { onUpdate(state(at: 0)) }
     }
