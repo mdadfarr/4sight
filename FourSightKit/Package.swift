@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "FourSightKit",
-    platforms: [.iOS(.v16), .macOS(.v13)],
+    platforms: [.iOS(.v17), .macOS(.v13)],
     products: [
         .library(name: "FourSightKit", targets: ["Protocol", "ThreatEngine", "Perception", "Links"]),
     ],

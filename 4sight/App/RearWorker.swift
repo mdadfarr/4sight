@@ -140,9 +140,11 @@ nonisolated final class RearWorker: @unchecked Sendable {
 
         let w = Double(CVPixelBufferGetWidth(frame.pixelBuffer))
         let h = Double(CVPixelBufferGetHeight(frame.pixelBuffer))
-        if gapEstimator == nil || (frame.intrinsics != nil && !geoFromIntrinsics) {
+        // Rebuilt when the frame changes shape too: turning the phone turns the frames upright.
+        let reshaped = gapEstimator.map { $0.imageW != w || $0.imageH != h } ?? true
+        if reshaped || (frame.intrinsics != nil && !geoFromIntrinsics) {
             geoFromIntrinsics = frame.intrinsics != nil
-            gapEstimator = GapEstimator(f: frame.intrinsics?.fx ?? 0.9 * w, u0: frame.intrinsics?.cx ?? w / 2,
+            gapEstimator = GapEstimator(f: frame.intrinsics?.fx ?? 0.9 * max(w, h), u0: frame.intrinsics?.cx ?? w / 2,
                                         v0: frame.intrinsics?.cy ?? h / 2,
                                         cameraHeight: frame.cameraHeight ?? Self.cameraHeight,
                                         imageW: w, imageH: h)

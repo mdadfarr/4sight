@@ -8,6 +8,8 @@ public final class CameraSource: NSObject, CaptureSource, AVCaptureVideoDataOutp
     /// For an AVCaptureVideoPreviewLayer; the pipeline never touches it otherwise.
     public let session = AVCaptureSession()
     private let queue = DispatchQueue(label: "foursight.camera")
+    private var rotation: AVCaptureDevice.RotationCoordinator?
+    private var rotationObservation: NSKeyValueObservation?
 
     public override init() {
         var cont: AsyncStream<CapturedFrame>.Continuation?
@@ -35,6 +37,20 @@ public final class CameraSource: NSObject, CaptureSource, AVCaptureVideoDataOutp
         if let conn = output.connection(with: .video) {
             if conn.isVideoStabilizationSupported { conn.preferredVideoStabilizationMode = .off }
             if conn.isCameraIntrinsicMatrixDeliverySupported { conn.isCameraIntrinsicMatrixDeliveryEnabled = true }
+            // Turn every frame upright by gravity, like the Camera app. The detector is only good
+            // on upright people and cars, and "image right = rider's left" only holds upright, so
+            // this makes detection and the left/right grip correct however the phone is mounted.
+            let rc = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: nil)
+            let apply = { [weak conn] in
+                guard let conn else { return }
+                let angle = rc.videoRotationAngleForHorizonLevelCapture
+                if conn.isVideoRotationAngleSupported(angle) { conn.videoRotationAngle = angle }
+            }
+            apply()
+            rotation = rc
+            rotationObservation = rc.observe(\.videoRotationAngleForHorizonLevelCapture) { [queue] _, _ in
+                queue.async { apply() }
+            }
         }
         session.commitConfiguration()
 
@@ -56,8 +72,14 @@ public final class CameraSource: NSObject, CaptureSource, AVCaptureVideoDataOutp
                               from connection: AVCaptureConnection) {
         guard let pb = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let ts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
-        continuation?.yield(CapturedFrame(pixelBuffer: pb, timestamp: ts,
-                                          intrinsics: CapturedFrame.intrinsics(from: sampleBuffer)))
+        // Focal length from the delivered matrix (square pixels, so it survives a 90 degree turn);
+        // principal point at the buffer centre. shortcut: the true centre is within a few px on
+        // iPhone, and the delivered cx/cy may be in the unrotated sensor frame; calibrate if gaps drift.
+        let intrinsics = CapturedFrame.intrinsics(from: sampleBuffer).map {
+            Intrinsics(fx: $0.fx, fy: $0.fx, cx: Double(CVPixelBufferGetWidth(pb)) / 2,
+                       cy: Double(CVPixelBufferGetHeight(pb)) / 2)
+        }
+        continuation?.yield(CapturedFrame(pixelBuffer: pb, timestamp: ts, intrinsics: intrinsics))
     }
 }
 

@@ -70,7 +70,7 @@ import os
         speed = 0
         heading = -1
         do {
-            let w = try RearWorker(source: source, previewImage: replayURL != nil,
+            let w = try RearWorker(source: source, previewImage: true,
                                    sendHaptic: { [haptics] cmd in DispatchQueue.main.async { haptics.send(cmd) } },
                                    publish: { [weak self] snap in Task { @MainActor in self?.apply(snap) } })
             worker = w

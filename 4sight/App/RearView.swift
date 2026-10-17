@@ -16,7 +16,7 @@ struct RearView: View {
     var body: some View {
         VStack(spacing: 12) {
             StatusStripView(fps: pipeline.fps, temp: pipeline.thermal.rawValue, speed: pipeline.speed, link: link)
-            RearPreview(session: pipeline.captureSession, image: pipeline.previewImage, tracks: pipeline.overlay)
+            RearPreview(session: nil, image: pipeline.previewImage, tracks: pipeline.overlay)
                 .frame(height: 200)
                 .background(Theme.ground)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
