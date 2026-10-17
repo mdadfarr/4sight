@@ -1,3 +1,4 @@
+import Links
 import MapKit
 import SwiftUI
 
@@ -11,6 +12,7 @@ struct PassiveHomeView: View {
 
     /// Falling back to `.automatic` with no fix yet shows the whole continent, which
     /// tells the rider nothing; the city is a better guess than the hemisphere.
+    @AppStorage(PeerFeed.nameKey) private var frontName = ""
     @State private var camera: MapCameraPosition = .userLocation(fallback: .region(
         MKCoordinateRegion(center: .init(latitude: 43.6605, longitude: -79.4280),
                            span: MKCoordinateSpan(latitudeDelta: 0.06, longitudeDelta: 0.06))))
@@ -47,6 +49,7 @@ struct PassiveHomeView: View {
             }
 
             LinkStrip(link: model.link).padding(.top, 14)
+            nameField.padding(.top, 10)
 
             if flow.recents.items.isEmpty {
                 Text("Nowhere yet. Search for somewhere to go, and it will wait here next time.")
@@ -77,6 +80,26 @@ struct PassiveHomeView: View {
         .background(Theme.bg)
         .clipShape(UnevenRoundedRectangle(topLeadingRadius: 18, topTrailingRadius: 18))
         .ignoresSafeArea(edges: .bottom)
+    }
+
+    /// What the rear phone's `-peer` argument has to match. iOS hands out a generic
+    /// "iPhone" without the device-name entitlement, so on real hardware this is the
+    /// only way to tell two 4sight bikes apart.
+    private var nameField: some View {
+        HStack(spacing: 10) {
+            Text("This phone")
+                .font(.system(size: 13.5, design: .rounded))
+                .foregroundStyle(Theme.textDim)
+            TextField(PeerLink.deviceName, text: $frontName)
+                .font(.system(size: 13.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(Theme.text)
+                .multilineTextAlignment(.trailing)
+                .autocorrectionDisabled()
+                .submitLabel(.done)
+                .onSubmit { model.restartFeed() }
+        }
+        .padding(.horizontal, 13).padding(.vertical, 10)
+        .background(Theme.ground, in: RoundedRectangle(cornerRadius: 11))
     }
 
     private func row(_ place: RecentPlace) -> some View {

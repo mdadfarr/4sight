@@ -67,6 +67,13 @@ final class FrontModel: ObservableObject {
         }
     }
 
+    /// Re-advertise after the rider renames this phone: the Bonjour service name is
+    /// fixed when the listener starts, so the link has to come back up to take it.
+    func restartFeed() {
+        guard let feed else { return }
+        start(feed: feed)
+    }
+
     func stop() {
         consumer?.cancel()
         watchdog?.cancel()
