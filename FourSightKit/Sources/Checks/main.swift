@@ -145,6 +145,15 @@ do {
         kept = m.apply([det(0.70 + j, 0.89 - j, 0.23, 0.20)], imageW: W, imageH: H, t: t); t += 0.1
     }
     check(kept.isEmpty && m.zones.count == 1, "ego mask: still bottom-anchored wheel learned and dropped")
+    // As in the footage: the wheel seen only every other frame, still learned.
+    var m3 = EgoMask(); var t3 = 0.0, kept3: [Detection] = [det(0, 0, 0, 0)]
+    for i in 0..<40 {
+        let seen = i % 2 == 0 ? [det(0.68 + Double(i % 4) * 0.01, 0.9, 0.22, 0.18)] : []
+        kept3 = m3.apply(seen, imageW: W, imageH: H, t: t3); t3 += 0.1
+    }
+    check(m3.zones.count == 1 && m3.apply([det(0.7, 0.89, 0.21, 0.19, .car)], imageW: W, imageH: H, t: t3).isEmpty,
+          "ego mask: wheel detected in half the frames is still learned")
+    _ = kept3
     // A real person walking up the middle of the frame is untouched.
     check(m.apply([det(0.45, 0.5, 0.15, 0.6)], imageW: W, imageH: H, t: t).count == 1,
           "ego mask: person elsewhere still detected")

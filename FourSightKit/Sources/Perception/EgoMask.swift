@@ -15,14 +15,21 @@ public struct EgoMask: Sendable {
     /// Taller than this fraction of the frame is never a bike part.
     public var maxHeight = 0.35
     /// Centre drift, as a fraction of the frame, still counted as not moving.
-    public var drift = 0.04
+    public var drift = 0.06
     public var settle = 2.0
+    /// The detector sees the wheel in about half the frames; a gap this long keeps the
+    /// candidate rather than starting the clock again.
+    public var gap = 1.0
+    /// Hits needed over `settle`, so two chance boxes cannot mask a spot.
+    public var minHits = 8
     /// Learned zones, in frame fractions.
     public private(set) var zones: [DetectionFilter.Zone] = []
 
-    private var candidate: (cx: Double, cy: Double, w: Double, h: Double, since: Double)?
+    private var candidate: (cx: Double, cy: Double, w: Double, h: Double, since: Double, last: Double, hits: Int)?
 
-    public init() {}
+    /// `zones` from an earlier ride: the mount does not move, so the wheel is known from
+    /// the first frame instead of after a few seconds of riding.
+    public init(zones: [DetectionFilter.Zone] = []) { self.zones = zones }
 
     /// Learns from this frame's detections and returns those not on a bike part.
     public mutating func apply(_ dets: [Detection], imageW: Double, imageH: Double, t: Double) -> [Detection] {
@@ -31,16 +38,19 @@ public struct EgoMask: Sendable {
         }
         let anchored = dets.map { frac($0.box) }
             .filter { $0.cy + $0.h / 2 > 1 - anchorBand && $0.h < maxHeight }
-        if let c = candidate, let same = anchored.first(where: { abs($0.cx - c.cx) < drift && abs($0.cy - c.cy) < drift }) {
-            if t - c.since >= settle, !zones.contains(where: { inside(c.cx, c.cy, $0) }) {
+        if var c = candidate, let same = anchored.first(where: { abs($0.cx - c.cx) < drift && abs($0.cy - c.cy) < drift }) {
+            c.last = t; c.hits += 1
+            c.w = max(c.w, same.w); c.h = max(c.h, same.h)
+            candidate = c
+            if t - c.since >= settle, c.hits >= minHits, !zones.contains(where: { inside(c.cx, c.cy, $0) }) {
                 // Pad by a quarter of its size: the detector's box around the wheel wobbles.
-                let pw = max(c.w, same.w) * 0.75, ph = max(c.h, same.h) * 0.75
+                let pw = c.w * 0.75, ph = c.h * 0.75
                 zones.append(.init(x1: c.cx - pw, y1: c.cy - ph, x2: c.cx + pw, y2: min(c.cy + ph, 1)))
                 candidate = nil
             }
-        } else {
+        } else if candidate == nil || t - candidate!.last > gap {
             candidate = anchored.first(where: { a in !zones.contains { inside(a.cx, a.cy, $0) } })
-                .map { ($0.cx, $0.cy, $0.w, $0.h, t) }
+                .map { ($0.cx, $0.cy, $0.w, $0.h, t, t, 1) }
         }
         guard !zones.isEmpty else { return dets }
         return dets.filter { d in

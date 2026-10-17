@@ -59,7 +59,11 @@ nonisolated final class RearWorker: @unchecked Sendable {
     let peer = PeerLink.Rear()
     private let detector: Detector
     private var filter = DetectionFilter()
+    /// The wheel's place from earlier rides, "WxH|x1,y1,x2,y2;…", used only when this
+    /// frame is the same shape (a replayed clip or a remount starts over).
     private var egoMask = EgoMask()
+    static let egoKey = "egoZones"
+    private var savedEgoZones = -1
     private let tracker = Tracker()
     private let ttc = TTCEstimator()
     private let rangeFilter = RangeFilter()
@@ -157,6 +161,10 @@ nonisolated final class RearWorker: @unchecked Sendable {
                                         cameraHeight: frame.cameraHeight ?? Self.cameraHeight,
                                         imageW: w, imageH: h)
             gapEstimator?.cameraOffset = Self.cameraOffset
+            let saved = (UserDefaults.standard.string(forKey: Self.egoKey) ?? "").split(separator: "|")
+            egoMask = EgoMask(zones: saved.count == 2 && saved[0] == "\(Int(w))x\(Int(h))"
+                ? saved[1].split(separator: ";").compactMap { DetectionFilter.Zone(String($0)) } : [])
+            savedEgoZones = egoMask.zones.count
         }
         let geo = gapEstimator!
 
@@ -164,6 +172,11 @@ nonisolated final class RearWorker: @unchecked Sendable {
         filter.exclusionZones = input.exclusionZones
         let detections = egoMask.apply(filter.apply(detector.detect(frame.pixelBuffer), imageW: w, imageH: h),
                                        imageW: w, imageH: h, t: t)
+        if egoMask.zones.count != savedEgoZones {
+            savedEgoZones = egoMask.zones.count
+            let zones = egoMask.zones.map { "\($0.x1),\($0.y1),\($0.x2),\($0.y2)" }.joined(separator: ";")
+            UserDefaults.standard.set("\(Int(w))x\(Int(h))|\(zones)", forKey: Self.egoKey)
+        }
         let took = (ContinuousClock.now - t0).components
         let ms = Double(took.seconds) * 1000 + Double(took.attoseconds) / 1e15
         let tracks = tracker.update(detections: detections, dt: dt)
