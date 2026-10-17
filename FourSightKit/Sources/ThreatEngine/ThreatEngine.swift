@@ -60,7 +60,8 @@ public final class ThreatEngine {
         var lastSeen: TimeInterval
     }
 
-    public let config: ThreatConfig
+    /// `var` so the rear phone can re-time the debounce when it changes detection rate.
+    public var config: ThreatConfig
     private var memory: [Int: Memory] = [:]
 
     public init(config: ThreatConfig = ThreatConfig()) { self.config = config }
