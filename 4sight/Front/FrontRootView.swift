@@ -1,11 +1,22 @@
 import SwiftUI
 
-// Placeholder on main; the real view arrives with front/synthetic-wedge.
 struct FrontRootView: View {
+    @StateObject private var model = FrontModel()
+    private let args = LaunchArgs()
+
     var body: some View {
-        Text("Front role: coming")
-            .foregroundStyle(Theme.textDim)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Theme.bg)
+        GeometryReader { geo in
+            VStack(spacing: 0) {
+                Color.clear.frame(height: geo.size.height / 3) // nav HUD, later PR
+                SurroundView(model: model)
+            }
+        }
+        .background(Theme.bg)
+        .ignoresSafeArea()
+        .preferredColorScheme(.dark)
+        .onAppear {
+            // shortcut: PeerFeed lands in front/peer-feed; until then everything is synthetic.
+            model.start(feed: SyntheticFeed(scenario: args.scenario, freeze: args.freeze))
+        }
     }
 }
