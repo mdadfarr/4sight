@@ -82,6 +82,36 @@ enum StreetRenderer {
         drawRoute(&ctx, route, plan: plan, rider: rider, heading: h)
     }
 
+    // MARK: - Oncoming lane
+
+    /// Rider-frame x of the middle of the oncoming lane nearest a vehicle at (x, z): the
+    /// first lane left of the centre line of the two-way street it is on. Nil off the
+    /// map, on a one-way street, or when the measured spot is more than 4 m from that
+    /// lane (then the measurement is trusted over the map).
+    static func oncomingLane(map: StreetMap?, rider: CLLocationCoordinate2D?, heading h: Double,
+                             x: Double, z: Double) -> Double? {
+        guard let map, let rider else { return nil }
+        let r = map.local(rider), a = h * .pi / 180
+        let p = (e: r.e + x * cos(a) - z * sin(a), n: r.n - x * sin(a) - z * cos(a))
+        let along = (sin(a), cos(a))                       // the rider's direction, east/north
+        var best: (d: Double, centre: (e: Double, n: Double), way: StreetMap.Way)?
+        for w in map.near(p, radius: 15) where w.kind == .road && !w.oneway {
+            for i in 1..<w.pts.count {
+                let s0 = w.pts[i - 1], s1 = w.pts[i], de = s1.e - s0.e, dn = s1.n - s0.n
+                let l2 = de * de + dn * dn
+                guard l2 > 0.01, abs(de * along.0 + dn * along.1) / l2.squareRoot() > 0.8 else { continue }
+                let u = min(max(((p.e - s0.e) * de + (p.n - s0.n) * dn) / l2, 0), 1)
+                let q = (e: s0.e + de * u, n: s0.n + dn * u), d = hypot(q.e - p.e, q.n - p.n)
+                if d < 15, d < (best?.d ?? .infinity) { best = (d, q, w) }
+            }
+        }
+        guard let best else { return nil }
+        let centreX = StreetMap.riderFrame(best.centre, from: r, heading: h).0
+        let laneW = best.way.width / 2 / Double(max(best.way.lanes, 2) / 2)
+        let lane = centreX - laneW / 2
+        return abs(lane - x) < 4 ? lane : nil
+    }
+
     // MARK: - Route
 
     /// A route point in the rider frame; `c` marks a planned lane change.
