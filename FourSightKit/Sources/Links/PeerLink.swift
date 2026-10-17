@@ -2,11 +2,40 @@
 import Foundation
 import Network
 import Protocol
+import UIKit
 import os
 
 public enum PeerLink {
     public static let serviceType = "_foursight._tcp"
     static let log = Logger(subsystem: "com.zupersun.foursight", category: "peer")
+
+    /// The name the front phone advertises under, so a rider whose street holds two
+    /// 4sight bikes does not get the other one's traffic.
+    ///
+    /// iOS 16 returns a generic "iPhone" from `UIDevice.name` without an entitlement,
+    /// and Bonjour then uniquifies the duplicates as "iPhone (2)". Simulators report
+    /// their own name, which is what makes sim-to-sim pairing testable.
+    public static var deviceName: String {
+        ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] ?? UIDevice.current.name
+    }
+
+    /// The front the rear should hold out for, from the rear's `-peer` argument. Set
+    /// once at launch, before the worker that owns the browser is built. nil means
+    /// take whichever front answers first.
+    public nonisolated(unsafe) static var preferredFront: String?
+
+    /// Bonjour's own name for a browse result, or nil for a non-service endpoint.
+    static func serviceName(of endpoint: NWEndpoint) -> String? {
+        if case let .service(name, _, _, _) = endpoint { return name }
+        return nil
+    }
+
+    /// Which of the fronts on offer to take. With no preference, the first; with one,
+    /// only an exact match, so an unnamed front is never a silent stand-in.
+    static func choose(_ endpoints: [NWEndpoint], preferring wanted: String?) -> NWEndpoint? {
+        guard let wanted else { return endpoints.first }
+        return endpoints.first { serviceName(of: $0)?.caseInsensitiveCompare(wanted) == .orderedSame }
+    }
 
     static var parameters: NWParameters {
         let p = NWParameters.tcp
@@ -21,6 +50,7 @@ public enum PeerLink {
         private let queue = DispatchQueue(label: "foursight.peer.rear")
         private var browser: NWBrowser?
         private var connection: NWConnection?
+        private let preferred = PeerLink.preferredFront
 
         public init() {}
 
@@ -51,8 +81,16 @@ public enum PeerLink {
             b.browseResultsChangedHandler = { [weak self] results, _ in
                 guard let self else { return }
                 PeerLink.log.info("rear browser results=\(results.count)")
-                guard self.connection == nil, let first = results.first else { return }
-                self.connect(to: first.endpoint)
+                guard self.connection == nil else { return }
+                let offered = results.map(\.endpoint)
+                guard let pick = PeerLink.choose(offered, preferring: self.preferred) else {
+                    // Keep browsing: the named front may simply not be up yet.
+                    let names = offered.compactMap(PeerLink.serviceName(of:)).joined(separator: ", ")
+                    PeerLink.log.info("rear waiting for front \(self.preferred ?? "-", privacy: .public), offered \(names, privacy: .public)")
+                    return
+                }
+                PeerLink.log.info("rear chose front \(PeerLink.serviceName(of: pick) ?? "-", privacy: .public)")
+                self.connect(to: pick)
             }
             b.stateUpdateHandler = { [weak self] st in
                 PeerLink.log.info("rear browser state=\(String(describing: st))")
@@ -97,9 +135,11 @@ public enum PeerLink {
             continuation = cont
         }
 
-        public func start() throws {
+        /// Advertises under this phone's name so a rear given `-peer` can pick it out.
+        public func start(name: String = PeerLink.deviceName) throws {
             let l = try NWListener(using: PeerLink.parameters)
-            l.service = NWListener.Service(name: "4sight", type: PeerLink.serviceType)
+            PeerLink.log.info("front advertising as \(name, privacy: .public)")
+            l.service = NWListener.Service(name: name, type: PeerLink.serviceType)
             l.newConnectionHandler = { [weak self] c in
                 guard let self else { return }
                 PeerLink.log.info("front accepted connection from \(String(describing: c.endpoint))")
