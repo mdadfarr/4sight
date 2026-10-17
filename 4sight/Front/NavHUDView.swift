@@ -10,6 +10,7 @@ import SwiftUI
 struct NavHUDView: View {
     @ObservedObject var model: FrontModel
     var onPickDestination: () -> Void = {}
+    var onRiskMap: () -> Void = {}
 
     var body: some View {
         GeometryReader { geo in
@@ -58,6 +59,10 @@ struct NavHUDView: View {
                 .at(Design.width - 38, Design.bannerH + 30)
             circleButton("speaker.wave.2.fill", action: {})
                 .at(Design.width - 38, Design.bannerH + 84)
+            // Not in the mock: the risk map needs a way in, and this column is where
+            // the mock already puts the map's own controls.
+            circleButton("map.fill", action: onRiskMap)
+                .at(Design.width - 38, Design.bannerH + 138)
             Circle().fill(model.link == .connected ? Palette.green : Palette.exit)
                 .frame(width: 9, height: 9).at(Design.width - 22, Design.bannerH + 14)
 

@@ -1,3 +1,4 @@
+import Combine
 import CoreLocation
 import Foundation
 
@@ -25,7 +26,8 @@ struct GridCell: Identifiable {
     let worstLevel: Int
 }
 
-struct RideTrack: Identifiable {
+/// Not called RideTrack: Perception already exports one, and the app module sees both.
+struct RiddenRoute: Identifiable {
     let id: String
     let points: [CLLocationCoordinate2D]
 }
@@ -36,7 +38,7 @@ struct RideTrack: Identifiable {
 final class EventStore: ObservableObject {
     @Published private(set) var events: [RiskEvent] = []
     @Published private(set) var cells: [GridCell] = []
-    @Published private(set) var tracks: [RideTrack] = []
+    @Published private(set) var tracks: [RiddenRoute] = []
 
     static let cellMetres = 250.0
     static let metresPerDegreeLat = 111_320.0
@@ -68,7 +70,7 @@ final class EventStore: ObservableObject {
     func load(demo: Bool) {
         if demo {
             events = Self.demoEvents()
-            tracks = [RideTrack(id: "demo", points: Self.demoRoute())]
+            tracks = [RiddenRoute(id: "demo", points: Self.demoRoute())]
         } else {
             events = Self.readEvents(at: Self.eventsURL)
             tracks = Self.readRides()
@@ -107,7 +109,7 @@ final class EventStore: ObservableObject {
 
     private struct Fix: Decodable { let lat: Double?; let lon: Double? }
 
-    static func readRides() -> [RideTrack] {
+    static func readRides() -> [RiddenRoute] {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let files = (try? FileManager.default.contentsOfDirectory(at: docs, includingPropertiesForKeys: nil)) ?? []
         return files
@@ -120,7 +122,7 @@ final class EventStore: ObservableObject {
                           let la = f.lat, let lo = f.lon else { return nil }
                     return CLLocationCoordinate2D(latitude: la, longitude: lo)
                 }
-                return pts.count > 1 ? RideTrack(id: url.lastPathComponent, points: pts) : nil
+                return pts.count > 1 ? RiddenRoute(id: url.lastPathComponent, points: pts) : nil
             }
     }
 

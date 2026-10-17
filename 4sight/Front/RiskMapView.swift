@@ -8,10 +8,11 @@ import SwiftUI
 struct RiskMapView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var store = EventStore()
+    @State private var camera: MapCameraPosition = .region(Self.region(for: []))
     let demo: Bool
 
     var body: some View {
-        Map(initialPosition: .region(Self.region(for: store.events))) {
+        Map(position: $camera) {
             ForEach(store.cells) { cell in
                 MapPolygon(coordinates: cell.corners)
                     .foregroundStyle(Self.cellTint(cell))
@@ -32,7 +33,10 @@ struct RiskMapView: View {
         .ignoresSafeArea()
         .overlay(alignment: .topLeading) { closeButton }
         .overlay(alignment: .bottom) { summary }
-        .onAppear { store.load(demo: demo) }
+        .onAppear {
+            store.load(demo: demo)
+            camera = .region(Self.region(for: store.events))
+        }
     }
 
     // MARK: - Pieces
@@ -124,6 +128,6 @@ struct RiskMapView: View {
         return MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: (minLat + maxLat) / 2, longitude: (minLon + maxLon) / 2),
             span: MKCoordinateSpan(latitudeDelta: max((maxLat - minLat) * 1.5, 0.006),
-                                   longitudeDelta: max((maxLon - minLon) * 1.4, 0.006)))
+                                   longitudeDelta: max((maxLon - minLon) * 1.15, 0.006)))
     }
 }
