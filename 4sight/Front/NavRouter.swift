@@ -7,6 +7,15 @@ final class NavRouter: NSObject, CLLocationManagerDelegate {
     var onUpdate: (NavState?) -> Void = { _ in }
     /// Where the rider is and which way they face, for the heading-up route.
     var onPose: (CLLocation, Double?) -> Void = { _, _ in }
+    /// A new route after the rider left the old one, for the map to redraw.
+    var onReroute: (RoutePlan) -> Void = { _ in }
+    private var destination: MKMapItem?
+    private var offRouteFixes = 0
+    private var lastReroute = Date.distantPast
+    /// Further than this from the route, for `offRouteNeeded` fixes in a row, means the
+    /// rider took another way: more than GPS error on a sidewalk beside the road.
+    static let offRouteMetres = 35.0
+    static let offRouteNeeded = 4
     private var compass: Double?
 
     private let location = CLLocationManager()
@@ -30,14 +39,25 @@ final class NavRouter: NSObject, CLLocationManagerDelegate {
     /// Every cycling route MapKit will offer, for the rider to choose between before
     /// setting off. Nothing starts here: asking is separate from going.
     func plans(to destination: MKMapItem) async throws -> [RoutePlan] {
-        let req = MKDirections.Request()
-        req.source = .forCurrentLocation()
-        req.destination = destination
-        req.transportType = .cycling
-        req.requestsAlternateRoutes = true
+        self.destination = destination
         let name = destination.name ?? "Destination"
-        return try await MKDirections(request: req).calculate().routes
-            .enumerated().map { RoutePlan(id: $0.offset, route: $0.element, destination: name) }
+        // Apple has no cycling directions for some places; walking routes follow
+        // sidewalks and paths a bike can use, which beats no route at all.
+        var lastError: Error?
+        for mode in [MKDirectionsTransportType.cycling, .walking] {
+            let req = MKDirections.Request()
+            req.source = .forCurrentLocation()
+            req.destination = destination
+            req.transportType = mode
+            req.requestsAlternateRoutes = true
+            do {
+                let routes = try await MKDirections(request: req).calculate().routes
+                if !routes.isEmpty {
+                    return routes.enumerated().map { RoutePlan(id: $0.offset, route: $0.element, destination: name) }
+                }
+            } catch { lastError = error }
+        }
+        throw lastError ?? MKError(.directionsNotFound)
     }
 
     /// Commit to one of them and begin following it.
@@ -88,7 +108,30 @@ final class NavRouter: NSObject, CLLocationManagerDelegate {
     private func update(with loc: CLLocation) {
         onPose(loc, heading(for: loc))
         guard !steps.isEmpty else { return }
-        onUpdate(state(at: progress(of: MKMapPoint(loc.coordinate))))
+        let p = MKMapPoint(loc.coordinate)
+        onUpdate(state(at: progress(of: p)))
+        offRouteFixes = offRoute(p) > Self.offRouteMetres && loc.horizontalAccuracy < 25 ? offRouteFixes + 1 : 0
+        if offRouteFixes >= Self.offRouteNeeded, Date().timeIntervalSince(lastReroute) > 15, let destination {
+            lastReroute = Date()
+            offRouteFixes = 0
+            Task {
+                guard let plan = try? await plans(to: destination).first else { return }
+                start(plan)
+                onReroute(plan)
+            }
+        }
+    }
+
+    /// Metres from the rider to the nearest point of the route.
+    func offRoute(_ p: MKMapPoint) -> Double {
+        var best = Double.infinity
+        for i in 1..<max(points.count, 1) {
+            let a = points[i - 1], b = points[i]
+            let abx = b.x - a.x, aby = b.y - a.y, len2 = abx * abx + aby * aby
+            let t = len2 > 0 ? min(max(((p.x - a.x) * abx + (p.y - a.y) * aby) / len2, 0), 1) : 0
+            best = min(best, p.distance(to: MKMapPoint(x: a.x + abx * t, y: a.y + aby * t)))
+        }
+        return best
     }
 
     /// Metres along the polyline of the rider's projection onto its nearest segment.

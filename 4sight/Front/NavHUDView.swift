@@ -198,9 +198,8 @@ struct NavHUDView: View {
         return Self.clock(nav)
     }
     private var minutesText: String {
-        guard let nav = model.nav, let eta = nav.eta(speed: model.frame?.speed ?? World.speed)
-        else { return model.nav == nil && !model.scripted ? "–" : "18" }
-        return "\(Int((eta / 60).rounded(.up)))"
+        guard let nav = model.nav else { return model.scripted ? "18" : "–" }
+        return "\(max(1, Int((nav.eta / 60).rounded(.up))))"
     }
     private var kmText: String {
         guard let nav = model.nav else { return model.scripted ? "4.2" : "–" }
@@ -213,7 +212,7 @@ struct NavHUDView: View {
     }
 
     private static func clock(_ nav: NavState) -> String {
-        let eta = nav.eta(speed: World.speed) ?? 0
+        let eta = nav.eta
         return Date(timeIntervalSinceNow: eta).formatted(date: .omitted, time: .shortened)
     }
 }

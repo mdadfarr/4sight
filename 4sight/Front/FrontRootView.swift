@@ -69,6 +69,7 @@ struct FrontRootView: View {
         model.freeze = args.freeze
         router.onUpdate = advance
         router.onPose = { model.pose($0, heading: $1) }
+        router.onReroute = { model.route.coordinates = $0.coordinates }
         if args.mockRoute { model.nav = .mock }
         if args.previewRide { return startPreviewRide() }
         // The scripted ride and the frozen screenshots start mid-ride; a real launch
