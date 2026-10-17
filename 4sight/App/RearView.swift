@@ -145,6 +145,17 @@ struct RearView: View {
                 controls
                 diagnosticsSection
                 errorText
+                // The one way to stop protection by accident: locking the phone stops the
+                // camera. Said once, quietly, pointing at the safe alternative.
+                Label {
+                    Text("Locking the phone stops the camera. To darken it, use **Screen off**.")
+                } icon: {
+                    Image(systemName: "lock.slash")
+                }
+                .font(.system(size: 13, design: .rounded))
+                .foregroundStyle(Theme.textDim)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 6)
             }
             .padding(16)
         }
