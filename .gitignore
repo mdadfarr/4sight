@@ -1,0 +1,25 @@
+# Xcode
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+*.mlmodelc
+# SwiftPM
+.build/
+.swiftpm/
+# PlatformIO
+firmware/.pio/
+# Python
+tools/.venv/
+__pycache__/
+# local agent state
+.claude-flow/
+.claude/settings.local.json
+# footage (share by AirDrop/Drive, not git)
+*.mov
+*.mp4
+.DS_Store
+# ruflo/agent tooling state
+.swarm/
+agentdb.rvf*
+ruvector.db
