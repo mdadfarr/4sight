@@ -8,7 +8,8 @@ returned 500/502 on and off when this was written, which is no way to draw a roa
     uv run tools/osm_streets.py --bbox S,W,N,E --out path
 
 Output: {"origin":[lat,lon], "ways":[{"k":kind, "w":width_m, "n":lanes, "one":0|1,
-"bike":0|1, "p":[e0,n0,e1,n1,...]}]} with points in decimetres east/north of origin.
+"bike":0|1, "sw":bits 1=left 2=right of the way's direction,
+"p":[e0,n0,e1,n1,...]}]} with points in decimetres east/north of origin.
 Data © OpenStreetMap contributors, ODbL.
 """
 import argparse
@@ -101,6 +102,13 @@ def main():
             way["one"] = int(t.get("oneway") == "yes")
             way["bike"] = int(any(t.get(k) in ("lane", "track") for k in
                                   ("cycleway", "cycleway:both", "cycleway:left", "cycleway:right")))
+            # Sidewalks tagged on the road rather than mapped as their own ways
+            # ("separate" means they are, and get drawn from that way instead).
+            sw = t.get("sidewalk") or t.get("sidewalk:both")
+            left = sw in ("both", "left") or t.get("sidewalk:left") == "yes"
+            right = sw in ("both", "right") or t.get("sidewalk:right") == "yes"
+            if left or right:
+                way["sw"] = int(left) | int(right) << 1
         ways.append(way)
     # Draw order is the file order: parks, paths, crossings, roads, buildings on top.
     order = {"park": 0, "path": 1, "crossing": 2, "road": 3, "building": 4}

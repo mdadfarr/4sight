@@ -17,8 +17,13 @@ enum Palette {
     /// Live map: real streets read darker than the mock's so the white paint shows.
     static let street = Color(hex: 0xC7CED6)
     static let kerb = Color(hex: 0xB2BAC3)
-    static let sidewalk = Color(hex: 0xF6F7F9)
+    static let sidewalk = Color(hex: 0xFFFFFF)
     static let bikeLane = Color(hex: 0x9ED3A6)
+    static let liveGround = Color(hex: 0xE0E4E9)
+    static let sidewalkEdge = Color(hex: 0xC9D0D8)
+    /// Time-to-arrive, the Google Maps green that stays legible on white.
+    static let eta = Color(hex: 0x188038)
+    static let hairDark = Color(hex: 0x13161A).opacity(0.12)
     static let parkBay = Color(hex: 0xD9DEE4)
     static let cone = Color.white.opacity(0.5)
     static let body = Color(hex: 0xC3C9D1)

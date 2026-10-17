@@ -16,7 +16,7 @@ enum StreetRenderer {
     static func draw(_ ctx: inout GraphicsContext, map: StreetMap?, rider: CLLocationCoordinate2D?,
                      heading h: Double, route: [CLLocationCoordinate2D]) {
         ctx.fill(Path(CGRect(x: 0, y: 0, width: Design.width, height: Design.height)),
-                 with: .color(Palette.ground))
+                 with: .color(Palette.liveGround))
         guard let rider else { return }
         if let map {
             let r = map.local(rider)
@@ -24,7 +24,7 @@ enum StreetRenderer {
             func frame(_ w: StreetMap.Way) -> [(Double, Double)] {
                 w.pts.map { StreetMap.riderFrame($0, from: r, heading: h) }
             }
-            var park = Path(), walk = Path(), kerb = Path(), road = Path(), bike = Path()
+            var park = Path(), walk = Path(), walkEdge = Path(), kerb = Path(), road = Path(), bike = Path()
             var paint = Path(), zebra = Path(), caps = Path(), kerbCaps = Path()
             var buildings: [(z: Double, pts: [(Double, Double)])] = []
             for w in near {
@@ -33,7 +33,10 @@ enum StreetRenderer {
                 case .park:
                     if let p = polygon(line) { park.addPath(p) }
                 case .path:
-                    for run in clip(line) { walk.addPath(RouteRibbon.path(run, width: w.width)) }
+                    for run in clip(line) {
+                        walkEdge.addPath(RouteRibbon.path(run, width: w.width + 0.5))
+                        walk.addPath(RouteRibbon.path(run, width: w.width))
+                    }
                 case .crossing:
                     for run in clip(line) { zebra.addPath(dashes(run, width: w.width, on: 0.5, off: 0.5)) }
                 case .road:
@@ -46,6 +49,11 @@ enum StreetRenderer {
                             caps.addPath(disc(end, w.width / 2)); kerbCaps.addPath(disc(end, w.width / 2 + 0.25))
                         }
                         markings(run, w, paint: &paint, bike: &bike)
+                        for (bit, side) in [(1, -1.0), (2, 1.0)] where w.sidewalks & bit != 0 {
+                            let edge = offset(run, by: side * (w.width / 2 + 1.4))
+                            walkEdge.addPath(RouteRibbon.path(edge, width: 2.3))
+                            walk.addPath(RouteRibbon.path(edge, width: 1.8))
+                        }
                     }
                 case .building:
                     let z = line.map(\.1).reduce(0, +) / Double(line.count)
@@ -53,6 +61,7 @@ enum StreetRenderer {
                 }
             }
             ctx.fill(park, with: .color(Palette.park))
+            ctx.fill(walkEdge, with: .color(Palette.sidewalkEdge))
             ctx.fill(walk, with: .color(Palette.sidewalk))
             ctx.fill(kerb, with: .color(Palette.kerb))
             ctx.fill(kerbCaps, with: .color(Palette.kerb))
@@ -85,10 +94,26 @@ enum StreetRenderer {
             StreetMap.riderFrame(((($0.longitude - rider.longitude) * 111_320 * k), ($0.latitude - rider.latitude) * 111_320),
                                  from: (0, 0), heading: h)
         }
-        for run in clip(line) {
+        for run in clip(fromRider(line)) {
             ctx.fill(RouteRibbon.path(run, width: 2.1), with: .color(Palette.routeCase))
             ctx.fill(RouteRibbon.path(run, width: 1.5), with: .color(Palette.routeCore))
         }
+    }
+
+    /// The route from where the rider is: everything before the nearest point dropped,
+    /// and a lead-in from under the puck that joins the route 8 m on, so a few metres of
+    /// GPS error reads as a gentle merge instead of a line ending beside the arrow.
+    static func fromRider(_ line: [(Double, Double)]) -> [(Double, Double)] {
+        var best = (d: Double.infinity, i: 1, q: (0.0, 0.0))
+        for i in 1..<line.count {
+            let a = line[i - 1], b = line[i], dx = b.0 - a.0, dz = b.1 - a.1, l2 = dx * dx + dz * dz
+            let t = l2 > 0 ? min(max(-(a.0 * dx + a.1 * dz) / l2, 0), 1) : 0
+            let q = (a.0 + dx * t, a.1 + dz * t), d = hypot(q.0, q.1)
+            if d < best.d { best = (d, i, q) }
+        }
+        guard best.d < 30 else { return line }          // off route: draw it where it is
+        let rest = [best.q] + line[best.i...]
+        return [(0, 0)] + (cutFront(rest, by: 8) ?? rest)
     }
 
     // MARK: - Markings
@@ -117,20 +142,23 @@ enum StreetRenderer {
 
     /// The line with `d` metres cut off each end, or nil if nothing is left.
     private static func trimmed(_ line: [(Double, Double)], by d: Double) -> [(Double, Double)]? {
-        func cut(_ l: [(Double, Double)]) -> [(Double, Double)]? {
-            var left = d
-            for i in 1..<l.count {
-                let a = l[i - 1], b = l[i], len = hypot(b.0 - a.0, b.1 - a.1)
-                if len > left {
-                    let f = left / len
-                    return [(a.0 + (b.0 - a.0) * f, a.1 + (b.1 - a.1) * f)] + l[i...]
-                }
-                left -= len
-            }
-            return nil
-        }
-        guard let front = cut(line), let both = cut(front.reversed()), both.count > 1 else { return nil }
+        guard let front = cutFront(line, by: d), let both = cutFront(front.reversed(), by: d),
+              both.count > 1 else { return nil }
         return both.reversed()
+    }
+
+    /// The line with its first `d` metres removed, or nil if it is shorter than that.
+    private static func cutFront(_ l: [(Double, Double)], by d: Double) -> [(Double, Double)]? {
+        var left = d
+        for i in 1..<l.count {
+            let a = l[i - 1], b = l[i], len = hypot(b.0 - a.0, b.1 - a.1)
+            if len > left {
+                let f = left / len
+                return [(a.0 + (b.0 - a.0) * f, a.1 + (b.1 - a.1) * f)] + l[i...]
+            }
+            left -= len
+        }
+        return nil
     }
 
     /// Dashes laid out in metres along the ground, so they shorten with distance.

@@ -19,7 +19,16 @@ struct LiveRoute {
     }
 
     mutating func update(_ loc: CLLocation, heading: Double?, at t: Double) {
+        let now = Date(), shown = riderCoordinate(at: now)
         rider = loc
+        if let shown, let raw = rawCoordinate(at: now),
+           CLLocation(latitude: shown.latitude, longitude: shown.longitude)
+               .distance(from: CLLocation(latitude: raw.latitude, longitude: raw.longitude)) < 30 {
+            carry = (shown.latitude - raw.latitude, shown.longitude - raw.longitude)
+        } else {
+            carry = (0, 0)                     // first fix, or a real jump: go there
+        }
+        carryAt = now
         guard let heading else { return }
         if !hasHeading {
             from = heading; to = heading; hasHeading = true
@@ -41,6 +50,18 @@ struct LiveRoute {
     /// (fixes arrive about once a second), so the map glides instead of hopping.
     /// Capped at 1.5 s: past that the fix is stale and guessing further only drifts.
     func riderCoordinate(at date: Date) -> CLLocationCoordinate2D? {
+        guard let raw = rawCoordinate(at: date) else { return nil }
+        // A new fix lands a few metres from where the view had carried the rider;
+        // absorb that over `settle` seconds rather than jumping.
+        let f = 1 - min(max(date.timeIntervalSince(carryAt) / Self.settle, 0), 1)
+        return CLLocationCoordinate2D(latitude: raw.latitude + carry.lat * f,
+                                      longitude: raw.longitude + carry.lon * f)
+    }
+
+    private var carry = (lat: 0.0, lon: 0.0), carryAt = Date.distantPast
+    static let settle = 1.0
+
+    private func rawCoordinate(at date: Date) -> CLLocationCoordinate2D? {
         guard let rider else { return nil }
         guard rider.speed > 1.5, rider.course >= 0 else { return rider.coordinate }
         let ahead = rider.speed * min(max(date.timeIntervalSince(rider.timestamp), 0), 1.5)

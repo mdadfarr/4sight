@@ -16,6 +16,8 @@ struct StreetMap {
         let lanes: Int
         let oneway: Bool
         let bike: Bool
+        /// Sidewalks tagged on the road itself: bit 1 left, bit 2 right of its direction.
+        let sidewalks: Int
         /// Metres east and north of `origin`.
         let pts: [(e: Double, n: Double)]
         let lo: (e: Double, n: Double), hi: (e: Double, n: Double)
@@ -31,7 +33,7 @@ struct StreetMap {
     }()
 
     private struct Raw: Decodable {
-        struct W: Decodable { let k: Kind; let p: [Int]; let w: Double?; let n: Int?; let one: Int?; let bike: Int? }
+        struct W: Decodable { let k: Kind; let p: [Int]; let w: Double?; let n: Int?; let one: Int?; let bike: Int?; let sw: Int? }
         let origin: [Double]
         let ways: [W]
     }
@@ -44,7 +46,7 @@ struct StreetMap {
                 (e: Double(w.p[$0]) / 10, n: Double(w.p[$0 + 1]) / 10)
             }
             guard pts.count > 1 else { return nil }
-            return Way(kind: w.k, width: w.w ?? 0, lanes: w.n ?? 0, oneway: w.one == 1, bike: w.bike == 1,
+            return Way(kind: w.k, width: w.w ?? 0, lanes: w.n ?? 0, oneway: w.one == 1, bike: w.bike == 1, sidewalks: w.sw ?? 0,
                        pts: pts,
                        lo: (pts.map(\.e).min()!, pts.map(\.n).min()!),
                        hi: (pts.map(\.e).max()!, pts.map(\.n).max()!))

@@ -49,10 +49,7 @@ struct FrontRootView: View {
     private var ride: some View {
         ZStack {
             SurroundView(model: model)
-            NavHUDView(model: model,
-                       onPickDestination: { flow.picking = true },
-                       onRiskMap: { showingRiskMap = true },
-                       onExit: exitRide)
+            NavHUDView(model: model, onExit: exitRide)
             AlertOverlay(model: model)
             MergeBannerView(model: model)
         }

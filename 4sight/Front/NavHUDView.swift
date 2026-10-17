@@ -1,16 +1,14 @@
 import Protocol
 import SwiftUI
 
-/// The nav chrome from `docs/mock/front.html`: a black manoeuvre banner with a flat
-/// bottom edge so the map runs under it rather than under a floating card, the speed
-/// badge and two controls over the map, and a white arrival bar.
+/// The nav chrome: a black manoeuvre banner with a flat bottom edge so the map runs
+/// under it, the speed badge, and the arrival card. Nothing else floats over the map;
+/// destination and risk map live on the home and summary screens.
 ///
 /// Laid out at the mock's own coordinates in the 393 x 852 design space and scaled
 /// once, so every position below is the number from the mock.
 struct NavHUDView: View {
     @ObservedObject var model: FrontModel
-    var onPickDestination: () -> Void = {}
-    var onRiskMap: () -> Void = {}
     var onExit: () -> Void = {}
 
     var body: some View {
@@ -55,20 +53,9 @@ struct NavHUDView: View {
             Text(thenText).font(.system(size: 15, weight: .medium, design: .rounded))
                 .fixedSize().foregroundStyle(Palette.text).at(90, 182, anchor: .bottomLeading)
 
-            // Over the map: speed, and the two controls a rider reaches for.
             speedBadge.at(16, Design.bannerH + 14, anchor: .topLeading)
-            circleButton("point.topleft.down.to.point.bottomright.curvepath", action: onPickDestination)
-                .at(Design.width - 38, Design.bannerH + 30)
-            circleButton("speaker.wave.2.fill", action: {})
-                .at(Design.width - 38, Design.bannerH + 84)
-            // Not in the mock: the risk map needs a way in, and this column is where
-            // the mock already puts the map's own controls.
-            circleButton("map.fill", action: onRiskMap)
-                .at(Design.width - 38, Design.bannerH + 138)
-            Circle().fill(model.link == .connected ? Palette.green : Palette.exit)
-                .frame(width: 9, height: 9).at(Design.width - 22, Design.bannerH + 14)
 
-            arrivalBar.at(0, height - 96, anchor: .topLeading)
+            arrivalBar.at(0, height - Self.cardH, anchor: .topLeading)
         }
         .frame(width: Design.width, height: height, alignment: .topLeading)
     }
@@ -82,48 +69,50 @@ struct NavHUDView: View {
         }
         .frame(width: 54, height: 50)
         .background(Palette.bar, in: RoundedRectangle(cornerRadius: 12))
-        .shadow(color: Color(hex: 0x0C121A).opacity(0.22), radius: 4, y: 2)
-    }
-
-    private func circleButton(_ symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Palette.puck)
-                .frame(width: 44, height: 44)
-                .background(Palette.bar, in: Circle())
+        // Rear-phone link: green while frames arrive.
+        .overlay(alignment: .topTrailing) {
+            Circle().fill(model.link == .connected ? Palette.green : Palette.exit)
+                .frame(width: 8, height: 8).offset(x: -6, y: 6)
         }
         .shadow(color: Color(hex: 0x0C121A).opacity(0.22), radius: 4, y: 2)
     }
 
+    static let cardH = 112.0
+
+    /// Google Maps' bottom card, pared down: time left is the one number that matters
+    /// on a bike, so it leads in green; distance and arrival clock sit under it.
     private var arrivalBar: some View {
-        HStack(alignment: .top, spacing: 0) {
-            stat(arrivalText, "arrival").frame(width: 122, alignment: .leading)
-            stat(minutesText, "min").frame(width: 54, alignment: .leading)
-            stat(kmText, "km").frame(width: 66, alignment: .leading)
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(minutesText)
+                        .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+                    Text("min").font(.system(size: 18, weight: .semibold, design: .rounded))
+                }
+                .foregroundStyle(Palette.eta)
+                Text("\(kmText) km  ·  \(arrivalText)")
+                    .font(.system(size: 15, weight: .medium, design: .rounded).monospacedDigit())
+                    .foregroundStyle(Palette.barDim)
+            }
+            .lineLimit(1)
             Spacer(minLength: 0)
-            // Where the dead chevron was. Big and red like Google Maps' Exit, because it
-            // is pressed with a gloved thumb on a moving bike.
+            // Big enough for a gloved thumb on a moving bike, quiet enough not to
+            // compete with a warning.
             Button(action: onExit) {
                 Text("Exit")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
-                    .frame(width: 88, height: 54)
-                    .background(Color(hex: 0xE0342B), in: Capsule())
+                    .frame(width: 84, height: 48)
+                    .background(Palette.exit, in: Capsule())
             }
         }
-        .padding(.horizontal, 24).padding(.top, 26)
-        .frame(width: Design.width, height: 120, alignment: .topLeading)
+        .padding(.horizontal, 24).padding(.top, 18)
+        .frame(width: Design.width, height: Self.cardH, alignment: .top)
         .background(Palette.bar)
-        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 18, topTrailingRadius: 18))
-    }
-
-    private func stat(_ value: String, _ label: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value).font(.system(size: 26, weight: .bold, design: .rounded).monospacedDigit())
-                .lineLimit(1).minimumScaleFactor(0.75).foregroundStyle(Palette.barInk)
-            Text(label).font(.system(size: 13, weight: .medium, design: .rounded))
-                .fixedSize().foregroundStyle(Palette.barDim)
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24))
+        .shadow(color: Color(hex: 0x0C121A).opacity(0.12), radius: 12, y: -2)
+        .overlay(alignment: .top) {
+            Capsule().fill(Palette.hairDark).frame(width: 36, height: 4).padding(.top, 7)
         }
     }
 

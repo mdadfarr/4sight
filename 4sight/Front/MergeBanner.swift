@@ -33,43 +33,48 @@ enum MergeBanner {
     }
 }
 
+/// The answer takes over the black manoeuvre banner for its 3 s: the one place the
+/// rider already looks, solid green or red to match the LEDs on that grip, never
+/// flashing, so it cannot be mistaken for the edge warning.
 struct MergeBannerView: View {
     @ObservedObject var model: FrontModel
 
     var body: some View {
-        if let merge = MergeBanner.current(model.frame, link: model.link) {
-            let left = merge.side == "L"
-            HStack(spacing: 0) {
-                if !left { Spacer(minLength: 0) }
-                panel(merge, left: left)
-                if left { Spacer(minLength: 0) }
+        GeometryReader { geo in
+            let scale = geo.size.width / Design.width
+            if let merge = MergeBanner.current(model.frame, link: model.link) {
+                panel(merge)
+                    .frame(width: Design.width, height: Design.bannerH)
+                    .scaleEffect(scale, anchor: .topLeading)
+                    .transition(.opacity)
             }
-            .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .allowsHitTesting(false)
         }
+        .animation(.easeOut(duration: 0.15), value: MergeBanner.current(model.frame, link: model.link))
+        .allowsHitTesting(false)
     }
 
-    private func panel(_ merge: MergeMessage, left: Bool) -> some View {
-        VStack(spacing: 7) {
-            Image(systemName: merge.clear
-                  ? (left ? "arrow.turn.up.left" : "arrow.turn.up.right")
-                  : "hand.raised.fill")
-                .font(.system(size: 27, weight: .bold))
-            Text(merge.clear ? "CLEAR" : "BLOCKED")
-                .font(.system(size: 15, weight: .heavy, design: .rounded))
-                .kerning(1.2)
-            Text(left ? "LEFT" : "RIGHT")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .kerning(1.6)
-                .opacity(0.85)
+    private func panel(_ merge: MergeMessage) -> some View {
+        let left = merge.side == "L"
+        return ZStack(alignment: .topLeading) {
+            Rectangle().fill(merge.clear ? MergeBanner.clearFill : MergeBanner.blockedFill)
+            HStack(spacing: 18) {
+                Image(systemName: merge.clear
+                      ? (left ? "arrow.turn.up.left" : "arrow.turn.up.right")
+                      : "hand.raised.fill")
+                    .font(.system(size: 38, weight: .semibold))
+                    .frame(width: 48)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(merge.clear ? "Clear" : "Blocked")
+                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                    Text(merge.clear ? "Safe to merge \(left ? "left" : "right")"
+                                     : "Vehicle on your \(left ? "left" : "right")")
+                        .font(.system(size: 19, weight: .medium, design: .rounded))
+                        .opacity(0.9)
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.leading, 26)
+            .padding(.top, 78)
         }
-        .foregroundStyle(.white)
-        .frame(width: 104)
-        .padding(.vertical, 22)
-        .background(merge.clear ? MergeBanner.clearFill : MergeBanner.blockedFill,
-                    in: RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.9), lineWidth: 2.5))
-        .shadow(color: .black.opacity(0.3), radius: 10, y: 3)
     }
 }

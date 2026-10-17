@@ -185,10 +185,8 @@ enum VehicleSprite {
     /// white collar, dead centre side to side.
     static func puck(_ ctx: inout GraphicsContext) {
         let p = Camera.pt(0, 0)
-        // One bike length across, at the puck's own range, so it doubles as the ruler
-        // for how far back things are. The mock's 17 pt covered 2.6 m of road and
-        // swallowed the first metre behind the rider.
-        let r = 0.95 * Camera.ppm(0)
+        // Big enough to find at a glance on a moving bike; the route runs in under it.
+        let r = 1.6 * Camera.ppm(0)
         let k = r / 17                                   // the chevron was drawn for 17 pt
         var layer = ctx
         layer.addFilter(.shadow(color: Color(hex: 0x081830).opacity(0.45), radius: 5, y: 2))
