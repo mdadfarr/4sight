@@ -185,22 +185,26 @@ enum VehicleSprite {
     /// white collar, dead centre side to side.
     static func puck(_ ctx: inout GraphicsContext) {
         let p = Camera.pt(0, 0)
-        let r = 17.0
+        // One bike length across, at the puck's own range, so it doubles as the ruler
+        // for how far back things are. The mock's 17 pt covered 2.6 m of road and
+        // swallowed the first metre behind the rider.
+        let r = 0.95 * Camera.ppm(0)
+        let k = r / 17                                   // the chevron was drawn for 17 pt
         var layer = ctx
         layer.addFilter(.shadow(color: Color(hex: 0x081830).opacity(0.45), radius: 5, y: 2))
         layer.fill(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)),
                    with: .color(Palette.text))
 
-        let inner = r - 3.5
+        let inner = r - 3.5 * k
         ctx.fill(Path(ellipseIn: CGRect(x: p.x - inner, y: p.y - inner,
                                         width: inner * 2, height: inner * 2)),
                  with: .color(Palette.puck))
 
         var chevron = Path()
-        chevron.move(to: CGPoint(x: p.x, y: p.y - 8))
-        chevron.addLine(to: CGPoint(x: p.x + 7.5, y: p.y + 6.5))
-        chevron.addLine(to: CGPoint(x: p.x, y: p.y + 2.5))
-        chevron.addLine(to: CGPoint(x: p.x - 7.5, y: p.y + 6.5))
+        chevron.move(to: CGPoint(x: p.x, y: p.y - 8 * k))
+        chevron.addLine(to: CGPoint(x: p.x + 7.5 * k, y: p.y + 6.5 * k))
+        chevron.addLine(to: CGPoint(x: p.x, y: p.y + 2.5 * k))
+        chevron.addLine(to: CGPoint(x: p.x - 7.5 * k, y: p.y + 6.5 * k))
         chevron.closeSubpath()
         ctx.fill(chevron, with: .color(Palette.text))
     }
