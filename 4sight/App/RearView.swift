@@ -13,6 +13,12 @@ struct RearView: View {
     @State private var showPicker = false
     @State private var diagnostics = false
     @State private var savedBrightness: CGFloat = 1
+    /// Dimming is explained before it happens, never sprung on the rider: the card says
+    /// what it does, and a tap on the dimmed screen brightens it for a while.
+    @AppStorage("rearDim") private var dimWhenMounted = true
+    @State private var mountCard = true
+    @State private var awakeUntil = Date.distantPast
+    static let wakeSeconds = 15.0
 
     var body: some View {
         ScrollView {
@@ -36,18 +42,76 @@ struct RearView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.bg)
+        .overlay { if mountCard { mountPrompt } }
+        .simultaneousGesture(TapGesture().onEnded { wake() })
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
             savedBrightness = screen?.brightness ?? 1
-            screen?.brightness = 0.2
             pipeline.start()
         }
+        .onChange(of: dimWhenMounted) { applyBrightness() }
         .onDisappear {
             pipeline.stop()
             UIApplication.shared.isIdleTimerDisabled = false
             screen?.brightness = savedBrightness
         }
         .sheet(isPresented: $showPicker) { ReplayPicker { pipeline.setReplay($0) } }
+    }
+
+    // MARK: - Dimming
+
+    private var mountPrompt: some View {
+        ZStack {
+            Color.black.opacity(0.55).ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 14) {
+                Image(systemName: "sun.min.fill")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(Theme.amber)
+                Text("Ready to mount?")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                Text("Once it\u{2019}s on the rack, the screen dims to save battery and keep the phone cool. The camera keeps running.")
+                    .font(.system(size: 16, design: .rounded)).foregroundStyle(Theme.textDim)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Tap the screen any time to brighten it for \(Int(Self.wakeSeconds)) seconds.")
+                    .font(.system(size: 14, design: .rounded)).foregroundStyle(Theme.textDim)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    dimWhenMounted = true; mountCard = false; awakeUntil = .distantPast; applyBrightness()
+                } label: {
+                    Text("Dim and start")
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundStyle(.black)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(Theme.amber, in: RoundedRectangle(cornerRadius: 14))
+                }
+                .padding(.top, 6)
+                Button {
+                    dimWhenMounted = false; mountCard = false; applyBrightness()
+                } label: {
+                    Text("Keep bright for now")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Theme.text)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+            }
+            .foregroundStyle(Theme.text)
+            .padding(22)
+            .background(Theme.ground, in: RoundedRectangle(cornerRadius: 24))
+            .padding(.horizontal, 22)
+        }
+    }
+
+    /// A tap on a dimmed screen brightens it, then it dims again on its own.
+    private func wake() {
+        guard dimWhenMounted, !mountCard else { return }
+        awakeUntil = Date().addingTimeInterval(Self.wakeSeconds)
+        applyBrightness()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.wakeSeconds + 0.1) { applyBrightness() }
+    }
+
+    private func applyBrightness() {
+        let dim = dimWhenMounted && !mountCard && Date() >= awakeUntil
+        screen?.brightness = dim ? 0.2 : savedBrightness
     }
 
     private var screen: UIScreen? {
@@ -116,6 +180,10 @@ struct RearView: View {
             option("Count people and bikes",
                    "Pedestrians and cyclists can trigger alerts too. For demos; on the road only vehicles do.",
                    isOn: $pipeline.demoMode)
+            Divider().overlay(Theme.line)
+            option("Dim screen when mounted",
+                   "Saves battery and heat. Tap the screen to brighten it for \(Int(Self.wakeSeconds)) s.",
+                   isOn: $dimWhenMounted)
             Divider().overlay(Theme.line)
             option("Record video",
                    "GPS and near misses are always logged. Video files are large; record only test rides.",
