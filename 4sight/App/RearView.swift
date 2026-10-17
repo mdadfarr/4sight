@@ -70,6 +70,10 @@ struct RearView: View {
             GridRow { stat("inference", String(format: "%.1f ms", pipeline.inferenceMs)); stat("tracks", "\(pipeline.trackCount)") }
             GridRow { stat("grips", "\(pipeline.haptics.state)"); stat("peer", "\(pipeline.peerState)") }
             GridRow {
+                stat("lens", String(format: "f %.0f px %@", pipeline.focal, pipeline.focalFromLens ? "" : "(guess)"))
+                stat("", "")
+            }
+            GridRow {
                 stat("heading", pipeline.heading < 0 ? "–" : String(format: "%.0f°", pipeline.heading))
                 stat("source", pipeline.replayURL?.lastPathComponent ?? "camera")
             }

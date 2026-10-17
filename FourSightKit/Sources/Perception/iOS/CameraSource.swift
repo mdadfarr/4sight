@@ -57,9 +57,20 @@ public final class CameraSource: NSObject, CaptureSource, AVCaptureVideoDataOutp
         try device.lockForConfiguration()
         device.activeVideoMinFrameDuration = CMTime(value: 1, timescale: 30)
         device.activeVideoMaxFrameDuration = CMTime(value: 1, timescale: 30)
-        // Everything of interest is >5 m away; a hunting autofocus would corrupt box areas.
-        if device.isLockingFocusWithCustomLensPositionSupported {
-            device.setFocusModeLocked(lensPosition: 1.0, completionHandler: nil)
+        // Focus: locked at infinity left anything nearer than a few metres soft (people indoors,
+        // a car at the moment it passes), and soft boxes flicker and mis-size. Continuous AF biased
+        // far, with smooth (slow) focus moves so box sizes don't breathe frame to frame.
+        if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
+        if device.isAutoFocusRangeRestrictionSupported { device.autoFocusRangeRestriction = .far }
+        if device.isSmoothAutoFocusSupported { device.isSmoothAutoFocusEnabled = true }
+        // Exposure: cap it at 1/250 s. Auto exposure otherwise stretches to 1/30 s in shade or
+        // indoors, and rack vibration plus a passing car smear into a blur the detector misses.
+        // Costs some noise in low light, which the detector tolerates far better than blur.
+        let cap = CMTime(value: 1, timescale: 250)
+        if device.exposureMode == .continuousAutoExposure || device.exposureMode == .autoExpose,
+           CMTimeCompare(cap, device.activeFormat.minExposureDuration) >= 0,
+           CMTimeCompare(cap, device.activeFormat.maxExposureDuration) <= 0 {
+            device.activeMaxExposureDuration = cap
         }
         device.unlockForConfiguration()
 

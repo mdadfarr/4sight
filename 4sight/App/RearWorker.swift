@@ -26,6 +26,10 @@ nonisolated struct RearSnapshot: @unchecked Sendable {
     var benchMs: Double
     var peer: PeerLink.Rear.State
     var previewImage: CGImage?
+    /// Focal length in pixels the range maths is using, and whether it came from the lens
+    /// (delivered intrinsics) or the 0.9 x long-side guess. Shown so a bad distance can be traced.
+    var focal: Double
+    var focalFromLens: Bool
 }
 
 /// Which decision engine runs: metric ThreatEngine (default) or Arshiya's frame-fraction DangerEngine.
@@ -248,7 +252,8 @@ nonisolated final class RearWorker: @unchecked Sendable {
             : nil
         publish(RearSnapshot(message: message, overlay: overlay, inferenceMs: ms,
                              benchMs: bench.reduce(0) { $0 + $1.ms } / Double(max(bench.count, 1)),
-                             peer: peer.state, previewImage: image))
+                             peer: peer.state, previewImage: image,
+                             focal: geo.f, focalFromLens: geoFromIntrinsics))
     }
 
     /// Bike yaw relative to a slow (2 s) reference heading. CoreMotion yaw is positive

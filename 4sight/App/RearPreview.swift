@@ -45,7 +45,7 @@ final class PreviewUIView: UIView {
         while boxes.count < tracks.count {
             let l = CAShapeLayer(); l.fillColor = nil; l.lineWidth = 2
             layer.addSublayer(l); boxes.append(l)
-            let t = CATextLayer(); t.fontSize = 13; t.contentsScale = UIScreen.main.scale
+            let t = CATextLayer(); t.fontSize = 11; t.truncationMode = .end; t.contentsScale = UIScreen.main.scale
             t.foregroundColor = UIColor.white.cgColor; t.backgroundColor = UIColor.black.withAlphaComponent(0.6).cgColor
             layer.addSublayer(t); labels.append(t)
         }
@@ -61,7 +61,9 @@ final class PreviewUIView: UIView {
             let label = labels[i]
             label.isHidden = false
             label.string = String(format: " %@ %.1f m ", t.cls.rawValue, t.z)
-            label.frame = CGRect(x: r.minX, y: max(r.minY - 18, 0), width: 120, height: 18)
+            // Sized to its text and placed inside the box's top edge, so neighbours don't overlap.
+            let size = label.preferredFrameSize()
+            label.frame = CGRect(x: r.minX, y: r.minY, width: min(size.width, max(r.width, 40)), height: size.height)
         }
     }
 
