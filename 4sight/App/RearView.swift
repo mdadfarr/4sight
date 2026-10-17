@@ -29,9 +29,17 @@ struct RearView: View {
                     .frame(maxWidth: .infinity, maxHeight: 520)
                     .background(Theme.ground)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
-                Text(summary)
-                    .font(.system(size: 13, design: .rounded).monospacedDigit())
-                    .foregroundStyle(Theme.textDim)
+                    .overlay(alignment: .topLeading) {
+                        if pipeline.logging {
+                            Label("REC", systemImage: "circle.fill")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(Theme.red, in: Capsule())
+                                .padding(10)
+                        }
+                    }
+                statusLine
                 controls
                 diagnosticsSection
                 if let e = pipeline.error {
@@ -124,9 +132,17 @@ struct RearView: View {
         return CGFloat(img.width) / CGFloat(img.height)
     }
 
-    private var summary: String {
-        String(format: "%d fps · %.0f ms · %d tracking · %@", pipeline.fps, pipeline.inferenceMs,
-               pipeline.trackCount, pipeline.thermal.rawValue)
+    /// One plain sentence about the camera, instead of engineering numbers.
+    private var statusLine: some View {
+        let hot = pipeline.thermal == .serious || pipeline.thermal == .critical
+        let (icon, text, colour): (String, String, Color) =
+            pipeline.previewImage == nil ? ("hourglass", "Starting the camera…", Theme.textDim)
+            : hot ? ("thermometer.sun.fill", "Phone is hot, so it checks less often to cool down. Shade it if you can.", Theme.amber)
+            : ("eye.fill", "Watching the road behind you", Theme.green)
+        return Label(text, systemImage: icon)
+            .font(.system(size: 14, weight: .medium, design: .rounded))
+            .foregroundStyle(colour)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: - Status
@@ -144,34 +160,44 @@ struct RearView: View {
         case let a? where a <= 15: (Theme.green, String(format: "±%.0f m", a))
         case let a?: (Theme.amber, String(format: "±%.0f m", a))
         }
-        return ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) { chipRow(front, grips, gps) }
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) { chip("Front", front); chip("Grips", grips) }
-                HStack(spacing: 8) { chip("GPS", gps); if pipeline.logging { chip("Video", (Theme.red, "Rec")) } }
+        // One row of four, label over value, so it never wraps to a second line.
+        return HStack(spacing: 0) {
+            cell("Front", front)
+            divider
+            cell("Grips", grips)
+            divider
+            cell("GPS", gps)
+            divider
+            cell("Battery", battery)
+        }
+        .padding(.vertical, 10)
+        .background(Theme.ground, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var divider: some View { Rectangle().fill(Theme.line).frame(width: 1, height: 30) }
+
+    private func cell(_ label: String, _ state: (Color, String)) -> some View {
+        VStack(spacing: 3) {
+            HStack(spacing: 5) {
+                Circle().fill(state.0).frame(width: 7, height: 7)
+                Text(label).foregroundStyle(Theme.textDim)
             }
+            .font(.system(size: 12, design: .rounded))
+            Text(state.1).font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundStyle(Theme.text).lineLimit(1).minimumScaleFactor(0.8)
         }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 
-    @ViewBuilder
-    private func chipRow(_ front: (Color, String), _ grips: (Color, String), _ gps: (Color, String)) -> some View {
-        chip("Front", front)
-        chip("Grips", grips)
-        chip("GPS", gps)
-        if pipeline.logging { chip("Video", (Theme.red, "Rec")) }
+    /// This phone runs the camera the whole ride, so its battery is the one that runs out.
+    private var battery: (Color, String) {
+        let level = UIDevice.current.batteryLevel
+        guard level >= 0 else { return (Theme.textDim, "–") }
+        let pct = Int((level * 100).rounded())
+        return (pct < 20 ? Theme.amber : Theme.green, "\(pct)%")
     }
 
-    private func chip(_ label: String, _ state: (Color, String)) -> some View {
-        HStack(spacing: 6) {
-            Circle().fill(state.0).frame(width: 8, height: 8)
-            Text(label).foregroundStyle(Theme.textDim)
-            Text(state.1).foregroundStyle(Theme.text).fontWeight(.semibold)
-        }
-        .font(.system(size: 13.5, design: .rounded))
-        .padding(.horizontal, 11).frame(height: 32)
-        .background(Theme.ground, in: Capsule())
-        .fixedSize()
-    }
 
     // MARK: - Controls
 
@@ -215,6 +241,7 @@ struct RearView: View {
         DisclosureGroup(isExpanded: $diagnostics) {
             VStack(alignment: .leading, spacing: 10) {
                 Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 4) {
+                    GridRow { stat("detection", "\(pipeline.fps) fps"); stat("thermal", pipeline.thermal.rawValue) }
                     GridRow { stat("inference", String(format: "%.1f ms", pipeline.inferenceMs)); stat("tracks", "\(pipeline.trackCount)") }
                     GridRow {
                         stat("lens", String(format: "f %.0f px %@", pipeline.focal, pipeline.focalFromLens ? "" : "(guess)"))
