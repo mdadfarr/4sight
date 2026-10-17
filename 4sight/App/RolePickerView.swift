@@ -17,88 +17,72 @@ struct RolePickerView: View {
     }
 
     private var picker: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Spacer(minLength: 24)
-            HStack(spacing: 10) {
-                Image(systemName: "eye.trianglebadge.exclamationmark")
-                    .font(.system(size: 26, weight: .semibold))
-                    .foregroundStyle(Light.blue)
-                Text("4sight").font(.system(size: 34, weight: .bold, design: .rounded))
-            }
-            .foregroundStyle(Light.ink)
-            Text("Eyes behind you, on every ride.")
+        VStack(spacing: 0) {
+            Spacer(minLength: 20)
+            // Placeholder until the logo lands: swap this tile for the asset.
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Light.blue)
+                .frame(width: 88, height: 88)
+                .overlay(Image(systemName: "eye.fill").font(.system(size: 38, weight: .semibold)).foregroundStyle(.white))
+                .shadow(color: Light.blue.opacity(0.3), radius: 12, y: 6)
+            Text("4sight")
+                .font(.system(size: 36, weight: .bold, design: .rounded))
+                .foregroundStyle(Light.ink)
+                .padding(.top, 18)
+            Text("See what\u{2019}s coming from behind.")
                 .font(.system(size: 17, design: .rounded))
                 .foregroundStyle(Light.dim)
-                .padding(.top, 6)
+                .padding(.top, 4)
 
-            Text("This phone goes…")
-                .font(.system(size: 22, weight: .bold, design: .rounded))
+            Spacer(minLength: 20)
+            Text("Where is this phone going?")
+                .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundStyle(Light.ink)
-                .padding(.top, 44).padding(.bottom, 14)
-
-            VStack(spacing: 14) {
-                card("front", title: "On the handlebar", detail: "Navigation and warnings. Your everyday phone.",
-                     symbol: "iphone.gen3", badge: "bicycle")
-                card("rear", title: "On the rear rack", detail: "Camera facing back, watching the road behind you.",
-                     symbol: "camera.fill", badge: "arrow.uturn.backward")
+                .padding(.bottom, 16)
+            HStack(spacing: 12) {
+                choice("front", title: "Handlebar", detail: "Maps and alerts", symbol: "bicycle")
+                choice("rear", title: "Rear rack", detail: "Watches behind you", symbol: "camera.fill")
             }
 
-            Spacer(minLength: 24)
-            Text("Pick the other one on the second phone. They find each other on their own.")
+            Spacer(minLength: 20)
+            Text("Choose the other one on your second phone.\nThey pair on their own.")
                 .font(.system(size: 14, design: .rounded))
                 .foregroundStyle(Light.dim)
-                .fixedSize(horizontal: false, vertical: true)
+                .multilineTextAlignment(.center)
         }
-        .padding(.horizontal, 22).padding(.bottom, 20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .padding(.horizontal, 20).padding(.bottom, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Light.sheet)
         .preferredColorScheme(.light)
     }
 
-    private func card(_ value: String, title: String, detail: String, symbol: String, badge: String) -> some View {
+    /// One role, in the Places circles' style from the home screen.
+    private func choice(_ value: String, title: String, detail: String, symbol: String) -> some View {
         let last = lastRole == value
         return Button {
             lastRole = value
             role = value
         } label: {
-            HStack(spacing: 16) {
-                ZStack(alignment: .bottomTrailing) {
-                    Image(systemName: symbol)
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundStyle(Light.blue)
-                        .frame(width: 64, height: 64)
-                        .background(Light.blueSoft, in: RoundedRectangle(cornerRadius: 18))
-                    Image(systemName: badge)
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 24, height: 24)
-                        .background(Light.blue, in: Circle())
-                        .overlay(Circle().stroke(.white, lineWidth: 2))
-                        .offset(x: 6, y: 6)
+            VStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(last ? .white : Light.blue)
+                    .frame(width: 72, height: 72)
+                    .background(last ? Light.blue : Light.blueSoft, in: Circle())
+                VStack(spacing: 2) {
+                    Text(title).font(.system(size: 18, weight: .bold, design: .rounded)).foregroundStyle(Light.ink)
+                    Text(detail).font(.system(size: 14, design: .rounded)).foregroundStyle(Light.dim)
                 }
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(title).font(.system(size: 19, weight: .bold, design: .rounded)).foregroundStyle(Light.ink)
-                        if last {
-                            Text("Last time")
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .foregroundStyle(Light.blue)
-                                .padding(.horizontal, 8).padding(.vertical, 3)
-                                .background(Light.blueSoft, in: Capsule())
-                        }
-                    }
-                    Text(detail).font(.system(size: 14.5, design: .rounded)).foregroundStyle(Light.dim)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(.system(size: 15, weight: .semibold)).foregroundStyle(Light.faint)
+                Text(last ? "Last used" : " ")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Light.blue)
             }
-            .padding(16)
+            .padding(.top, 22).padding(.bottom, 12)
+            .frame(maxWidth: .infinity)
             .background(.white, in: RoundedRectangle(cornerRadius: 22))
             .overlay(RoundedRectangle(cornerRadius: 22).stroke(last ? Light.blue : .clear, lineWidth: 2))
-            .shadow(color: Light.shadow.opacity(0.5), radius: 8, y: 2)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(title): \(detail)")
     }
 }
