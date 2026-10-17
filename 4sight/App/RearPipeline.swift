@@ -36,6 +36,9 @@ import os
     private let location = CLLocationManager()
     private let motion = CMMotionManager()
     private var thermalObserver: NSObjectProtocol?
+    /// GPS log of the clip being replayed; the Simulator's own location is useless for this.
+    private var rideTrack: RideTrack?
+    private var firstFrameT: Double?
 
     override init() {
         super.init()
@@ -50,7 +53,18 @@ import os
     func start() {
         stop()
         error = nil
-        let source: CaptureSource = replayURL.map { FileSource(url: $0) } ?? CameraSource()
+        let source: CaptureSource
+        if let url = replayURL {
+            let file = FileSource(url: url)
+            rideTrack = file.ride.track
+            source = file
+        } else {
+            rideTrack = nil
+            source = CameraSource()
+        }
+        firstFrameT = nil
+        speed = 0
+        heading = -1
         do {
             let w = try RearWorker(source: source, previewImage: replayURL != nil,
                                    sendHaptic: { [haptics] cmd in DispatchQueue.main.async { haptics.send(cmd) } },
@@ -100,12 +114,27 @@ import os
     }
 
     private func apply(_ s: RearSnapshot) {
+        replayGPS(frameT: s.message.t)
         fps = s.message.fps
         inferenceMs = s.inferenceMs
         benchMs = s.benchMs
         peerState = s.peer
         overlay = s.overlay
         if let img = s.previewImage { previewImage = img }
+    }
+
+    /// While replaying, the clip's own GPS log stands in for CoreLocation. Frame times and
+    /// fix times are each measured from their file's first entry, so a ride extracted by
+    /// `tools/mcap_to_ride.py` (t from the first frame) and one logged by `RideLogger`
+    /// (t from systemUptime) both line up. The speed reaches the engine one frame late.
+    private func replayGPS(frameT: Double) {
+        guard let track = rideTrack else { return }
+        let first = firstFrameT ?? frameT
+        firstFrameT = first
+        guard let fix = track.fix(at: frameT - first), fix.speed != speed || fix.heading != heading else { return }
+        speed = fix.speed
+        heading = fix.heading
+        syncInputs()
     }
 
     /// Copies the main-actor sensor/toggle values into the worker (yaw arrives separately).
@@ -129,6 +158,7 @@ import os
     // MARK: CLLocationManagerDelegate (main queue)
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard replayURL == nil else { return }   // replayGPS owns speed/heading during a replay
         guard let loc = locations.last else { return }
         speed = max(loc.speed, 0)
         heading = loc.course >= 0 ? loc.course : -1

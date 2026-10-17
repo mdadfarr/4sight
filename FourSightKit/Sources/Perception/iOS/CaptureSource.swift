@@ -13,6 +13,16 @@ public struct CapturedFrame: @unchecked Sendable {
     public var pixelBuffer: CVPixelBuffer
     public var timestamp: TimeInterval
     public var intrinsics: Intrinsics?
+    /// Lens height above the road, metres, when the source knows it (replayed rides do).
+    public var cameraHeight: Double?
+
+    public init(pixelBuffer: CVPixelBuffer, timestamp: TimeInterval,
+                intrinsics: Intrinsics? = nil, cameraHeight: Double? = nil) {
+        self.pixelBuffer = pixelBuffer
+        self.timestamp = timestamp
+        self.intrinsics = intrinsics
+        self.cameraHeight = cameraHeight
+    }
 }
 
 public protocol CaptureSource: AnyObject {

@@ -4,8 +4,14 @@
 Usage:
     uv run tools/mcap_to_ride.py bag.mcap --camera ss --out out/ [--start S --duration S] [--fps 20]
 
-Outputs ride-<bagname>.mp4, ride-<bagname>.jsonl (same format RideLogger.swift writes)
-and ride-<bagname>.camera.json. Streams the bag; never loads it whole.
+Outputs ride-<bagname>.mp4, ride-<bagname>.jsonl (same fields RideLogger.swift writes, with t
+measured from the first video frame instead of systemUptime) and ride-<bagname>.camera.json.
+Streams the bag; never loads it whole.
+
+Drop all three next to each other on the phone or in the Simulator and pick the .mp4 with
+"Replay file…" in RearView: FileSource reads the two sidecars by name, so the pipeline gets the
+real focal length and lens height instead of f ≈ 0.9 × width, and the recorded speed and heading
+instead of zero. Renaming the .mp4 alone breaks that link.
 """
 import argparse
 import json
@@ -35,6 +41,9 @@ def main():
     ap.add_argument("--start", type=float, default=0.0, help="seconds into the bag")
     ap.add_argument("--duration", type=float, default=None, help="seconds to extract")
     ap.add_argument("--fps", type=float, default=None, help="override output fps (default: measured)")
+    ap.add_argument("--camera-height", type=float, default=1.0,
+                    help="lens height above the road in metres (bike mount 1.0, car roof rig ~1.4). "
+                         "GapEstimator's ground-plane range scales with it")
     args = ap.parse_args()
 
     img_topic = f"/camera_pano_{args.camera}/image_rect_compressed"
@@ -117,7 +126,8 @@ def main():
         intr = {}
     else:
         intr = {k: (v * scale if k in ("f", "u0", "v0") else int(round(v * scale))) for k, v in intr.items()}
-    cam = {**intr, "frames": n_frames, "fps": fps, "duration": round(duration, 3), "source": args.bag.name}
+    cam = {**intr, "camera_height": args.camera_height, "frames": n_frames, "fps": fps,
+           "duration": round(duration, 3), "source": args.bag.name}
     with open(base.parent / f"{base.name}.camera.json", "w") as f:
         json.dump(cam, f, indent=2)
 

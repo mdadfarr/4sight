@@ -116,6 +116,34 @@ do {
     check(near(est.range(box: Box(x: 0, y: 620, w: 90, h: 100), cls: .car), 20, 1e-9), "width fallback 20 m")
 }
 
+// Ride sidecars (replayed footage from tools/mcap_to_ride.py)
+do {
+    let json = #"{"f":1200.5,"u0":640.0,"v0":360.0,"width":1280,"height":720,"camera_height":1.4,"fps":20.0,"source":"bag.mcap"}"#
+    if let cam = RideCamera(json: Data(json.utf8)) {
+        check(near(cam.f, 1200.5, 1e-9) && cam.cameraHeight == 1.4, "camera.json parsed, extra keys ignored")
+        let half = cam.scaled(toWidth: 640, height: 360)
+        check(near(half.f, 600.25, 1e-9) && near(half.u0, 320, 1e-9) && half.cameraHeight == 1.4, "intrinsics scale, height does not")
+    } else {
+        check(false, "camera.json did not parse")
+    }
+    check(RideCamera(json: Data(#"{"frames":10}"#.utf8)) == nil, "camera.json without intrinsics -> nil")
+
+    let jsonl = """
+    {"t":104.0,"lat":43.77,"lon":-79.25,"speed":4.0,"heading":182.0}
+    {"t":105.0,"lat":43.77,"lon":
+    {"t":106.0,"lat":43.78,"lon":-79.26,"speed":6.0,"heading":184.0}
+    {"t":108.0,"lat":43.79,"lon":-79.27,"speed":8.0,"heading":186.0}
+    """
+    if let track = RideTrack(jsonl: jsonl) {
+        check(track.fixes.count == 3 && track.fixes.map(\.t) == [0, 2, 4], "jsonl: junk line skipped, t re-based")
+        check(track.fix(at: -1)?.speed == 4 && track.fix(at: 1.9)?.speed == 4, "fix lookup holds before the next fix")
+        check(track.fix(at: 2)?.speed == 6 && track.fix(at: 99)?.speed == 8, "fix lookup at and past the last fix")
+    } else {
+        check(false, "jsonl did not parse")
+    }
+    check(RideTrack(jsonl: "not json") == nil, "jsonl with no usable line -> nil")
+}
+
 // DangerEngine + SimpleTracker (Arshiya), see DangerChecks.swift
 runDangerChecks()
 
