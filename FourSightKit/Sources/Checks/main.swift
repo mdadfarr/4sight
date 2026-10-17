@@ -90,6 +90,24 @@ do {
     check(r != nil && near(r!, truth, truth * 0.15), "invTTC \(r ?? -1) vs \(truth) within 15%")
 }
 
+// DetectionFilter
+do {
+    var f = DetectionFilter()
+    f.exclusionZones = [DetectionFilter.Zone("0,0.5,1,1")!]
+    let W = 640.0, H = 360.0
+    func det(w: Double, cy: Double = 100, conf: Double = 0.9) -> Detection {
+        Detection(box: Box(x: 320 - w / 2, y: cy - 20, w: w, h: 40), cls: .car, confidence: conf)
+    }
+    check(!f.keep(det(w: 20), imageW: W, imageH: H), "filter: < 4% width dropped")
+    check(f.keep(det(w: 40), imageW: W, imageH: H), "filter: 6% width kept")
+    check(!f.keep(det(w: 400, conf: 0.35), imageW: W, imageH: H) && f.keep(det(w: 400, conf: 0.9), imageW: W, imageH: H), "filter: large+unsure dropped, large+sure kept")
+    check(!f.keep(det(w: 100, cy: 300), imageW: W, imageH: H), "filter: exclusion zone dropped")
+    check(DetectionFilter.Zone("0.4,0,1") == nil, "filter: bad zone text -> nil")
+    check(!f.jumped(id: 1, box: Box(x: 0, y: 0, w: 60, h: 40), imageW: W), "filter: first frame no jump")
+    check(!f.jumped(id: 1, box: Box(x: 0, y: 0, w: 70, h: 40), imageW: W), "filter: 60->70 no jump")
+    check(f.jumped(id: 1, box: Box(x: 0, y: 0, w: 300, h: 40), imageW: W), "filter: 70->300 jump")
+}
+
 // Gap
 do {
     let est = GapEstimator(f: 1000, u0: 640, v0: 360, imageW: 1280, imageH: 720)

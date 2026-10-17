@@ -34,6 +34,7 @@ nonisolated struct RearInputs: Sendable {
     var demo = false
     var thermal: ThermalLabel = .nominal
     var logging = false
+    var exclusionZones: [DetectionFilter.Zone] = []
 }
 
 /// Everything off the main actor: capture → detect → track → TTC/gap → ThreatEngine → links.
@@ -45,6 +46,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
     let source: CaptureSource
     let peer = PeerLink.Rear()
     private let detector: Detector
+    private var filter = DetectionFilter()
     private let tracker = Tracker()
     private let ttc = TTCEstimator()
     private let engine = ThreatEngine()
@@ -119,10 +121,15 @@ nonisolated final class RearWorker: @unchecked Sendable {
         let geo = gapEstimator!
 
         let t0 = ContinuousClock.now
-        let detections = detector.detect(frame.pixelBuffer)
+        filter.exclusionZones = input.exclusionZones
+        let detections = filter.apply(detector.detect(frame.pixelBuffer), imageW: w, imageH: h)
         let took = (ContinuousClock.now - t0).components
         let ms = Double(took.seconds) * 1000 + Double(took.attoseconds) / 1e15
         let tracks = tracker.update(detections: detections, dt: dt)
+        for tr in tracks where filter.jumped(id: tr.id, box: tr.box, imageW: w) {
+            ttc.reset(id: tr.id); lastGap[tr.id] = nil   // size jump: history is from another vehicle or a cut
+        }
+        filter.forget(except: Set(tracks.map(\.id)))
 
         let yawCorrection = headingDelta(yaw: input.yaw, t: t)
         let states: [TrackState] = tracks.map { tr in

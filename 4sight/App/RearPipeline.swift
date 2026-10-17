@@ -23,6 +23,8 @@ import os
     @Published private(set) var error: String?
     @Published var demoMode = false { didSet { syncInputs() } }
     @Published var logging = false { didSet { syncInputs() } }
+    /// Frame-fraction rectangles hiding the bike's own parts; `-exclude x1,y1,x2,y2[;...]` at launch.
+    @Published var exclusionZones: [DetectionFilter.Zone] = [] { didSet { syncInputs() } }
     @Published private(set) var replayURL: URL?
 
     let haptics = HapticsLink()
@@ -37,6 +39,9 @@ import os
     override init() {
         super.init()
         if let path = UserDefaults.standard.string(forKey: "replay") { replayURL = URL(fileURLWithPath: path) }
+        if let text = UserDefaults.standard.string(forKey: "exclude") {
+            exclusionZones = text.split(separator: ";").compactMap { DetectionFilter.Zone(String($0)) }
+        }
         location.delegate = self
         location.desiredAccuracy = kCLLocationAccuracyBestForNavigation
     }
@@ -104,9 +109,10 @@ import os
 
     /// Copies the main-actor sensor/toggle values into the worker (yaw arrives separately).
     private func syncInputs() {
-        let (demo, log, temp, spd, hdg) = (demoMode, logging, thermal, speed, heading)
+        let (demo, log, temp, spd, hdg, zones) = (demoMode, logging, thermal, speed, heading, exclusionZones)
         worker?.inputs.withLock {
             $0.demo = demo; $0.logging = log; $0.thermal = temp; $0.speed = spd; $0.heading = hdg
+            $0.exclusionZones = zones
         }
     }
 
