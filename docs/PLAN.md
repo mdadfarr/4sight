@@ -70,7 +70,7 @@ Single-phone mode = rear role with no front phone found: grips + LEDs only. Audi
 ## Cut line
 
 - **Must by 24:** detection + tracking + ThreatEngine on device; BLE → grips + LEDs; front surround view over P2P; demo video; Devpost.
-- **Should by 36:** real nav HUD; replayed-ride demo mode; right-hook alert; pedestrian handling; close-pass log; metrics in README.
+- **Should by 36:** real nav HUD; replayed-ride demo mode; right-hook alert; pedestrian handling; close-pass log; near-miss risk map (`tools/riskmap.py`, built; done when a real ride produces events.jsonl); metrics in README.
 - **Reach:** audio tones; Tiger Data upload.
 
 ## Hardware (C + D)

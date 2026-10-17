@@ -43,6 +43,19 @@ Levels: 0 nothing, 1 gentle, 2 warning, 3 urgent. Times to collision are estimat
 - Not yet tested on footage from a bike. Thresholds are starting guesses.
 - No Toronto data downloaded yet.
 
+## Near-miss logging and the risk map
+
+The rear phone appends one JSON line per alert episode (a track reaching level 2, and again if it escalates to 3) to `Documents/events.jsonl`: the proposed record above plus `speed`, `heading`, `gap_m`, `cls`, `engine`, `track_id`, `demo`. No rider name or id; `lat`/`lon` are `null` until the first GPS fix. The file is visible in the Files app and the rear screen has a "Share events" button (AirDrop it to a laptop).
+
+Map it:
+
+```
+uv run --project tools tools/riskmap.py events.jsonl --route ride-*.jsonl [--ksi cyclist-ksi.csv] --out riskmap.html
+uv run --project tools tools/riskmap.py --demo     # synthetic events along Bloor/College, labelled SYNTHETIC DATA
+```
+
+Layers: events coloured by level, a level-weighted heat layer, the ridden route, and the TPS cyclist KSI collisions if you pass the export (download it from the link in the table above, csv or geojson). It also prints the top 250 m grid cells by event count. School of Cities angle: with `lat`/`lon` per event the same file joins to City Wards and to the KSI points, so near misses recorded by riders can be compared ward by ward against where cyclists were actually hurt.
+
 ## Data sources (the track brief asks for a link to every source we use)
 
 | Source | Use | Status |
