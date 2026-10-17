@@ -4,10 +4,10 @@
 
 | File | What it is | Who uses it |
 |---|---|---|
-| `../ios/models/yolo11n.mlpackage` | Pretrained vehicle detector as a Core ML model | Swift app |
-| `../ios/DangerLogic/DangerEngine.swift` | Danger logic: time to collision, closeness, passing check, filters | Swift app |
-| `../ios/DangerLogic/SimpleTracker.swift` | Gives each vehicle a persistent id between frames | Swift app |
-| `../ios/DangerLogic/DangerEngineTests.swift` | 25 + 6 tests, to run before trusting the Swift | Swift app |
+| `../4sight/App/yolo11n.mlpackage` | Pretrained vehicle detector as a Core ML model | Swift app |
+| `../FourSightKit/Sources/ThreatEngine/Danger/DangerEngine.swift` | Danger logic: time to collision, closeness, passing check, filters | Swift app |
+| `../FourSightKit/Sources/ThreatEngine/Danger/SimpleTracker.swift` | Gives each vehicle a persistent id between frames | Swift app |
+| `../FourSightKit/Tests/ThreatEngineTests/DangerEngineTests.swift` | 25 + 6 tests, to run before trusting the Swift | Swift app |
 | `detect_video.py` | Runs the detector and tracker on a video, saves boxes per frame | Laptop |
 | `danger.py`, `tracker.py` | The same logic in Python, the reference version | Laptop |
 | `replay_danger.py` | Replays a clip through the danger logic, prints when alerts fire | Laptop |

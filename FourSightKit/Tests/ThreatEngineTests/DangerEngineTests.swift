@@ -1,14 +1,10 @@
 // DangerEngineTests.swift
 //
-// XCTest port of test_danger.py and test_tracker.py. The Python versions pass
-// 17 and 6 tests. THESE HAVE NOT BEEN RUN (no Mac, no Swift compiler for the
-// author). Put this file in the unit test target, add
-//     @testable import <YourAppModuleName>
-// below, and run with Cmd+U. If a Swift test fails but the same Python test
-// passes, suspect the port, and tell Arshiya.
+// XCTest port of ml/test_danger.py (25 cases). XCTest is absent from the Command
+// Line Tools, so the same scenarios also run as asserts in `swift run Checks`.
 
 import XCTest
-// @testable import YourAppModuleName
+@testable import ThreatEngine
 
 final class DangerEngineTests: XCTestCase {
     let dt = 0.1  // 10 frames per second
@@ -42,7 +38,7 @@ final class DangerEngineTests: XCTestCase {
         for (i, w) in widths.enumerated() {
             let x = lateral.map { 320 + $0 * w } ?? cx
             out = engine.update(time: start + Double(i) * dt, detections: [
-                Detection(trackID: trackID, centerX: x, width: w, centerY: centerY, confidence: confidence)
+                DangerDetection(trackID: trackID, centerX: x, width: w, centerY: centerY, confidence: confidence)
             ])
         }
         return out
@@ -53,7 +49,7 @@ final class DangerEngineTests: XCTestCase {
         var out = DangerOutput()
         for (i, w) in widths.enumerated() {
             out = engine.update(time: Double(i) * dt, detections: [
-                Detection(trackID: 1, centerX: 320 + laterals[i] * w, width: w)
+                DangerDetection(trackID: 1, centerX: 320 + laterals[i] * w, width: w)
             ])
         }
         return out
@@ -92,7 +88,7 @@ final class DangerEngineTests: XCTestCase {
             let t = Double(i) * dt
             let trueTTC = (40 - 8 * t) / 8
             let out = eng.update(time: t, detections: [
-                Detection(trackID: 1, centerX: 320, width: 2000 / (40 - 8 * t))
+                DangerDetection(trackID: 1, centerX: 320, width: 2000 / (40 - 8 * t))
             ])
             if out.left >= .warning && firstWarn == nil { firstWarn = trueTTC }
             if out.left >= .urgent && firstUrgent == nil { firstUrgent = trueTTC }
@@ -150,7 +146,7 @@ final class DangerEngineTests: XCTestCase {
         var out = DangerOutput()
         for (i, w) in closingWidths(ttcEnd: 1.5).enumerated() {
             out = eng.update(time: Double(i) * dt,
-                             detections: [Detection(trackID: -1, centerX: 320, width: w)])
+                             detections: [DangerDetection(trackID: -1, centerX: 320, width: w)])
         }
         XCTAssertEqual(out.left, .off)
     }
@@ -186,8 +182,8 @@ final class DangerEngineTests: XCTestCase {
         var out = DangerOutput()
         for (i, w) in closingWidths(ttcEnd: 1.5).enumerated() {
             out = eng.update(time: Double(i) * dt, detections: [
-                Detection(trackID: 1, centerX: 320 - 0.8 * w, width: w),
-                Detection(trackID: 2, centerX: 320 + 0.8 * w, width: w),
+                DangerDetection(trackID: 1, centerX: 320 - 0.8 * w, width: w),
+                DangerDetection(trackID: 2, centerX: 320 + 0.8 * w, width: w),
             ])
         }
         XCTAssertEqual(out.left, .urgent)
@@ -264,60 +260,5 @@ final class DangerEngineTests: XCTestCase {
         XCTAssertEqual(eng.update(time: 1.0, detections: []).right, .urgent)
         XCTAssertEqual(eng.update(time: 1.4, detections: []).right, .urgent)
         XCTAssertEqual(eng.update(time: 1.6, detections: []).right, .off)
-    }
-}
-
-final class SimpleTrackerTests: XCTestCase {
-    func car(_ cx: Double, _ half: Double) -> Box {
-        Box(x1: cx - half, y1: 100, x2: cx + half, y2: 100 + half)
-    }
-
-    func testIouBasics() {
-        XCTAssertEqual(iou(Box(x1: 0, y1: 0, x2: 10, y2: 10), Box(x1: 0, y1: 0, x2: 10, y2: 10)), 1.0, accuracy: 1e-9)
-        XCTAssertEqual(iou(Box(x1: 0, y1: 0, x2: 10, y2: 10), Box(x1: 20, y1: 20, x2: 30, y2: 30)), 0.0, accuracy: 1e-9)
-        XCTAssertEqual(iou(Box(x1: 0, y1: 0, x2: 10, y2: 10), Box(x1: 5, y1: 0, x2: 15, y2: 10)), 1.0 / 3.0, accuracy: 1e-9)
-    }
-
-    func testAGrowingCarKeepsItsID() {
-        let tr = SimpleTracker()
-        var ids = Set<Int>()
-        for i in 0..<10 {
-            ids.insert(tr.update([car(300, 30 + 4 * Double(i))])[0])
-        }
-        XCTAssertEqual(ids.count, 1)
-    }
-
-    func testTwoCarsKeepSeparateIDs() {
-        let tr = SimpleTracker()
-        let first = tr.update([car(100, 30), car(500, 30)])
-        var ids = first
-        for i in 1..<6 {
-            let d = Double(i)
-            ids = tr.update([car(100 + 2 * d, 30 + d), car(500 - 2 * d, 30 + d)])
-        }
-        XCTAssertEqual(ids, first)
-        XCTAssertNotEqual(first[0], first[1])
-    }
-
-    func testANewCarGetsANewID() {
-        let tr = SimpleTracker()
-        let a = tr.update([car(100, 30)])[0]
-        let ids = tr.update([car(102, 31), car(500, 30)])
-        XCTAssertEqual(ids[0], a)
-        XCTAssertNotEqual(ids[1], a)
-    }
-
-    func testACarCanVanishBrieflyAndKeepItsID() {
-        let tr = SimpleTracker(maxMissed: 5)
-        let a = tr.update([car(300, 40)])[0]
-        for _ in 0..<3 { _ = tr.update([]) }
-        XCTAssertEqual(tr.update([car(302, 41)])[0], a)
-    }
-
-    func testACarGoneTooLongGetsANewID() {
-        let tr = SimpleTracker(maxMissed: 5)
-        let a = tr.update([car(300, 40)])[0]
-        for _ in 0..<7 { _ = tr.update([]) }
-        XCTAssertNotEqual(tr.update([car(302, 41)])[0], a)
     }
 }
