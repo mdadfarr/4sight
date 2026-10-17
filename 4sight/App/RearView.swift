@@ -61,7 +61,6 @@ struct RearView: View {
         .onChange(of: dimWhenMounted) { applyBrightness() }
         .onDisappear {
             pipeline.stop()
-            OrientationLock.set(.allButUpsideDown)
             UIApplication.shared.isIdleTimerDisabled = false
             screen?.brightness = savedBrightness
         }

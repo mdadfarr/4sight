@@ -11,11 +11,11 @@ import UIKit
     }
 }
 
-/// Lets one screen pin the interface orientation. The rear phone rides sideways in the
-/// rack with only its Dynamic Island end showing, so its screen stays portrait (that end
-/// is the top) however the phone is turned; the camera still levels itself by gravity.
+/// Keeps every screen portrait. The front rides upright on the handlebar and its views are
+/// laid out for portrait; the rear rides sideways in the rack with only its Dynamic Island
+/// end showing, which is the top in portrait. The rear camera levels itself by gravity.
 final class OrientationLock: NSObject, UIApplicationDelegate {
-    static var mask: UIInterfaceOrientationMask = .allButUpsideDown
+    static var mask: UIInterfaceOrientationMask = .portrait
 
     func application(_ application: UIApplication,
                      supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
