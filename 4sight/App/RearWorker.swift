@@ -136,7 +136,8 @@ nonisolated final class RearWorker: @unchecked Sendable {
         if gapEstimator == nil || (frame.intrinsics != nil && !geoFromIntrinsics) {
             geoFromIntrinsics = frame.intrinsics != nil
             gapEstimator = GapEstimator(f: frame.intrinsics?.fx ?? 0.9 * w, u0: frame.intrinsics?.cx ?? w / 2,
-                                        v0: frame.intrinsics?.cy ?? h / 2, cameraHeight: Self.cameraHeight,
+                                        v0: frame.intrinsics?.cy ?? h / 2,
+                                        cameraHeight: frame.cameraHeight ?? Self.cameraHeight,
                                         imageW: w, imageH: h)
         }
         let geo = gapEstimator!
