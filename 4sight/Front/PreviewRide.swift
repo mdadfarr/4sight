@@ -43,11 +43,14 @@ final class PreviewRide: TrackFeed {
     /// and the nav state, in the order a real ride delivers them.
     var onFix: (CLLocation, Double, [CLLocationCoordinate2D], NavState) -> Void = { _, _, _, _ in }
 
-    private let cars = SyntheticFeed(freeze: nil, demo: true)
+    /// The rear camera's tracks: the scripted cars, or a real clip run through the rear
+    /// pipeline (`-replayRear`).
+    private let cars: TrackFeed
     private var task: Task<Void, Never>?
     private let cumulative: [Double]
 
-    init() {
+    init(tracks: TrackFeed = SyntheticFeed(freeze: nil, demo: true)) {
+        cars = tracks
         var acc = [0.0]
         for i in 1..<Self.loop.count { acc.append(acc[i - 1] + Self.metres(Self.loop[i - 1], Self.loop[i])) }
         cumulative = acc

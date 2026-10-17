@@ -91,7 +91,7 @@ struct FrontRootView: View {
     /// through `model.pose` exactly as NavRouter's do; nav is set directly so the lap
     /// never counts as an arrival.
     private func startPreviewRide() {
-        let ride = PreviewRide()
+        let ride = PreviewRide(tracks: args.replayRear.map { RearReplayFeed(file: $0) as TrackFeed } ?? SyntheticFeed(freeze: nil, demo: true))
         ride.onFix = { loc, course, ahead, nav in
             model.pose(loc, heading: course)
             // Only when the segment changes, as a real route is set once, not every fix.

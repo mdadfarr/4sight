@@ -18,6 +18,8 @@ struct LaunchArgs {
     let demo: Bool
     let demoEvents: Bool
     let previewRide: Bool
+    /// `-replayRear <file in Documents>`: with `-previewRide`, real rear-pipeline tracks.
+    let replayRear: String?
 
     init(_ args: [String] = ProcessInfo.processInfo.arguments) {
         func value(after flag: String) -> String? {
@@ -30,5 +32,6 @@ struct LaunchArgs {
         demo = args.contains("--demo")
         demoEvents = args.contains("--demoevents")
         previewRide = args.contains("-previewRide")
+        replayRear = value(after: "-replayRear")
     }
 }
