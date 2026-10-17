@@ -24,7 +24,7 @@ struct LanePlan {
 
     static let step = 4.0
     /// Hold the left lane this far before a left turn.
-    static let leftTurnLead = 70.0
+    static let leftTurnLead = 40.0
     /// Sideways speed of a planned move: 1 m across per this many metres along.
     static let ramp = 4.0
 
@@ -106,7 +106,7 @@ struct LanePlan {
 
     /// What the banner says about the next planned move within `horizon` metres of
     /// `rider`, or nil while the plan is steady. Also nil off the route.
-    func cue(at rider: CLLocationCoordinate2D, horizon: Double = 150) -> (text: String, symbol: String, metres: Double)? {
+    func cue(at rider: CLLocationCoordinate2D, horizon: Double = 60) -> (text: String, symbol: String, metres: Double)? {
         let r = map.local(rider)
         guard let i = samples.indices.min(by: {
             hypot(samples[$0].e - r.e, samples[$0].n - r.n) < hypot(samples[$1].e - r.e, samples[$1].n - r.n)

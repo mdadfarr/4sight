@@ -86,33 +86,8 @@ struct NavHUDView: View {
 
     static let cardH = 112.0
 
-    /// Google Maps' bottom card, pared down: time left is the one number that matters
-    /// on a bike, so it leads in green; distance and arrival clock sit under it.
     private var arrivalBar: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(minutesText)
-                        .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
-                    Text("min").font(.system(size: 18, weight: .semibold, design: .rounded))
-                }
-                .foregroundStyle(Palette.eta)
-                Text("\(kmText) km  ·  \(arrivalText)")
-                    .font(.system(size: 15, weight: .medium, design: .rounded).monospacedDigit())
-                    .foregroundStyle(Palette.barDim)
-            }
-            .lineLimit(1)
-            Spacer(minLength: 0)
-            // Big enough for a gloved thumb on a moving bike, quiet enough not to
-            // compete with a warning.
-            Button(action: onExit) {
-                Text("Exit")
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .frame(width: 84, height: 48)
-                    .background(Palette.exit, in: Capsule())
-            }
-        }
+        currentCard
         .padding(.horizontal, 24).padding(.top, 18)
         .frame(width: Design.width, height: Self.cardH, alignment: .top)
         .background(Palette.bar)
@@ -120,6 +95,43 @@ struct NavHUDView: View {
         .shadow(color: Color(hex: 0x0C121A).opacity(0.12), radius: 12, y: -2)
         .overlay(alignment: .top) {
             Capsule().fill(Palette.hairDark).frame(width: 36, height: 4).padding(.top, 7)
+        }
+    }
+
+    /// Google Maps' bottom card, pared down: time left is the one number that matters
+    /// on a bike, so it leads in green; distance and arrival clock sit under it.
+    private var currentCard: some View {
+        HStack(alignment: .center, spacing: 12) {
+            etaStack
+            Spacer(minLength: 0)
+            exitButton(width: 84)
+        }
+    }
+
+    private var etaStack: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(minutesText)
+                    .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+                Text("min").font(.system(size: 18, weight: .semibold, design: .rounded))
+            }
+            .foregroundStyle(Palette.eta)
+            Text("\(kmText) km  ·  \(arrivalText)")
+                .font(.system(size: 15, weight: .medium, design: .rounded).monospacedDigit())
+                .foregroundStyle(Palette.barDim)
+        }
+        .lineLimit(1)
+    }
+
+    /// Big enough for a gloved thumb on a moving bike, quiet enough not to compete
+    /// with a warning.
+    private func exitButton(width: Double) -> some View {
+        Button(action: onExit) {
+            Text("Exit")
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: width, height: 48)
+                .background(Palette.exit, in: Capsule())
         }
     }
 
@@ -136,8 +148,9 @@ struct NavHUDView: View {
         return "\(max(5, Int((World.turnStreet.ahead - travelled) / 5).magnitude * 5)) m"
     }
 
-    /// Within this of the turn the banner switches from "continue" to the turn itself.
-    static let turnNear = 150.0
+    /// Within this of the turn the banner switches from "continue" to the turn itself:
+    /// about 12 s of warning at 15 km/h.
+    static let turnNear = 50.0
 
     /// MKRoute steps start with their manoeuvre, so the turn at the end of the current
     /// step is the next step's.
