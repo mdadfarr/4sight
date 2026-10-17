@@ -89,8 +89,12 @@ def cell_table(located):
 
 
 def render(df, located, routes, ksi, out, demo):
-    # CARTO's free dark tiles now stamp "API KEY REQUIRED" across the image; OSM's need no key.
-    m = folium.Map(location=TORONTO, zoom_start=13, tiles="OpenStreetMap")
+    # CARTO's free dark tiles now watermark "API KEY REQUIRED"; OSM's server answers
+    # x-blocked under its tile policy. Esri's canvas tiles are open and need no key.
+    m = folium.Map(location=TORONTO, zoom_start=13,
+                   tiles="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/"
+                         "World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+                   attr="&copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors")
     if routes:
         fg = folium.FeatureGroup(name="Ridden route").add_to(m)
         for r in routes:
