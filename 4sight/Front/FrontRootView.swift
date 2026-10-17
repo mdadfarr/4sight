@@ -6,12 +6,15 @@ struct FrontRootView: View {
     @StateObject private var model = FrontModel()
     @State private var router = NavRouter()
     @State private var pickingDestination = false
+    @State private var showingRiskMap = false
     private let args = LaunchArgs()
 
     var body: some View {
         ZStack {
             SurroundView(model: model)
-            NavHUDView(model: model) { pickingDestination = true }
+            NavHUDView(model: model,
+                       onPickDestination: { pickingDestination = true },
+                       onRiskMap: { showingRiskMap = true })
             AlertOverlay(model: model)
         }
         .ignoresSafeArea()
@@ -19,10 +22,16 @@ struct FrontRootView: View {
         .sheet(isPresented: $pickingDestination) {
             DestinationPickerView { item in Task { try? await router.route(to: item) } }
         }
+        .sheet(isPresented: $showingRiskMap) {
+            RiskMapView(demo: args.demoEvents)
+        }
         .onAppear(perform: begin)
     }
 
     private func begin() {
+        // Opening it on launch is how the screen gets demoed and screenshotted; the
+        // close button drops back to the follow view.
+        showingRiskMap = args.demoEvents
         model.freeze = args.freeze
         if args.mockRoute {
             model.nav = .mock
