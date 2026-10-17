@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>4sight front</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #0C1013; overflow: hidden; }
+  body { font: 400 16px -apple-system, BlinkMacSystemFont, "SF Pro Rounded", system-ui, sans-serif; }
+  #screen { display: block; width: 100vw; height: 100vh; touch-action: none; }
+  #scrub { position: fixed; left: 16px; right: 16px; bottom: 6px; z-index: 9; accent-color: #F5A623; opacity: .75; }
+  body.shot #scrub { display: none; }
+</style>
+</head>
+<body>
+<canvas id="screen"></canvas>
+<input id="scrub" type="range" min="0" max="17" step="0.1" value="4.6">
+<script>
+// ---------------------------------------------------------------------------
+// 4sight front phone — design mock.
+//
+// A real pinhole camera following the rider: 26 m up, 8 m behind, tipped 20
+// degrees forward. Enough tilt to show ~25 m of the way ahead — the route and the
+// streets coming up — while a car 20 m behind is drawn only ~1.3x larger than one
+// beside you. More tilt puts a horizon on screen, but the road behind would then
+// be close to the lens and rear traffic 1.6-2x oversized; the rear is the product.
+//
+// One projection for everything, so nothing can shear.
+//
+//   screen up    = the way you are going
+//   screen down  = the road behind you
+//   screen right = your right
+//
+// Two kinds of thing are drawn. The world — roads, blocks, the route — is map
+// data, so it is drawn everywhere. Detections — vehicles, people, parked cars —
+// come from the rear camera, so they only ever appear inside its wedge of +/-35
+// degrees, 0 to 40 m behind (docs/CONTRACTS.md).
+//
+// Canvas2D on purpose: every call has a direct SwiftUI GraphicsContext
+// equivalent, so the agreed picture ports instead of being re-invented.
+// ---------------------------------------------------------------------------
+
+const W = 393, H = 852;
+const BANNER_H = 190;          // the manoeuvre panel's height
+
+// --- Camera -----------------------------------------------------------------
+// Pinned by two screen positions rather than a raw focal length: where the rider
+// sits, and where the road 20 m behind lands. Height and tilt then set how much
+// of the way ahead fits above the rider, and how much the rear is magnified.
+const CAM = (() => {
+  const height = 26, behind = 8, tilt = -20 * Math.PI / 180;     // tipped forward
+  const RIDER_Y = 430, REAR_Y = 752, REAR_Z = 20;
+  const u = (z) => Math.tan(-tilt + Math.atan((z - behind) / height));
+  const f = (REAR_Y - RIDER_Y) / (u(REAR_Z) - u(0));
+  return { height, behind, tilt, f, cx: W / 2, cy: RIDER_Y - f * u(0) };
+})();
+const SIN = Math.sin(CAM.tilt), COS = Math.cos(CAM.tilt);
+
+/** Rider frame to screen. x metres right, z metres behind, h metres up. */
+function pt(x, z, h = 0) {
+  const dz = z - CAM.behind, dy = h - CAM.height;
+  const depth = -dy * COS + dz * SIN;
+  const up = -dy * SIN - dz * COS;
+  return { x: CAM.cx + CAM.f * x / depth, y: CAM.cy - CAM.f * up / depth, s: CAM.f / depth };
+}
+/** Screen points per metre at range z: grows towards the camera, shrinks ahead. */
+const ppm = (z) => pt(0, z).s;
+
+// --- What the rear camera can see -------------------------------------------
+const FOV = { half: 35 * Math.PI / 180, zMax: 40, zMin: 0.6 };
+const coneHalfWidth = (z) => z * Math.tan(FOV.half);
+/** True when a point is inside the rear camera's wedge. */
+function seen(x, z, margin = 0) {
+  if (z < FOV.zMin || z > FOV.zMax) return false;
+  return Math.abs(x) <= coneHalfWidth(z) + margin;
+}
+
+const C = {
+  ground:    '#E9ECF0',        // pavement and plazas
+  blockTop:  '#F2F0EC',
+  blockSide: '#DAD5CE',
+  blockBack: '#CDC8C0',
+  park:      '#CFE4C1',
+  parkEdge:  '#B9D4A8',
+  coneTint:  'rgba(255,255,255,0.2)',
+  label:     '#FFFFFF',
+  labelInk:  '#3B4250',
+  labelRoute:'#0A6CDF',
+  road:      '#DEE3E8',
+  parkBay:   '#D9DEE4',
+  cone:      'rgba(255,255,255,0.5)',
+  body:      '#C3C9D1',
+  bodyEdge:  '#AEB5BE',
+  roof:      '#D9DEE4',
+  glass:     '#9AA3AD',
+  parkedBody:'#CCD2D9',
+  parkedRoof:'#DEE3E8',
+  shadow:    'rgba(22,28,35,0.2)',
+  ego:       '#1B2026',
+  egoDark:   '#0F1317',
+  egoTrim:   '#FFFFFF',
+  amber:     '#F5A623',
+  amberEdge: '#C9820F',
+  amberRoof: '#FFC65C',
+  red:       '#E8453C',
+  redEdge:   '#B52F27',
+  redRoof:   '#FF7A72',
+  banner:    '#0A0A0B',
+  hair:      'rgba(255,255,255,0.16)',
+  lane:      '#FFFFFF',
+  pillGreen: '#1F8B4C',
+  bar:       '#FFFFFF',
+  barInk:    '#13161A',
+  barDim:    '#8A8F98',
+  pill:      '#38383C',
+  routeCore: '#1C8CFF',
+  routeCase: '#0A54BE',
+  puck:      '#0A84FF',
+  text:      '#FFFFFF',
+  textDim:   '#9298A1',
+  green:     '#34C759',
+  exit:      '#E8453C',
+};
+
+// Kerb, a parking lane, then two live lanes. You ride in the door zone.
+const ROAD = { kerb: 3.7, parked: 2.45, dividers: [-2.3, -5.8], farEdge: -9.3 };
+
+// --- World ------------------------------------------------------------------
+// Map features live at a fixed distance ahead of where the loop starts; riding
+// at SPEED slides them down the screen. z = SPEED * t - ahead.
+const SPEED = 3.6;                           // m/s, 13 km/h: city cycling
+const Z_NEAR = 60, Z_FAR = -280;             // drawn range of the main road
+const STREETS = [
+  { name: 'Markham St', ahead: 30, half: 5 },            // ridden straight through
+  { name: 'Spadina Ave', ahead: 84, half: 7, turn: true }, // the next manoeuvre
+];
+const TURN = STREETS.find((st) => st.turn);
+const zOf = (ahead, t) => SPEED * t - ahead;
+
+/** City blocks either side, cut back at each cross street. Fixed, seeded. */
+const BLOCKS = (() => {
+  const out = [];
+  let seed = 11;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (const side of [-1, 1]) {
+    const inner = side < 0 ? ROAD.farEdge - 3.2 : ROAD.kerb + 3.2;
+    let w = -80, parked = false;
+    while (w < 260) {
+      const len = 14 + Math.floor(rnd() * 4) * 4;
+      const hit = STREETS.find((st) => w + len > st.ahead - st.half - 3 && w < st.ahead + st.half + 3);
+      if (hit) { w = hit.ahead + hit.half + 3; continue; }
+      const park = side < 0 && !parked && w > TURN.ahead;   // one park, past the turn
+      if (park) parked = true;
+      out.push({ x0: side < 0 ? inner - 16 : inner, x1: side < 0 ? inner : inner + 16,
+                 a: w, b: w + len, h: park ? 0 : 1.2 + rnd() * 1.6, park });
+      w += len + 3;
+    }
+  }
+  return out;
+})();
+
+/** Stretches of main road between cross streets (pad widens each cut). */
+function spans(t, pad) {
+  const cuts = STREETS.map((st) => {
+    const z = zOf(st.ahead, t);
+    return [z - st.half - pad, z + st.half + pad];
+  }).sort((a, b) => a[0] - b[0]);
+  const out = [];
+  let from = Z_FAR;
+  for (const [a, b] of cuts) {
+    if (a > from) out.push([from, Math.min(a, Z_NEAR)]);
+    from = Math.max(from, b);
+  }
+  if (from < Z_NEAR) out.push([from, Z_NEAR]);
+  return out.filter(([a, b]) => b > a);
+}
+const inStreet = (z, t, pad) =>
+  STREETS.some((st) => Math.abs(z - zOf(st.ahead, t)) < st.half + pad);
+
+// --- Scenario ---------------------------------------------------------------
+// Every cue stays behind the rider; the camera has nothing to say about what is
+// alongside or ahead, so nothing is drawn there.
+const CUES = [
+  { id: 1, cls: 'car', from: 0, to: 6, x0: -1.5, x1: -1.5, z0: 38, z1: 0.5,
+    thresholds: [[0, 0], [7, 3], [13, 2], [22, 1]] },
+  { id: 2, cls: 'bus', from: 6, to: 10.5, x0: -4.1, x1: -4.1, z0: 38, z1: 9, level: 1 },
+  { id: 3, cls: 'car', from: 10.5, to: 14, x0: -2.2, x1: -1.3, z0: 34, z1: 3,
+    level: 2, turnR: true },
+  // A faster rider overtaking you on the left, 0.95 m off: grey normally, an
+  // alert only in demo mode (ThreatEngine ignores bicycles outside it).
+  { id: 6, cls: 'bicycle', from: 6, to: 14, x0: -0.95, x1: -0.95, z0: 18, z1: 0.6,
+    vru: true, thresholds: [[0, 0], [4, 3], [8, 2], [14, 1]] },
+  // Pedestrians stand still in the world, so riding away from them they recede at
+  // riding speed: someone out of a parked car, and two walkers on the pavements.
+  { id: 4, cls: 'person', from: 13.5, to: 17.5, x0: 1.95, x1: 1.35, z0: 3.5, z1: 3.5 + 4 * 3.6,
+    vru: true, thresholds: [[6, 2], [9, 1]] },
+  { id: 7, cls: 'person', from: 12, to: 17, x0: 5.4, x1: 5.4, z0: 7, z1: 7 + 5 * (3.6 - 1.3), vru: true },
+  { id: 8, cls: 'person', from: 12.5, to: 16.5, x0: 6.3, x1: 6.3, z0: 9, z1: 9 + 4 * (3.6 + 1.4), vru: true },
+  // Straight behind: no side to steer towards, so the whole frame has to carry it.
+  { id: 5, cls: 'car', from: 17.5, to: 21, x0: -0.25, x1: -0.25, z0: 24, z1: 2,
+    thresholds: [[6, 3], [12, 2], [20, 1]] },
+];
+const LOOP = 21;
+const SIZE = { car: [1.8, 4.5], truck: [2.5, 9], bus: [2.55, 11],
+               motorcycle: [0.8, 2.2], bicycle: [0.6, 1.8], person: [0.6, 0.6] };
+
+/** Demo mode (FrameMessage.demo): bicycles and people count as threats too. */
+let DEMO = new URLSearchParams(location.search).has('demo');
+
+function tracksAt(t) {
+  const out = [];
+  for (const c of CUES) {
+    if (t < c.from || t > c.to) continue;
+    const f = (t - c.from) / Math.max(c.to - c.from, 0.001);
+    const z = c.z0 + (c.z1 - c.z0) * f;
+    const x = c.x0 + (c.x1 - c.x0) * f;
+    let level = c.level ?? 0;
+    if (c.thresholds && (!c.vru || DEMO)) {
+      level = 0;
+      for (const [below, lv] of c.thresholds) if (z < below) { level = lv; break; }
+    }
+    if (c.vru && !DEMO) level = 0;
+    // Half a vehicle width of margin: a car is in view as soon as part of it is.
+    if (!seen(x, z, SIZE[c.cls][0] / 2)) continue;
+    out.push({ id: c.id, cls: c.cls, x, z, level, turnR: !!c.turnR });
+  }
+  // Painter's order: the camera is behind you, so the further behind a track is,
+  // the nearer the lens — it is painted last.
+  return out.sort((a, b) => a.z - b.z);
+}
+
+// --- Helpers ----------------------------------------------------------------
+function text(ctx, s, x, y, { size = 16, weight = 400, fill = C.text, align = 'left', baseline = 'alphabetic' } = {}) {
+  ctx.save();
+  ctx.font = `${weight} ${size}px -apple-system, "SF Pro Rounded", system-ui, sans-serif`;
+  ctx.fillStyle = fill;
+  ctx.textAlign = align;
+  ctx.textBaseline = baseline;
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+function poly(ctx, pts, fill) {
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.closePath();
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+}
+/** Rounded quad through four projected corners. */
+function roundQuad(ctx, p, r) {
+  const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  ctx.beginPath();
+  const m = mid(p[0], p[1]);
+  ctx.moveTo(m.x, m.y);
+  for (let i = 1; i <= 4; i++) {
+    ctx.arcTo(p[i % 4].x, p[i % 4].y, mid(p[i % 4], p[(i + 1) % 4]).x, mid(p[i % 4], p[(i + 1) % 4]).y, r);
+  }
+  ctx.closePath();
+}
+/** The four corners of a w x l rectangle centred at (x, z), h metres up. */
+const slab = (x, z, w, l, h = 0) => [
+  pt(x - w / 2, z - l / 2, h), pt(x + w / 2, z - l / 2, h),
+  pt(x + w / 2, z + l / 2, h), pt(x - w / 2, z + l / 2, h),
+];
+/** Ground between two x values over a range of z. Straight lines stay straight. */
+function strip(ctx, x0, x1, fill, zA = Z_FAR, zB = Z_NEAR) {
+  poly(ctx, [pt(x0, zA), pt(x1, zA), pt(x1, zB), pt(x0, zB)], fill);
+}
+/** The wedge the rear camera covers. */
+function conePath(ctx) {
+  const w = coneHalfWidth(FOV.zMax);
+  const a = pt(0, FOV.zMin), b = pt(-w, FOV.zMax), c = pt(w, FOV.zMax);
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.lineTo(c.x, c.y);
+  ctx.closePath();
+}
+
+// --- Ground -----------------------------------------------------------------
+function drawGround(ctx, t) {
+  ctx.fillStyle = C.ground;
+  ctx.fillRect(0, 0, W, H);
+
+  strip(ctx, ROAD.farEdge, ROAD.kerb, C.road);
+  for (const [a, b] of spans(t, 0)) strip(ctx, ROAD.kerb - 2.5, ROAD.kerb, C.parkBay, a, b);
+
+  for (const st of STREETS) {                         // cross streets, kerb to kerb
+    const z = zOf(st.ahead, t);
+    strip(ctx, -160, 160, C.road, z - st.half, z + st.half);
+  }
+
+  ctx.fillStyle = C.lane;
+  for (const st of STREETS) {                         // zebra crossings
+    const z = zOf(st.ahead, t);
+    for (const zc of [z + st.half + 2, z - st.half - 2]) {
+      for (let x = ROAD.farEdge + 0.6; x < ROAD.kerb - 0.5; x += 1.15) {
+        poly(ctx, slab(x + 0.28, zc, 0.55, 3));
+        ctx.fill();
+      }
+    }
+    for (let x = -158; x < 158; x += 7) {               // cross-street centre line
+      if (x > ROAD.farEdge - 4 && x < ROAD.kerb + 1) continue;
+      poly(ctx, slab(x + 1.5, z, 3, 0.15));
+      ctx.fill();
+    }
+    for (const ze of [z - st.half, z + st.half]) {     // cross-street kerbs
+      for (const [x0, x1] of [[-160, ROAD.farEdge], [ROAD.kerb, 160]]) {
+        poly(ctx, [pt(x0, ze - 0.06), pt(x1, ze - 0.06), pt(x1, ze + 0.06), pt(x0, ze + 0.06)]);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Lane dashes, anchored to the road so they slide past at riding speed.
+  for (const x of ROAD.dividers) {
+    for (let w = -80; w < 300; w += 7) {
+      const z1 = zOf(w, t), z0 = z1 - 3;
+      if (z1 < Z_FAR || z0 > Z_NEAR || inStreet(z0, t, 3.6) || inStreet(z1, t, 3.6)) continue;
+      poly(ctx, slab(x, (z0 + z1) / 2, 0.17, 3));
+      ctx.fill();
+    }
+  }
+  for (const [a, b] of spans(t, 0)) {
+    for (const x of [ROAD.kerb, ROAD.farEdge]) {
+      poly(ctx, [pt(x - 0.06, a), pt(x + 0.06, a), pt(x + 0.06, b), pt(x - 0.06, b)]);
+      ctx.fill();
+    }
+  }
+
+  // What the rear camera covers, as a lighter wedge. The map around it is map
+  // data, not camera, so it is left at full strength rather than dimmed.
+  ctx.save();
+  ctx.beginPath();
+  conePath(ctx);
+  ctx.fillStyle = C.coneTint;
+  ctx.fill();
+  ctx.strokeStyle = C.cone;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+}
+
+// --- Blocks -----------------------------------------------------------------
+/** One wall of a block, from the ground to h. */
+function blockWall(ctx, ax, az, bx, bz, h, fill) {
+  poly(ctx, [pt(ax, az), pt(bx, bz), pt(bx, bz, h), pt(ax, az, h)], fill);
+}
+
+function drawBlocks(ctx, t) {
+  const live = [];
+  for (const b of BLOCKS) {
+    const zA = zOf(b.b, t), zB = zOf(b.a, t);      // zA is the far end
+    if (zB < Z_FAR + 120 || zA > Z_NEAR - 5) continue;
+    live.push({ ...b, zA, zB, near: pt((b.x0 + b.x1) / 2, (zA + zB) / 2).s });
+  }
+  live.sort((p, q) => p.near - q.near);            // far first
+  for (const b of live) {
+    const { x0, x1, zA, zB, h } = b;
+    if (b.park) {
+      poly(ctx, [pt(x0, zA), pt(x1, zA), pt(x1, zB), pt(x0, zB)], C.park);
+      ctx.strokeStyle = C.parkEdge;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      continue;
+    }
+    const walls = [
+      [x0, zA, x1, zA], [x1, zA, x1, zB], [x1, zB, x0, zB], [x0, zB, x0, zA],
+    ].map((w) => ({ w, s: pt((w[0] + w[2]) / 2, (w[1] + w[3]) / 2).s }))
+     .sort((p, q) => p.s - q.s);
+    walls.forEach(({ w }, i) => blockWall(ctx, w[0], w[1], w[2], w[3], h, i < 2 ? C.blockBack : C.blockSide));
+    poly(ctx, [pt(x0, zA, h), pt(x1, zA, h), pt(x1, zB, h), pt(x0, zB, h)], C.blockTop);
+  }
+}
+
+/** Parked cars down the kerb — detections, so only where the camera sees them. */
+function drawParked(ctx, t) {
+  const spacing = 7.5;
+  const from = Math.floor((SPEED * t - 48) / spacing);  // only the stretch just behind you
+  for (let k = from; k * spacing < SPEED * t + 2; k++) {
+    const w = k * spacing, z = zOf(w, t);
+    if (((k % 4) + 4) % 4 === 3) continue;              // the odd gap in the row
+    if (!seen(ROAD.parked, z, 0.9) || inStreet(z, t, 3)) continue;
+    ctx.save();
+    poly(ctx, slab(ROAD.parked + 0.1, z + 0.1, 1.8, 4.5), C.shadow);
+    roundQuad(ctx, slab(ROAD.parked, z, 1.8, 4.5, 0.9), Math.max(2, 0.34 * ppm(z)));
+    ctx.fillStyle = C.parkedBody;
+    ctx.fill();
+    roundQuad(ctx, slab(ROAD.parked, z + 0.3, 1.33, 2.0, 1.45), Math.max(1.5, 0.22 * ppm(z)));
+    ctx.fillStyle = C.parkedRoof;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+/** Street names where the eye needs them: the turn in route blue. */
+function drawLabels(ctx, t) {
+  const tag = (label, x, z, onRoute) => {
+    const p = pt(x, z);
+    if (p.y < BANNER_H + 20 || p.y > H - 120) return;
+    ctx.save();
+    ctx.font = '600 12px -apple-system, "SF Pro Rounded", system-ui, sans-serif';
+    const w = ctx.measureText(label).width + 14;
+    let cx = Math.min(Math.max(p.x, w / 2 + 10), W - w / 2 - 10);
+    if (p.y < BANNER_H + 78) cx = Math.max(cx, 84 + w / 2);   // clear of the speed badge
+    ctx.shadowColor = 'rgba(12,18,26,0.18)';
+    ctx.shadowBlur = 4;
+    ctx.fillStyle = C.label;
+    ctx.beginPath();
+    ctx.roundRect(cx - w / 2, p.y - 11, w, 22, 6);
+    ctx.fill();
+    ctx.restore();
+    text(ctx, label, cx, p.y + 1, { size: 12, weight: 600, align: 'center', baseline: 'middle',
+                                     fill: onRoute ? C.labelRoute : C.labelInk });
+  };
+  for (const st of STREETS) tag(st.name, -20, zOf(st.ahead, t), !!st.turn);
+}
+
+/** Distance fades into the sky, the way the map apps do it. */
+function drawHaze(ctx) {
+  const g = ctx.createLinearGradient(0, BANNER_H, 0, BANNER_H + 56);
+  g.addColorStop(0, 'rgba(238,241,245,0.85)');
+  g.addColorStop(1, 'rgba(238,241,245,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, BANNER_H, W, 56);
+}
+
+// --- Vehicles ---------------------------------------------------------------
+function paint(level) {
+  if (level >= 3) return { body: C.red, edge: C.redEdge, roof: C.redRoof, glass: 'rgba(110,26,22,0.45)' };
+  if (level === 2) return { body: C.amber, edge: C.amberEdge, roof: C.amberRoof, glass: 'rgba(120,72,8,0.38)' };
+  return { body: C.body, edge: C.bodyEdge, roof: C.roof, glass: C.glass };
+}
+
+function drawVehicle(ctx, tr, t) {
+  if (tr.cls === 'person') return drawPerson(ctx, tr, t);
+  if (tr.cls === 'bicycle') return drawCyclist(ctx, tr, t);
+  const [w, l] = SIZE[tr.cls];
+  const big = tr.cls === 'bus' || tr.cls === 'truck';
+  const hBody = big ? 2.4 : 0.95, hRoof = big ? 3.0 : 1.45;
+  const col = paint(tr.level);
+  const s = ppm(tr.z);
+  const r = Math.max(2, 0.34 * s);
+
+  ctx.save();
+
+  if (tr.level >= 3) {
+    ctx.save();
+    ctx.globalAlpha = 0.3 + 0.35 * Math.abs(Math.sin(Math.PI * t));
+    ctx.shadowColor = C.red;
+    ctx.shadowBlur = 24;
+    roundQuad(ctx, slab(tr.x, tr.z, w, l, 0.05), r);
+    ctx.fillStyle = C.red;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  poly(ctx, slab(tr.x + 0.12, tr.z + 0.12, w, l), C.shadow);
+
+  roundQuad(ctx, slab(tr.x, tr.z, w, l, hBody), r);   // body, at roof height
+  ctx.fillStyle = col.body;
+  ctx.fill();
+  ctx.strokeStyle = col.edge;
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  roundQuad(ctx, slab(tr.x, tr.z + l * 0.06, w * 0.74, l * (big ? 0.74 : 0.44), hRoof), r * 0.6);
+  ctx.fillStyle = col.roof;
+  ctx.fill();
+
+  poly(ctx, slab(tr.x, tr.z - l * (big ? 0.3 : 0.12), w * 0.68, l * 0.09, hRoof), col.glass);
+
+  if (tr.turnR && Math.sin(Math.PI * 1.6 * t) > 0) {
+    poly(ctx, slab(tr.x + w / 2 - 0.2, tr.z - l / 2 + 0.25, 0.32, 0.32, hBody), C.amber);
+  }
+  ctx.restore();
+}
+
+// --- Cyclists and pedestrians ------------------------------------------------
+/**
+ * People on foot and on bikes are drawn as upright figures standing on their
+ * ground position, the way Tesla draws them. From near-overhead a real person is
+ * shoulders and a head — an oval with a dot — which reads as nothing in
+ * particular. Standing them up is what makes "person" register at a glance, and a
+ * cyclist seen from behind is how the rear camera actually sees them.
+ *
+ * Drawn at VRU_SCALE for the same reason as your puck: true size is a speck.
+ */
+const VRU_SCALE = 1.6;
+const VRU = { body: '#5F6873', limb: '#3E454E', head: '#9AA2AC', halo: '#FFFFFF' };
+
+function vruColour(level) {
+  if (level >= 3) return { body: C.red, limb: C.redEdge };
+  if (level === 2) return { body: C.amber, limb: C.amberEdge };
+  return { body: VRU.body, limb: VRU.limb };
+}
+
+/**
+ * Paint a figure twice: a white halo pass with a wide stroke, then the colours.
+ * parts: [kind, fill, ...geometry in metres, y up from the feet].
+ */
+function figure(ctx, foot, u, parts) {
+  const at = (x, y) => [foot.x + x * u, foot.y - y * u];
+  const trace = ([kind, , ...g]) => {
+    ctx.beginPath();
+    if (kind === 'box') {
+      const [x, y0, w, y1, r] = g, [ax, ay] = at(x - w / 2, y1);
+      ctx.roundRect(ax, ay, w * u, (y1 - y0) * u, Math.min(r * u, w * u / 2));
+    } else if (kind === 'line') {
+      const [x0, y0, x1, y1] = g;
+      ctx.moveTo(...at(x0, y0));
+      ctx.lineTo(...at(x1, y1));
+    } else if (kind === 'head') {
+      const [x, y, rx, ry] = g, [cx, cy] = at(x, y);
+      ctx.ellipse(cx, cy, rx * u, (ry ?? rx) * u, 0, 0, Math.PI * 2);
+    }
+  };
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (const part of parts) {                       // halo pass
+    trace(part);
+    ctx.strokeStyle = VRU.halo;
+    ctx.lineWidth = part[0] === 'line' ? part[6] * u + 3.5 : 3.5;
+    ctx.stroke();
+  }
+  for (const part of parts) {                       // colour pass
+    trace(part);
+    if (part[0] === 'line') {
+      ctx.strokeStyle = part[1];
+      ctx.lineWidth = part[6] * u;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = part[1];
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+function groundShadow(ctx, foot, u, rx) {
+  ctx.fillStyle = C.shadow;
+  ctx.beginPath();
+  ctx.ellipse(foot.x, foot.y, rx * u, rx * u * 0.38, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** Another rider, seen from behind: rear wheel, legs, back, arms to the bars, helmet. */
+function drawCyclist(ctx, tr, t) {
+  const foot = pt(tr.x, tr.z), u = foot.s * VRU_SCALE, col = vruColour(tr.level);
+  groundShadow(ctx, foot, u, 0.36);
+  figure(ctx, foot, u, [
+    ['box', col.limb, 0, 0.0, 0.08, 0.68, 0.04],               // rear wheel, edge-on
+    ['line', col.limb, -0.11, 0.84, -0.13, 0.38, 0.1],         // legs
+    ['line', col.limb, 0.11, 0.84, 0.15, 0.48, 0.1],
+    ['box', col.limb, 0, 1.01, 0.66, 1.07, 0.03],              // handlebars
+    ['line', col.body, -0.17, 1.34, -0.3, 1.05, 0.09],         // arms out to the bars
+    ['line', col.body, 0.17, 1.34, 0.3, 1.05, 0.09],
+    ['box', col.body, 0, 0.8, 0.4, 1.42, 0.13],                // back
+    ['head', VRU.head, 0, 1.58, 0.15, 0.12],                   // helmet
+  ]);
+  if (tr.level >= 3) pulseRing(ctx, foot, u, 0.5, t);
+}
+
+/** A pedestrian, standing: legs, body, arms, head. */
+function drawPerson(ctx, tr, t) {
+  const foot = pt(tr.x, tr.z), u = foot.s * VRU_SCALE, col = vruColour(tr.level);
+  groundShadow(ctx, foot, u, 0.3);
+  figure(ctx, foot, u, [
+    ['line', col.limb, -0.09, 0.05, -0.09, 0.82, 0.12],        // legs
+    ['line', col.limb, 0.09, 0.05, 0.09, 0.82, 0.12],
+    ['line', col.body, -0.27, 1.36, -0.3, 0.9, 0.09],          // arms
+    ['line', col.body, 0.27, 1.36, 0.3, 0.9, 0.09],
+    ['box', col.body, 0, 0.8, 0.44, 1.44, 0.14],               // body
+    ['head', VRU.head, 0, 1.62, 0.13],                         // head
+  ]);
+  if (tr.level >= 3) pulseRing(ctx, foot, u, 0.45, t);
+}
+
+/** Level 3 on a small target: a ring on the ground, because a red speck is easy to miss. */
+function pulseRing(ctx, foot, u, r, t) {
+  const phase = (t * 2) % 1;
+  ctx.save();
+  ctx.strokeStyle = rgba(C.red, 1 - phase);
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.ellipse(foot.x, foot.y, (r + phase * 0.7) * u, (r + phase * 0.7) * u * 0.38, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// --- You --------------------------------------------------------------------
+/** Centreline of the route: ahead to the turn, a left arc, along the cross street. */
+function routeLine(t) {
+  const zt = zOf(TURN.ahead, t), R = 7;
+  const pts = [];
+  for (let z = 0.6; z > zt + R; z -= 2) pts.push([0, z]);
+  for (let i = 0; i <= 14; i++) {
+    const a = (i / 14) * Math.PI / 2;
+    pts.push([-R + R * Math.cos(a), zt + R - R * Math.sin(a)]);
+  }
+  for (let x = -R - 3; x > -170; x -= 6) pts.push([x, zt]);
+  return pts;
+}
+
+/** A ribbon w metres wide along a ground polyline, projected edge by edge. */
+function ribbon(ctx, line, w, fill) {
+  const left = [], right = [];
+  for (let i = 0; i < line.length; i++) {
+    const [x, z] = line[i];
+    const [ax, az] = line[Math.max(i - 1, 0)], [bx, bz] = line[Math.min(i + 1, line.length - 1)];
+    const dx = bx - ax, dz = bz - az, n = Math.hypot(dx, dz) || 1;
+    const nx = -dz / n * w / 2, nz = dx / n * w / 2;
+    left.push(pt(x + nx, z + nz));
+    right.push(pt(x - nx, z - nz));
+  }
+  ctx.beginPath();
+  ctx.moveTo(left[0].x, left[0].y);
+  for (const q of left.slice(1)) ctx.lineTo(q.x, q.y);
+  for (const q of right.reverse()) ctx.lineTo(q.x, q.y);
+  ctx.closePath();
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+/** The route, as a blue ribbon that turns where you will turn. */
+function drawRoute(ctx, t) {
+  const line = routeLine(t);
+  ctx.save();
+  ribbon(ctx, line, 2.1, C.routeCase);
+  ribbon(ctx, line, 1.5, C.routeCore);
+
+  // The road already ridden, fading out behind: it marks the path taken without
+  // painting over the stretch the warnings are about.
+  const a = pt(-0.75, 0.4), b = pt(0.75, 0.4), c = pt(0.75, 22), d = pt(-0.75, 22);
+  const g = ctx.createLinearGradient(0, a.y, 0, c.y);
+  g.addColorStop(0, rgba(C.routeCore, 0.55));
+  g.addColorStop(1, rgba(C.routeCore, 0));
+  poly(ctx, [a, b, c, d], g);
+  ctx.restore();
+}
+
+/**
+ * You, as the navigation puck every map app uses: a chevron pointing the way you
+ * are heading, in a disc with a white collar. Dead centre, side to side.
+ */
+function drawPuck(ctx) {
+  const p = pt(0, 0);
+  const r = 17;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(8,24,48,0.45)';
+  ctx.shadowBlur = 10;
+  ctx.shadowOffsetY = 2;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+  ctx.fillStyle = C.text;                     // white collar
+  ctx.fill();
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r - 3.5, 0, Math.PI * 2);
+  ctx.fillStyle = C.puck;
+  ctx.fill();
+
+  ctx.beginPath();                            // chevron, pointing the way you face
+  ctx.moveTo(p.x, p.y - 8);
+  ctx.lineTo(p.x + 7.5, p.y + 6.5);
+  ctx.lineTo(p.x, p.y + 2.5);
+  ctx.lineTo(p.x - 7.5, p.y + 6.5);
+  ctx.closePath();
+  ctx.fillStyle = C.text;
+  ctx.fill();
+}
+
+// --- Side glow --------------------------------------------------------------
+/** Worst level in each zone. Straight behind has no side to dodge towards. */
+function alertZones(t) {
+  const zone = { L: 0, R: 0, C: 0 };
+  for (const tr of tracksAt(t)) {
+    if (tr.level < 1) continue;
+    const k = tr.x < -0.8 ? 'L' : tr.x > 0.8 ? 'R' : 'C';
+    zone[k] = Math.max(zone[k], tr.level);
+  }
+  return zone;
+}
+
+/** How long this zone has been at this level, so a flash can fire on arrival. */
+function ageOf(key, level, t) {
+  const step = 0.02;
+  for (let back = step; back <= 2.5; back += step) {
+    if (alertZones(t - back)[key] !== level) return back;
+  }
+  return 2.5;
+}
+
+/**
+ * The same beat the grip is playing (CONTRACTS.md): one 150 ms pulse at level 1,
+ * two 120 ms pulses 100 ms apart at level 2, 4 Hz sustained at level 3. Eye and
+ * hand get the same rhythm, so the screen explains the buzz without being read.
+ */
+function flashAt(level, age) {
+  if (level >= 3) return (age * 8) % 2 < 1 ? 1 : 0.38;
+  if (level === 2) {
+    if (age < 0.12) return 1;
+    if (age < 0.22) return 0.38;
+    if (age < 0.34) return 1;
+    return 0.62;
+  }
+  return age < 0.15 ? 1 : 0.34;
+}
+
+const BAND = { 1: 46, 2: 88, 3: 150 };
+
+function edgeBand(ctx, side, colour, width, alpha) {
+  const stops = (g) => {
+    g.addColorStop(0, rgba(colour, Math.min(1, alpha)));
+    g.addColorStop(0.18, rgba(colour, alpha * 0.88));
+    g.addColorStop(0.52, rgba(colour, alpha * 0.4));
+    g.addColorStop(1, rgba(colour, 0));
+    return g;
+  };
+  if (side === 'L') ctx.fillStyle = stops(ctx.createLinearGradient(0, 0, width, 0));
+  if (side === 'R') ctx.fillStyle = stops(ctx.createLinearGradient(W, 0, W - width, 0));
+  if (side === 'T') ctx.fillStyle = stops(ctx.createLinearGradient(0, 0, 0, width));
+  if (side === 'B') ctx.fillStyle = stops(ctx.createLinearGradient(0, H, 0, H - width));
+  if (side === 'L') ctx.fillRect(0, 0, width, H);
+  if (side === 'R') ctx.fillRect(W - width, 0, width, H);
+  if (side === 'T') ctx.fillRect(0, 0, W, width);
+  if (side === 'B') ctx.fillRect(0, H - width, W, width);
+}
+
+/** Drawn last, over the nav chrome too: a warning outranks the map. */
+function alerts(ctx, t) {
+  const zone = alertZones(t);
+  for (const key of ['L', 'R', 'C']) {
+    const level = zone[key];
+    if (!level) continue;
+    const colour = level >= 3 ? C.red : C.amber;
+    const alpha = flashAt(level, ageOf(key, level, t));
+    const width = BAND[level];
+    if (key === 'C') {
+      // Nothing to steer away from: the whole frame lights instead of one edge.
+      for (const side of ['L', 'R', 'T', 'B']) edgeBand(ctx, side, colour, width, alpha);
+    } else {
+      edgeBand(ctx, key, colour, width, alpha);
+    }
+  }
+}
+
+function rgba(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a.toFixed(3)})`;
+}
+
+// --- Nav HUD, over the top --------------------------------------------------
+function drawNav(ctx, hasLink, t) {
+  // Manoeuvre panel: flat along the bottom, so it reads as a band the map runs
+  // under rather than as a floating card.
+  ctx.fillStyle = C.banner;
+  ctx.beginPath();
+  ctx.roundRect(0, -24, W, BANNER_H + 24, [24, 24, 0, 0]);
+  ctx.fill();
+
+  text(ctx, '9:41', 22, 37, { size: 15, weight: 600 });
+  text(ctx, '5G', W - 54, 37, { size: 13, weight: 600, align: 'right' });
+  battery(ctx, W - 46, 30);
+
+  manoeuvre(ctx, 46, 104, 36, 'left');
+  const toTurn = Math.max(5, Math.round((TURN.ahead - SPEED * t) / 5) * 5);
+  text(ctx, `${toTurn} m`, 84, 116, { size: 36, weight: 700 });
+  text(ctx, 'Spadina Ave', 84, 144, { size: 21, weight: 500 });
+  pill(ctx, 'Bike Lane', W - 20, 100);
+
+  ctx.strokeStyle = C.hair;                         // then-row divider
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(20, 160);
+  ctx.lineTo(W - 20, 160);
+  ctx.stroke();
+
+  text(ctx, 'Then', 22, 182, { size: 15, fill: C.textDim });
+  manoeuvre(ctx, 72, 176, 17, 'right');
+  text(ctx, '900 m · Bloor St W', 90, 182, { size: 15, weight: 500 });
+
+  // Over the map: speed, and the two controls a rider actually reaches for.
+  roundBox(ctx, 16, BANNER_H + 14, 54, 50, 12);
+  text(ctx, String(Math.round(SPEED * 3.6)), 43, BANNER_H + 42, { size: 21, weight: 700, fill: C.barInk, align: 'center' });
+  text(ctx, 'km/h', 43, BANNER_H + 56, { size: 10, weight: 600, fill: C.barDim, align: 'center' });
+
+  circleButton(ctx, W - 38, BANNER_H + 30, 'route');
+  circleButton(ctx, W - 38, BANNER_H + 84, 'sound');
+
+  ctx.fillStyle = hasLink ? C.green : C.exit;       // link to the rear phone
+  ctx.beginPath();
+  ctx.arc(W - 22, BANNER_H + 14, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Arrival bar.
+  const by = H - 96;
+  ctx.fillStyle = C.bar;
+  ctx.beginPath();
+  ctx.roundRect(0, by, W, 96 + 24, [18, 18, 24, 24]);
+  ctx.fill();
+
+  const stat = (x, value, label) => {
+    text(ctx, value, x, by + 44, { size: 26, weight: 700, fill: C.barInk });
+    text(ctx, label, x, by + 64, { size: 13, weight: 500, fill: C.barDim });
+  };
+  stat(24, '12:41', 'arrival');
+  stat(140, '18', 'min');
+  stat(204, '4.2', 'km');
+
+  ctx.fillStyle = '#E7E9ED';
+  ctx.beginPath();
+  ctx.arc(W - 42, by + 46, 19, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = C.barDim;
+  ctx.lineWidth = 2.4;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(W - 49, by + 50);
+  ctx.lineTo(W - 42, by + 42);
+  ctx.lineTo(W - 35, by + 50);
+  ctx.stroke();
+}
+
+function roundBox(ctx, x, y, w, h, r) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(12,18,26,0.22)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 2;
+  ctx.fillStyle = C.bar;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+  ctx.fill();
+  ctx.restore();
+}
+
+function circleButton(ctx, cx, cy, kind) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(12,18,26,0.22)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 2;
+  ctx.fillStyle = C.bar;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 21, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = C.puck;
+  ctx.fillStyle = C.puck;
+  ctx.lineWidth = 2.2;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  if (kind === 'route') {
+    ctx.beginPath();
+    ctx.moveTo(cx - 6, cy + 7);
+    ctx.quadraticCurveTo(cx + 7, cy + 5, cx + 1, cy - 2);
+    ctx.quadraticCurveTo(cx - 6, cy - 8, cx + 6, cy - 8);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx - 6, cy + 7, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx + 6, cy - 8, 3, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(cx - 7, cy - 3);
+    ctx.lineTo(cx - 3, cy - 3);
+    ctx.lineTo(cx + 1, cy - 8);
+    ctx.lineTo(cx + 1, cy + 8);
+    ctx.lineTo(cx - 3, cy + 3);
+    ctx.lineTo(cx - 7, cy + 3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx + 3, cy, 4.5, -Math.PI / 3, Math.PI / 3);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx + 3, cy, 8, -Math.PI / 3, Math.PI / 3);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function battery(ctx, x, y) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(x, y, 22, 11, 3);
+  ctx.stroke();
+  ctx.fillStyle = C.text;
+  ctx.beginPath();
+  ctx.roundRect(x + 1.5, y + 1.5, 16, 8, 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function pill(ctx, label, right, cy) {
+  ctx.save();
+  ctx.font = '600 14px -apple-system, "SF Pro Rounded", system-ui, sans-serif';
+  const w = ctx.measureText(label).width + 22;
+  ctx.fillStyle = C.pillGreen;
+  ctx.beginPath();
+  ctx.roundRect(right - w, cy - 14, w, 28, 8);
+  ctx.fill();
+  ctx.restore();
+  text(ctx, label, right - w / 2, cy + 1, { size: 14, weight: 600, align: 'center', baseline: 'middle' });
+}
+
+/** The next manoeuvre: big, white, and the size a glance can catch. */
+function manoeuvre(ctx, cx, cy, size, dir = 'right') {
+  const k = dir === 'left' ? 1 : -1;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.strokeStyle = C.text;
+  ctx.fillStyle = C.text;
+  ctx.lineWidth = size * 0.2;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(k * size * 0.3, size * 0.56);
+  ctx.lineTo(k * size * 0.3, -size * 0.06);
+  ctx.quadraticCurveTo(k * size * 0.3, -size * 0.4, k * -size * 0.02, -size * 0.4);
+  ctx.lineTo(k * -size * 0.18, -size * 0.4);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(k * -size * 0.1, -size * 0.74);
+  ctx.lineTo(k * -size * 0.54, -size * 0.4);
+  ctx.lineTo(k * -size * 0.1, -size * 0.06);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+// --- Frame ------------------------------------------------------------------
+function draw(t) {
+  const ctx = window.__ctx;
+  const tracks = tracksAt(t);
+  ctx.clearRect(0, 0, W, H);
+  drawGround(ctx, t);
+  drawBlocks(ctx, t);
+  drawRoute(ctx, t);
+  drawParked(ctx, t);
+  for (const tr of tracks) drawVehicle(ctx, tr, t);
+  drawPuck(ctx);
+  drawHaze(ctx);
+  drawLabels(ctx, t);
+  drawNav(ctx, tracks.length > 0, t);
+  alerts(ctx, t);
+}
+
+function init() {
+  const canvas = document.getElementById('screen');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  window.__ctx = ctx;
+
+  const params = new URLSearchParams(location.search);
+  if (params.has('t')) {
+    document.body.classList.add('shot');
+    draw(parseFloat(params.get('t')));
+    window.__ready = true;
+    return;
+  }
+  const scrub = document.getElementById('scrub');
+  let playing = true;
+  const started = performance.now();
+  scrub.addEventListener('input', () => { playing = false; draw(parseFloat(scrub.value)); });
+  (function loop(now) {
+    if (playing) {
+      const t = ((now - started) / 1000) % LOOP;
+      scrub.value = t;
+      draw(t);
+    }
+    requestAnimationFrame(loop);
+  })(performance.now());
+}
+init();
+</script>
+</body>
+</html>
