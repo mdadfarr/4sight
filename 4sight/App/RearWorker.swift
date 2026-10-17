@@ -157,6 +157,10 @@ nonisolated final class RearWorker: @unchecked Sendable {
             ttc.reset(id: tr.id); lastGap[tr.id] = nil   // size jump: history is from another vehicle or a cut
         }
         filter.forget(except: Set(tracks.map(\.id)))
+        // Draw and send only what was detected in the last 0.2 s. The tracker keeps a lost
+        // track alive 1.5 s so its id survives a dropout, but its box is then a drifting guess;
+        // shown, it reads as a second box beside the real one. The engine still sees it.
+        let visible = Set(tracks.filter { $0.misses <= 2 }.map(\.id))
 
         let yawCorrection = headingDelta(yaw: input.yaw, t: t)
         let states: [TrackState] = tracks.map { tr in
@@ -213,7 +217,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
         let message = FrameMessage(
             t: t, fps: frameTimes.count, temp: input.thermal, speed: input.speed, heading: input.heading,
             demo: input.demo,
-            tracks: states.map { s in
+            tracks: states.filter { visible.contains($0.id) }.map { s in
                 let d = byID[s.id]
                 return TrackMessage(id: s.id, cls: s.cls, x: s.gap, z: s.z, invTTC: s.invTTC,
                                     gapPred: d?.gapPred ?? abs(s.gap), level: d?.level ?? 0,
@@ -229,7 +233,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
             peer.send(message)
         }
 
-        let overlay = tracks.map { tr in
+        let overlay = tracks.filter { visible.contains($0.id) }.map { tr in
             OverlayTrack(id: tr.id, cls: tr.cls,
                          rect: CGRect(x: tr.box.x / w, y: tr.box.y / h, width: tr.box.w / w, height: tr.box.h / h),
                          level: byID[tr.id]?.level ?? 0)
