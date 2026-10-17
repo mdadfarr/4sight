@@ -33,6 +33,30 @@ pio device monitor
 In the monitor (115200 baud) type `L1`, `R3`, `X`, `GL`, `NR` etc. + Enter to trigger patterns
 without a phone. A button press prints `merge: ML` / `merge: MR`.
 
+### Or flash with Arduino IDE 2 (what Mohammad already has working)
+
+Same board setup as Mohammad's web-server guide (data cable, `cu.` port, hold BOOT if it sticks on
+"Connecting..."). Three differences:
+
+1. **Boards Manager → esp32 by Espressif → pick version `2.0.17`**, not the newest. This firmware uses
+   `ledcSetup` / `ledcAttachPin`, which version 3.x removed, so the newest one will not compile.
+2. **Library Manager → install `NimBLE-Arduino` by h2zero, version 2.x.**
+3. New sketch named `foursight`, paste all of `src/main.cpp` into `foursight.ino`, board **ESP32 Dev
+   Module** (DOIT DEVKIT V1 works), Upload, then Serial Monitor at 115200.
+
+## How the rear phone talks to the ESP32: Bluetooth LE, not Wi-Fi
+
+The ESP32 advertises as `4sight`. The rear phone's app finds it and connects by itself; do **not** pair
+it in iOS Settings → Bluetooth (apps connect directly, and a Settings pairing can get in the way).
+The rear screen's `BLE` line goes `scanning` → `connected`. Commands flow phone → ESP32 on the command
+characteristic, button presses flow back on the event characteristic (docs/CONTRACTS.md).
+
+Why not the Wi-Fi web server: on a bike there is no router, so the rear phone would have to run a
+Personal Hotspot for the whole ride (needs a plan that allows it, turns itself off when idle, and the
+ESP32 only joins while the hotspot screen is open). The ESP32's address changes on restart, and a
+button press would need the phone to poll. BLE needs no network, no address and no hotspot. Both use
+the same 2.4 GHz antenna, so the metal-box rule (antenna end outside the box) is the same either way.
+
 ## Test with nRF Connect
 
 1. Scan and connect to `4sight`.

@@ -233,3 +233,8 @@ Film it on the handlebars in daylight.
 
 **Can wait until tonight:** danger-engine tuning (B), tracker fragmentation, README numbers, the `events.jsonl` growth limit,
 the untested front rename path (only matters with two fronts in range).
+
+- **Phone ↔ ESP32 stays BLE (decided day 1, 14:40).** Mohammad proved the board, cable and flashing with a
+  Wi-Fi web server on an iPhone hotspot; that toolchain knowledge carries over. The link itself stays
+  BLE: no hotspot, no IP, and button presses notify back for free. Flash via PlatformIO or Arduino IDE
+  with esp32 core 2.0.17 (firmware/README.md).
