@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+out/
+
+# Big or private files: keep them out of the repo
+*.mp4
+*.mov
+*.pt
+*.zip
+.env
+
+# macOS / Xcode
+.DS_Store
+xcuserdata/
+DerivedData/
