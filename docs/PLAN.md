@@ -58,6 +58,7 @@ Single-phone mode = rear role with no front phone found: grips + LEDs only. Audi
 
 | Step | Done when |
 |---|---|
+| 0. Rear mount is landscape. Tap Rear, look at the preview: if the road is upside down, rotate the phone 180° in the mount. Detection assumes landscape and this orientation. | Preview right way up |
 | 1. Throwaway `BenchView`: live camera → Detector, print ms/inference, fps, thermal. Detection is capped at 10 fps for now (safety); raise only after this measurement | You know the number. < 25 ms → 640 at 30 fps; else 416, every other frame |
 | 2. `RearPipeline`: CaptureSource → Detector → Tracker → TTC → Gap → ThreatEngine → FrameMessage | On the ride footage via `FileSource` in Simulator, an overtake shows inv_ttc > 0 ~3 s before the pass |
 | 3. Wire `HapticsLink` + `PeerLink` + GPS/IMU into the pipeline; `RearView` with fps/thermal/links, `isIdleTimerDisabled`, dim | Grips buzz from a replayed overtake with no front phone connected |
