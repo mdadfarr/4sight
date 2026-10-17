@@ -55,6 +55,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
     private var filter = DetectionFilter()
     private let tracker = Tracker()
     private let ttc = TTCEstimator()
+    private let rangeFilter = RangeFilter()
     private let engine = ThreatEngine()
     private let danger = DangerAdapter()
     /// The last frame's tracks, read from the Bluetooth queue when a button is pressed.
@@ -158,7 +159,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
         let ms = Double(took.seconds) * 1000 + Double(took.attoseconds) / 1e15
         let tracks = tracker.update(detections: detections, dt: dt)
         for tr in tracks where filter.jumped(id: tr.id, box: tr.box, imageW: w) {
-            ttc.reset(id: tr.id); lastGap[tr.id] = nil   // size jump: history is from another vehicle or a cut
+            ttc.reset(id: tr.id); rangeFilter.reset(id: tr.id); lastGap[tr.id] = nil   // size jump: history is from another vehicle or a cut
         }
         filter.forget(except: Set(tracks.map(\.id)))
         // Draw and send only what was detected in the last 0.2 s. The tracker keeps a lost
@@ -168,7 +169,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
 
         let yawCorrection = headingDelta(yaw: input.yaw, t: t)
         let states: [TrackState] = tracks.map { tr in
-            let z = geo.range(box: tr.box, cls: tr.cls)
+            let z = rangeFilter.update(id: tr.id, z: geo.range(box: tr.box, cls: tr.cls), t: t)
             var gap = geo.gap(box: tr.box, cls: tr.cls, z: z)
             gap -= geo.headingCorrection(deltaHeadingRad: yawCorrection, z: z)
             let inv = ttc.update(id: tr.id, box: tr.box, t: t,
