@@ -6,6 +6,7 @@ import Protocol
 final class FrontModel: ObservableObject {
     @Published private(set) var frame: FrameMessage?
     @Published private(set) var link: LinkState = .searching
+    @Published var nav: NavState?
 
     /// Per-track motion: slides from `from` to `to`, arriving at `arrival` (0.1 s after the frame).
     struct Motion { var from: CGPoint; var to: CGPoint; var arrival: Double }

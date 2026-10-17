@@ -7,17 +7,19 @@ struct FrontRootView: View {
     var body: some View {
         GeometryReader { geo in
             VStack(spacing: 0) {
-                Color.clear.frame(height: geo.size.height / 3) // nav HUD, later PR
+                NavHUDView(model: model)
+                    .frame(height: geo.size.height / 3)
                 SurroundView(model: model)
             }
         }
         .background(Theme.bg)
         .overlay { EdgeGlowView(model: model) }
-        .ignoresSafeArea()
+        .ignoresSafeArea(edges: .bottom)
         .preferredColorScheme(.dark)
         .onAppear {
             // shortcut: PeerFeed lands in front/peer-feed; until then everything is synthetic.
             model.freeze = args.freeze
+            if args.mockRoute { model.nav = .mock }
             model.start(feed: SyntheticFeed(scenario: args.scenario, freeze: args.freeze))
         }
     }
