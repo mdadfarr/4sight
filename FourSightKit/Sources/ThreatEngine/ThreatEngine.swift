@@ -42,6 +42,10 @@ public struct ThreatConfig: Sendable {
     public var closingInvTTC = 0.02
     public var rightHookNearZ = 15.0
     public var forgetAfter = 60.0
+    /// Gap prediction clamps: a lane change is ~1-1.5 m/s sideways, and past 3 s the
+    /// extrapolation is noise (a fast lateral pass at TTC 20 s predicted 45-212 m).
+    public var maxGapVelocity = 1.5
+    public var maxPredictTTC = 3.0
     public init() {}
 }
 
@@ -79,9 +83,11 @@ public final class ThreatEngine {
             let closing = t.invTTC > cfg.closingInvTTC
             if closing {
                 let ttc = 1 / t.invTTC
-                gapPred = abs(t.gap + t.gapVelocity * ttc)
+                let v = min(max(t.gapVelocity, -cfg.maxGapVelocity), cfg.maxGapVelocity)
+                gapPred = abs(t.gap + v * min(ttc, cfg.maxPredictTTC))
                 let threshold = (t.cls == .bus || t.cls == .truck) ? cfg.gapAlertLarge : cfg.gapAlert
-                let slow = bikeSpeed + t.z * t.invTTC < cfg.slowVehicleSpeed
+                // bikeSpeed 0 = no GPS fix yet (or simulator): speed unknown, never "slow".
+                let slow = bikeSpeed > 0 && bikeSpeed + t.z * t.invTTC < cfg.slowVehicleSpeed
                 if gapPred <= threshold {
                     level = t.z / (2 * ttc * ttc) >= cfg.aReqImminent ? 3 : 2
                     grip = "L"

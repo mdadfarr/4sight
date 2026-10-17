@@ -52,6 +52,13 @@ check(run(ThreatEngine(), car(-1.3, cls: .bus), frames: 4)?.level == 2, "bus 1.3
 check(run(ThreatEngine(), TrackState(id: 1, cls: .car, z: 10, gap: -0.5, invTTC: 1), frames: 4)?.level == 3, "aReq 5 -> imminent")
 check(run(ThreatEngine(), TrackState(id: 1, cls: .car, z: 10, gap: -0.5, invTTC: 0), frames: 10)?.level == 0, "parked car silent")
 check(run(ThreatEngine(), TrackState(id: 1, cls: .car, z: 5, gap: -1.2, invTTC: 0.1), frames: 10, speed: 1)?.level == 0, "slow vehicle: no caution")
+check(run(ThreatEngine(), TrackState(id: 1, cls: .car, z: 5, gap: -1.2, invTTC: 0.1), frames: 10, speed: 0)?.level == 1, "bike speed unknown (0): slow rule off, caution kept")
+do {
+    let wide = run(ThreatEngine(), TrackState(id: 1, cls: .car, z: 20, gap: -2.0, gapVelocity: -5, invTTC: 0.05), frames: 10)
+    check(wide?.level == 0 && near(wide?.gapPred ?? 0, 6.5, 1e-9), "fast lateral pass: gap velocity clamped to 1.5 m/s x 3 s -> 6.5 m, level 0")
+    let drift = run(ThreatEngine(), TrackState(id: 1, cls: .car, z: 20, gap: -1.4, gapVelocity: 0.3, invTTC: 0.3), frames: 4)
+    check(drift?.level == 2 && near(drift?.gapPred ?? 0, 0.5, 1e-9), "drifting toward bike: 1.4 - 0.3 x 3 s -> 0.5 m, level 2")
+}
 check(run(ThreatEngine(), car(-0.5, cls: .bicycle), frames: 4) == nil, "bicycle ignored outside demo")
 check(run(ThreatEngine(), car(-0.5, cls: .bicycle), frames: 4, demo: true)?.level == 2, "bicycle threat in demo")
 do {
@@ -80,6 +87,14 @@ do {
         if i >= 1 { pairs.insert(out.sorted { $0.box.x < $1.box.x }.map(\.id)) }
     }
     check(pairs.count == 1 && Set(pairs.first ?? []).count == 2, "two boxes keep distinct ids")
+    // Night drive: a fast passing car with glare-jittered size and a 1 s detector dropout (10 fps).
+    let tr3 = Tracker(); var ids3 = Set<Int>()
+    for i in 0..<40 {
+        let j = i % 2 == 0 ? 1.15 : 0.87, cx = 1000 - Double(i) * 30
+        let dets = (12...21).contains(i) ? [] : [Detection(box: Box(x: cx - 75 * j, y: 570 - 40 * j, w: 150 * j, h: 80 * j), cls: .car, confidence: i % 3 == 0 ? 0.3 : 0.7)]
+        ids3.formUnion(tr3.update(detections: dets, dt: 0.1).map(\.id))
+    }
+    check(ids3.count == 1, "jittered fast car with 1 s dropout keeps one id (\(ids3.count))")
 }
 
 // TTC
