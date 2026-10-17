@@ -218,5 +218,8 @@ runDangerChecks()
 // Merge-check button, see MergeChecks.swift
 runMergeChecks(check)
 
+// ThreatEngine + DangerEngine fused, see FusionChecks.swift
+runFusionChecks(check)
+
 print(failures == 0 ? "ALL CHECKS PASSED" : "\(failures) CHECK(S) FAILED")
 exit(failures == 0 ? 0 : 1)

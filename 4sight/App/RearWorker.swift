@@ -32,12 +32,8 @@ nonisolated struct RearSnapshot: @unchecked Sendable {
     var focalFromLens: Bool
 }
 
-/// Which decision engine runs: metric ThreatEngine (default) or Arshiya's frame-fraction DangerEngine.
-nonisolated enum Engine: String, Sendable { case threat, danger }
-
 /// Sensor values the main actor pushes in; read once per frame.
 nonisolated struct RearInputs: Sendable {
-    var engine: Engine = .threat
     var speed = 0.0
     var heading = -1.0
     var yaw: Double?
@@ -185,17 +181,15 @@ nonisolated final class RearWorker: @unchecked Sendable {
         }
         lastGap = lastGap.filter { k, _ in tracks.contains { $0.id == k } }
 
-        let decisions: [Decision], gripDecisions: [Decision]
-        if input.engine == .danger {
-            let gaps = Dictionary(states.map { ($0.id, $0.gap) }, uniquingKeysWith: { a, _ in a })
-            (decisions, gripDecisions) = danger.update(tracks: tracks, gaps: gaps, t: t, imageW: w, imageH: h)
-        } else {
-            decisions = engine.update(tracks: states, bikeSpeed: input.speed, demoMode: input.demo, now: t)
-            gripDecisions = decisions
-        }
+        // One decision path, both engines every frame (Fusion.swift): ThreatEngine decides,
+        // DangerEngine's range-free votes confirm, sharpen or rescue, never alert alone.
+        let votes = danger.votes(tracks: tracks, t: t, imageW: w, imageH: h)
+        let threat = engine.update(tracks: states, bikeSpeed: input.speed, demoMode: input.demo, now: t,
+                                   corroborated: Fusion.corroborated(votes))
+        let decisions = Fusion.fuse(threat, votes: votes, states: states)
         latest.withLock { $0 = LatestView(states: states, t: t, wall: Date()) }
         let byID = Dictionary(decisions.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        driveHaptics(decisions: gripDecisions, present: Set(tracks.map(\.id)))
+        driveHaptics(decisions: decisions, present: Set(tracks.map(\.id)))
         EventLogger.shared.record(decisions: decisions, states: states, input: input)
 
         let lag = Date().timeIntervalSince(wallStart!) - (t - firstPTS)

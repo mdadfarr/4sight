@@ -30,7 +30,7 @@ final class RearReplayFeed: TrackFeed {
         do {
             let w = try RearWorker(source: FileSource(url: url), previewImage: false,
                                    sendHaptic: { _ in }, publish: { cont.yield($0.message) })
-            w.inputs.withLock { $0.demo = true; $0.engine = .threat; $0.speed = Self.speed }
+            w.inputs.withLock { $0.demo = true; $0.speed = Self.speed }
             try w.start()
             worker = w
         } catch {

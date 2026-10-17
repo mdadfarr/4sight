@@ -37,6 +37,10 @@ public struct ThreatConfig: Sendable {
     public var gapCaution = 1.5
     public var aReqImminent = 3.0
     public var debounceFrames = 4
+    /// When DangerEngine independently rates the track warning or worse (Fusion): two
+    /// estimators that fail differently agreeing for 0.2 s beats one agreeing for 0.4 s,
+    /// and 2 still keeps a single glitched frame out.
+    public var corroboratedDebounceFrames = 2
     public var slowVehicleSpeed = 2.8
     public var rightHookHold = 3.0
     public var closingInvTTC = 0.02
@@ -61,8 +65,10 @@ public final class ThreatEngine {
 
     public init(config: ThreatConfig = ThreatConfig()) { self.config = config }
 
+    /// `corroborated`: ids DangerEngine also flags this frame (Fusion.corroborated); they
+    /// confirm after `corroboratedDebounceFrames` instead of `debounceFrames`.
     public func update(tracks: [TrackState], bikeSpeed: Double, demoMode: Bool,
-                       now: TimeInterval) -> [Decision] {
+                       now: TimeInterval, corroborated: Set<Int> = []) -> [Decision] {
         let cfg = config
         var out: [Decision] = []
         var seen = Set<Int>()
@@ -101,7 +107,8 @@ public final class ThreatEngine {
             }
 
             mem.consecutive = level >= 2 ? mem.consecutive + 1 : 0
-            if level >= 2 && mem.consecutive < cfg.debounceFrames { level = 1 }
+            let need = corroborated.contains(t.id) ? cfg.corroboratedDebounceFrames : cfg.debounceFrames
+            if level >= 2 && mem.consecutive < need { level = 1 }
 
             if level >= 2 {
                 if rightHook { mem.rightHookUntil = now + cfg.rightHookHold }
