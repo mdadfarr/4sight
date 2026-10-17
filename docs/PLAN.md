@@ -216,8 +216,11 @@ distance, and do the "danger" moments stationary, with a teammate wheeling a bik
 the app. Launch arguments only exist for Xcode launches. Do not use `-peer` on the road: with one front phone in range the
 rear takes the only one there. The shared scheme forces `-role rear`, so untick it before an Xcode run on the front phone.
 
-**Fallback (no rear, no ESP32).** Front phone from Xcode with `--synthetic --demo --mockroute` and `-role rear` unticked.
-It plays the scripted ride: approaching vehicles, edge flashes and both merge banners. Film it on the handlebars in daylight.
+**Fallback (no rear, no ESP32).** On the front phone's home screen, **hold the "Rear phone" pair strip for 1.5 s**.
+The scripted ride starts: approaching vehicles, edge flashes, and both merge banners at 9.5 s and 16.5 s of each 21 s loop.
+No cable needed. There is no exit on purpose; relaunch the app to get the live link back. **Try the hold once early,
+it has never been pressed on a real screen.** If it fails: Xcode launch with `--synthetic --demo --mockroute`, `-role rear` unticked.
+Film it on the handlebars in daylight.
 
 **Shot list** (most important first):
 1. Front phone on the bars: follow view, a real car drawn behind you, edge glow on the side it passes.
