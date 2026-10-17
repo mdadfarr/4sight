@@ -9,6 +9,7 @@ struct PassiveHomeView: View {
     @ObservedObject var model: FrontModel
     @ObservedObject var flow: RideFlow
     let onPick: (MKMapItem) -> Void
+    var onDemo: () -> Void = {}
 
     /// Falling back to `.automatic` with no fix yet shows the whole continent, which
     /// tells the rider nothing; the city is a better guess than the hemisphere.
@@ -48,7 +49,11 @@ struct PassiveHomeView: View {
                 .background(Theme.ground, in: RoundedRectangle(cornerRadius: 12))
             }
 
+            // Hidden: a 1.5 s hold on the pair strip starts the scripted ride, so the demo
+            // can be filmed on a phone with no Xcode tether and no rear phone. Same hold
+            // length as the role picker's own hidden gesture.
             LinkStrip(link: model.link).padding(.top, 14)
+                .onLongPressGesture(minimumDuration: 1.5, perform: onDemo)
             nameField.padding(.top, 10)
 
             if flow.recents.items.isEmpty {

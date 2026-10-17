@@ -11,6 +11,10 @@ struct SurroundView: View {
     @ObservedObject var model: FrontModel
 
     var body: some View {
+        if model.scripted { scripted } else { LiveMapView(model: model) }
+    }
+
+    private var scripted: some View {
         TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
             Canvas { ctx, size in
                 let t = model.now(timeline.date)
@@ -23,6 +27,8 @@ struct SurroundView: View {
         .background(Palette.ground)
     }
 
+    /// The scripted ride keeps the mock's whole invented street. The live feed is drawn
+    /// on the real map instead (`LiveMapView`).
     private func draw(_ ctx: inout GraphicsContext, t: Double) {
         SceneRenderer.ground(&ctx, t)
         SceneRenderer.blocks(&ctx, t)
@@ -30,8 +36,10 @@ struct SurroundView: View {
         SceneRenderer.parked(&ctx, t)
         let blocker = MergeBanner.current(model.frame, link: model.link)?.blockedBy
         for track in model.tracks(at: t) {
-            if track.id == blocker { VehicleSprite.blockedRing(&ctx, track) }
-            VehicleSprite.draw(&ctx, track, t)
+            var c = ctx
+            c.opacity = track.opacity
+            if track.id == blocker { VehicleSprite.blockedRing(&c, track) }
+            VehicleSprite.draw(&c, track, t)
         }
         VehicleSprite.puck(&ctx)
         SceneRenderer.haze(&ctx)
@@ -64,6 +72,10 @@ struct AlertOverlay: View {
     @ObservedObject var model: FrontModel
 
     var body: some View {
+        if model.scripted { scripted } else { LiveMapView(model: model) }
+    }
+
+    private var scripted: some View {
         TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
             Canvas { ctx, size in
                 var c = ctx

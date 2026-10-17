@@ -53,9 +53,27 @@ static bool offlinePlayed = false;
 static char     bleCmd[5] = {0};
 static volatile bool bleCmdReady = false;
 
+// Core 3 dropped ledcSetup/ledcAttachPin and ledcWrite takes the pin, not the channel.
+static void pwmInit(int s, int m) {
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcAttach(MOTOR_PIN[s][m], 200, 8);
+#else
+  ledcSetup(PWM_CH[s][m], 200, 8);
+  ledcAttachPin(MOTOR_PIN[s][m], PWM_CH[s][m]);
+#endif
+}
+
+static void pwmWrite(int s, int m, uint8_t duty) {
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcWrite(MOTOR_PIN[s][m], duty);
+#else
+  ledcWrite(PWM_CH[s][m], duty);
+#endif
+}
+
 static void motors(Side s, bool on) {
-  ledcWrite(PWM_CH[s][0], on ? DUTY_MAX : 0);
-  ledcWrite(PWM_CH[s][1], on ? DUTY_MAX : 0);
+  pwmWrite(s, 0, on ? DUTY_MAX : 0);
+  pwmWrite(s, 1, on ? DUTY_MAX : 0);
 }
 
 static void stopPlayer() {
@@ -136,9 +154,8 @@ void setup() {
     pinMode(MERGE_PIN[s][0], OUTPUT);
     pinMode(MERGE_PIN[s][1], OUTPUT);
     for (int m = 0; m < 2; m++) {
-      ledcSetup(PWM_CH[s][m], 200, 8);
-      ledcAttachPin(MOTOR_PIN[s][m], PWM_CH[s][m]);
-      ledcWrite(PWM_CH[s][m], 0);
+      pwmInit(s, m);
+      pwmWrite(s, m, 0);
     }
   }
 

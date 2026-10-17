@@ -52,7 +52,6 @@ public struct ThreatConfig: Sendable {
 public final class ThreatEngine {
     private struct Memory {
         var consecutive = 0
-        var alertedLevel = 0
         var rightHookUntil = -Double.infinity
         var lastSeen: TimeInterval
     }
@@ -106,8 +105,9 @@ public final class ThreatEngine {
 
             if level >= 2 {
                 if rightHook { mem.rightHookUntil = now + cfg.rightHookHold }
-                // Alert once per id; the only re-fire allowed is a single escalation 2 -> 3.
-                if level > mem.alertedLevel { mem.alertedLevel = level } else { level = 1 }
+                // The level is the threat as it stands, every frame, so the screen stays red
+                // for as long as the danger lasts. Buzzing once per car is the haptics' job
+                // (RearWorker.driveHaptics sends only when a car first escalates).
             }
             if level < 2 { grip = "-" }
 

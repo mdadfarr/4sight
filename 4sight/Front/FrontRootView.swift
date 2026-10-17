@@ -22,7 +22,7 @@ struct FrontRootView: View {
         ZStack {
             switch flow.phase {
             case .home:
-                PassiveHomeView(model: model, flow: flow, onPick: preview)
+                PassiveHomeView(model: model, flow: flow, onPick: preview, onDemo: startDemo)
             case .preview:
                 RoutePreviewView(model: model, plans: plans, destination: destination,
                                  chosen: $chosen, onStart: start, onCancel: { flow.phase = .home })
@@ -51,7 +51,8 @@ struct FrontRootView: View {
             SurroundView(model: model)
             NavHUDView(model: model,
                        onPickDestination: { flow.picking = true },
-                       onRiskMap: { showingRiskMap = true })
+                       onRiskMap: { showingRiskMap = true },
+                       onExit: exitRide)
             AlertOverlay(model: model)
             MergeBannerView(model: model)
         }
@@ -64,6 +65,7 @@ struct FrontRootView: View {
         showingRiskMap = args.demoEvents
         model.freeze = args.freeze
         router.onUpdate = advance
+        router.onPose = { model.pose($0, heading: $1) }
         if args.mockRoute { model.nav = .mock }
         // The scripted ride and the frozen screenshots start mid-ride; a real launch
         // starts stopped, with nowhere to go yet.
@@ -76,6 +78,25 @@ struct FrontRootView: View {
         model.start(feed: args.synthetic
                     ? SyntheticFeed(freeze: args.freeze, demo: args.demo)
                     : PeerFeed())
+    }
+
+    /// The same ride `--synthetic --demo --mockroute` starts, reachable on an untethered
+    /// phone. Relaunch the app to get back to the live link.
+    private func startDemo() {
+        model.nav = .mock
+        model.beginRide()
+        model.start(feed: SyntheticFeed(freeze: nil, demo: true))
+        flow.phase = .riding
+    }
+
+    /// Ends the ride and goes home. Leaving the scripted ride also puts the real link
+    /// back, so the home screen's pair strip is not reporting a script as a rear phone.
+    private func exitRide() {
+        router.stop()
+        model.nav = nil
+        model.route = LiveRoute()
+        if model.scripted { model.start(feed: PeerFeed()) }
+        flow.phase = .home
     }
 
     private func preview(_ item: MKMapItem) {
@@ -94,6 +115,8 @@ struct FrontRootView: View {
     private func start(_ plan: RoutePlan) {
         rideStarted = Date()
         model.beginRide()
+        model.route = LiveRoute()                         // no trail left from the last ride
+        model.route.coordinates = plan.coordinates
         router.start(plan)
         flow.phase = .riding
     }

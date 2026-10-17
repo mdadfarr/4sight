@@ -16,7 +16,7 @@ struct RearView: View {
     var body: some View {
         VStack(spacing: 12) {
             StatusStripView(fps: pipeline.fps, temp: pipeline.thermal.rawValue, speed: pipeline.speed, link: link)
-            RearPreview(session: pipeline.captureSession, image: pipeline.previewImage, tracks: pipeline.overlay)
+            RearPreview(session: nil, image: pipeline.previewImage, tracks: pipeline.overlay)
                 .frame(height: 200)
                 .background(Theme.ground)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -68,7 +68,11 @@ struct RearView: View {
     private var stats: some View {
         Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 4) {
             GridRow { stat("inference", String(format: "%.1f ms", pipeline.inferenceMs)); stat("tracks", "\(pipeline.trackCount)") }
-            GridRow { stat("BLE", "\(pipeline.haptics.state)"); stat("peer", "\(pipeline.peerState)") }
+            GridRow { stat("grips", "\(pipeline.haptics.state)"); stat("peer", "\(pipeline.peerState)") }
+            GridRow {
+                stat("lens", String(format: "f %.0f px %@", pipeline.focal, pipeline.focalFromLens ? "" : "(guess)"))
+                stat("", "")
+            }
             GridRow {
                 stat("heading", pipeline.heading < 0 ? "–" : String(format: "%.0f°", pipeline.heading))
                 stat("source", pipeline.replayURL?.lastPathComponent ?? "camera")

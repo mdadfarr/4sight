@@ -41,10 +41,10 @@ do {
     check(run(e, car(-0.8), frames: 3)?.level == 1, "debounce holds level <2 for 3 frames")
     let d = run(e, car(-0.8), frames: 1, from: 1)
     check(d?.level == 2 && d?.grip == "L", "closing car 0.8 m -> level 2 grip L")
-    check(run(e, car(-0.8), frames: 1, from: 2)?.level == 1, "alert once")
+    check(run(e, car(-0.8), frames: 1, from: 2)?.level == 2, "threat stays red while it lasts")
     let imm = TrackState(id: 1, cls: .car, z: 10, gap: -0.5, invTTC: 1)
-    check(run(e, imm, frames: 1, from: 3)?.level == 3, "escalation to 3 allowed once")
-    check(run(e, imm, frames: 1, from: 4)?.level == 1, "no second escalation")
+    check(run(e, imm, frames: 1, from: 3)?.level == 3, "escalates to imminent")
+    check(run(e, imm, frames: 1, from: 4)?.level == 3, "imminent stays imminent while it lasts")
 }
 check(run(ThreatEngine(), car(-1.2), frames: 10)?.level == 1, "1.2 m -> caution only")
 check(run(ThreatEngine(), car(-2.0), frames: 10)?.level == 0, "2.0 m -> level 0")
@@ -95,6 +95,30 @@ do {
         ids3.formUnion(tr3.update(detections: dets, dt: 0.1).map(\.id))
     }
     check(ids3.count == 1, "jittered fast car with 1 s dropout keeps one id (\(ids3.count))")
+    // Ride footage: a person close behind walks across the frame faster than their own
+    // width per frame at 10 fps, so IoU with the last box is zero.
+    let tr4 = Tracker(); var ids4 = Set<Int>(), most4 = 0
+    for i in 0..<20 {
+        let out = tr4.update(detections: [Detection(box: Box(x: 100 + Double(i) * 70, y: 100, w: 90, h: 400), cls: .person, confidence: 0.8)], dt: 0.1)
+        ids4.formUnion(out.map(\.id)); most4 = max(most4, out.filter { $0.misses == 0 }.count)
+    }
+    check(ids4.count == 1 && most4 == 1, "fast close person keeps one id (\(ids4.count) ids)")
+    // The detector double-fires on one person (whole body and upper body).
+    let tr5 = Tracker(); var ids5 = Set<Int>()
+    for _ in 0..<10 {
+        let whole = Detection(box: Box(x: 300, y: 100, w: 120, h: 400), cls: .person, confidence: 0.9)
+        let upper = Detection(box: Box(x: 305, y: 100, w: 110, h: 200), cls: .person, confidence: 0.6)
+        ids5.formUnion(tr5.update(detections: [whole, upper], dt: 0.1).map(\.id))
+    }
+    check(ids5.count == 1, "double detection on one person -> one id (\(ids5.count))")
+    // Two people walking side by side must stay two.
+    let tr6 = Tracker(); var n6 = Set<Int>()
+    for i in 0..<10 {
+        let a = Detection(box: Box(x: 300 + Double(i) * 5, y: 100, w: 100, h: 380), cls: .person, confidence: 0.8)
+        let b = Detection(box: Box(x: 420 + Double(i) * 5, y: 110, w: 100, h: 370), cls: .person, confidence: 0.8)
+        n6.insert(tr6.update(detections: [a, b], dt: 0.1).count)
+    }
+    check(n6.subtracting([0]) == [2], "two people side by side stay two tracks")
 }
 
 // TTC
@@ -128,7 +152,36 @@ do {
     let est = GapEstimator(f: 1000, u0: 640, v0: 360, imageW: 1280, imageH: 720)
     check(near(est.gap(box: Box(x: 700, y: 300, w: 200, h: 100), cls: .car, z: 20), -1.47, 1e-9), "gap geometry un-mirrored -> -1.47")
     check(near(est.range(box: Box(x: 0, y: 310, w: 90, h: 100), cls: .car), 20, 1e-9), "ground-plane range 20 m")
-    check(near(est.range(box: Box(x: 0, y: 620, w: 90, h: 100), cls: .car), 20, 1e-9), "width fallback 20 m")
+    check(near(est.range(box: Box(x: 500, y: 620, w: 90, h: 100), cls: .car), 20, 1e-9), "width fallback 20 m")
+    // People by apparent height: 1.7 m tall at 85 px with f=1000 is 20 m, wherever the feet are.
+    check(near(est.range(box: Box(x: 0, y: 200, w: 30, h: 85), cls: .person), 20, 1e-9),
+          "person range from height, 20 m")
+    check(near(est.range(box: Box(x: 0, y: 450, w: 30, h: 85), cls: .person), 20, 1e-9),
+          "person range ignores camera tilt (same height, lower in frame)")
+    // Feet cut off by the bottom edge: the height is truncated, so it must not be used.
+    check(est.range(box: Box(x: 600, y: 300, w: 30, h: 600), cls: .person) != 1000 * 1.7 / 600,
+          "person cut off at the frame edge does not use truncated height")
+    // A person 1 m away fills the frame top to bottom; 0.5 m wide at f=1000 is 500 px.
+    // The old car-width fallback read 1000 * 1.8 / 500 = 3.6 m.
+    let close = est.range(box: Box(x: 390, y: 0, w: 500, h: 720), cls: .person)
+    check(near(close, 1, 0.05), "person 1 m away, cut off top and bottom -> \(String(format: "%.2f", close)) m, not 3.6")
+    let portrait = GapEstimator(f: 1000, u0: 360, v0: 640, imageW: 720, imageH: 1280)
+    check(near(portrait.range(box: Box(x: 110, y: 0, w: 500, h: 1280), cls: .person), 1, 0.05),
+          "portrait frame: person 1 m away, cut off top and bottom -> 1 m")
+    check(near(est.range(box: Box(x: 0, y: 0, w: 640, h: 720), cls: .person), 1000 * 0.5 / 640, 1e-9),
+          "person cut off on all sides -> the smaller of height and width estimates")
+    check(near(est.range(box: Box(x: 500, y: 400, w: 250, h: 320), cls: .bus), 10, 1e-9),
+          "bus cut off at the bottom -> bus width 2.5 m, 10 m (car width read 7.2)")
+}
+
+// RangeFilter (10 Hz, the detector rate)
+do {
+    let rf = RangeFilter(); var dev = 0.0
+    for i in 0..<20 { dev = max(dev, abs(rf.update(id: 1, z: i == 10 ? 1 : 4, t: Double(i) * 0.1) - 4)) }
+    check(dev < 0.75, "range filter: one-frame 4 -> 1 m jump moves z by \(String(format: "%.2f", dev)) m (< 1/4 of the jump)")
+    let rf2 = RangeFilter(); var z = 0.0
+    for i in 0...20 { z = rf2.update(id: 1, z: i < 10 ? 4 : 1, t: Double(i) * 0.1) }
+    check(near(z, 1, 0.1), "range filter: genuine 4 -> 1 m step within 1 s -> \(String(format: "%.2f", z)) m")
 }
 
 // Ride sidecars (replayed footage from tools/mcap_to_ride.py)

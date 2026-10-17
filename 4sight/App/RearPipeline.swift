@@ -13,6 +13,8 @@ import os
 @MainActor final class RearPipeline: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published private(set) var fps = 0
     @Published private(set) var inferenceMs = 0.0
+    @Published private(set) var focal = 0.0
+    @Published private(set) var focalFromLens = false
     @Published private(set) var benchMs = 0.0
     @Published private(set) var thermal: ThermalLabel = .nominal
     @Published private(set) var speed = 0.0
@@ -70,7 +72,7 @@ import os
         speed = 0
         heading = -1
         do {
-            let w = try RearWorker(source: source, previewImage: replayURL != nil,
+            let w = try RearWorker(source: source, previewImage: true,
                                    sendHaptic: { [haptics] cmd in DispatchQueue.main.async { haptics.send(cmd) } },
                                    publish: { [weak self] snap in Task { @MainActor in self?.apply(snap) } })
             worker = w
@@ -123,6 +125,8 @@ import os
         replayGPS(frameT: s.message.t)
         fps = s.message.fps
         inferenceMs = s.inferenceMs
+        focal = s.focal
+        focalFromLens = s.focalFromLens
         benchMs = s.benchMs
         peerState = s.peer
         overlay = s.overlay

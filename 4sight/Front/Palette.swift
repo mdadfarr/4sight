@@ -67,7 +67,10 @@ enum Palette {
         static let limb = Color(hex: 0x3E454E)
         static let head = Color(hex: 0x9AA2AC)
         static let halo = Color.white
-        static let scale = 1.6
+        /// True size. The mock's 1.6x stood a person 2.7 m tall, and because the figure
+        /// stands up the screen toward the rider, someone 4 m back had their head on the
+        /// puck. Distance is read from the feet; the figure must not reach forward.
+        static let scale = 1.0
     }
 
     static func vruColour(_ level: Int) -> (body: Color, limb: Color) {

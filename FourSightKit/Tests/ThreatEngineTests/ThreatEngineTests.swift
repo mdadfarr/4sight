@@ -57,18 +57,20 @@ final class ThreatEngineTests: XCTestCase {
         let t = TrackState(id: 1, cls: .car, z: 5, gap: -1.2, invTTC: 0.1)
         XCTAssertEqual(run(ThreatEngine(), t, frames: 10, speed: 1)?.level, 0)
         let close = TrackState(id: 1, cls: .car, z: 5, gap: -0.8, invTTC: 0.1)
-        XCTAssertEqual(run(ThreatEngine(), close, frames: 10, speed: 1)?.level, 1)  // alert-once cap
+        XCTAssertEqual(run(ThreatEngine(), close, frames: 10, speed: 1)?.level, 2)
     }
 
-    func testAlertOnceThenEscalation() {
+    // The level holds for as long as the threat lasts (the front stays red); buzzing once
+    // per escalation is RearWorker.driveHaptics' job, not the engine's.
+    func testLevelPersistsThenEscalates() {
         let e = ThreatEngine()
         XCTAssertEqual(run(e, car(gap: -0.8), frames: 4)?.level, 2)
         let after = run(e, car(gap: -0.8), frames: 1, from: 1)
-        XCTAssertEqual(after?.level, 1)
-        XCTAssertEqual(after?.grip, "-")
+        XCTAssertEqual(after?.level, 2)
+        XCTAssertEqual(after?.grip, "L")
         let imminent = TrackState(id: 1, cls: .car, z: 10, gap: -0.5, invTTC: 1)
         XCTAssertEqual(run(e, imminent, frames: 1, from: 2)?.level, 3)
-        XCTAssertEqual(run(e, imminent, frames: 1, from: 3)?.level, 1)
+        XCTAssertEqual(run(e, imminent, frames: 1, from: 3)?.level, 3)
     }
 
     func testRightHookHoldPersistsAfterTrackDisappears() {

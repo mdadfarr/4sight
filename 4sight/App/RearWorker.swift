@@ -15,6 +15,8 @@ nonisolated struct OverlayTrack: Sendable, Identifiable {
     let cls: VehicleClass
     let rect: CGRect
     let level: Int
+    /// Metres behind, as the engine sees it.
+    let z: Double
 }
 
 nonisolated struct RearSnapshot: @unchecked Sendable {
@@ -24,6 +26,10 @@ nonisolated struct RearSnapshot: @unchecked Sendable {
     var benchMs: Double
     var peer: PeerLink.Rear.State
     var previewImage: CGImage?
+    /// Focal length in pixels the range maths is using, and whether it came from the lens
+    /// (delivered intrinsics) or the 0.9 x long-side guess. Shown so a bad distance can be traced.
+    var focal: Double
+    var focalFromLens: Bool
 }
 
 /// Which decision engine runs: metric ThreatEngine (default) or Arshiya's frame-fraction DangerEngine.
@@ -53,6 +59,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
     private var filter = DetectionFilter()
     private let tracker = Tracker()
     private let ttc = TTCEstimator()
+    private let rangeFilter = RangeFilter()
     private let engine = ThreatEngine()
     private let danger = DangerAdapter()
     /// The last frame's tracks, read from the Bluetooth queue when a button is pressed.
@@ -138,9 +145,11 @@ nonisolated final class RearWorker: @unchecked Sendable {
 
         let w = Double(CVPixelBufferGetWidth(frame.pixelBuffer))
         let h = Double(CVPixelBufferGetHeight(frame.pixelBuffer))
-        if gapEstimator == nil || (frame.intrinsics != nil && !geoFromIntrinsics) {
+        // Rebuilt when the frame changes shape too: turning the phone turns the frames upright.
+        let reshaped = gapEstimator.map { $0.imageW != w || $0.imageH != h } ?? true
+        if reshaped || (frame.intrinsics != nil && !geoFromIntrinsics) {
             geoFromIntrinsics = frame.intrinsics != nil
-            gapEstimator = GapEstimator(f: frame.intrinsics?.fx ?? 0.9 * w, u0: frame.intrinsics?.cx ?? w / 2,
+            gapEstimator = GapEstimator(f: frame.intrinsics?.fx ?? 0.9 * max(w, h), u0: frame.intrinsics?.cx ?? w / 2,
                                         v0: frame.intrinsics?.cy ?? h / 2,
                                         cameraHeight: frame.cameraHeight ?? Self.cameraHeight,
                                         imageW: w, imageH: h)
@@ -154,13 +163,17 @@ nonisolated final class RearWorker: @unchecked Sendable {
         let ms = Double(took.seconds) * 1000 + Double(took.attoseconds) / 1e15
         let tracks = tracker.update(detections: detections, dt: dt)
         for tr in tracks where filter.jumped(id: tr.id, box: tr.box, imageW: w) {
-            ttc.reset(id: tr.id); lastGap[tr.id] = nil   // size jump: history is from another vehicle or a cut
+            ttc.reset(id: tr.id); rangeFilter.reset(id: tr.id); lastGap[tr.id] = nil   // size jump: history is from another vehicle or a cut
         }
         filter.forget(except: Set(tracks.map(\.id)))
+        // Draw and send only what was detected in the last 0.2 s. The tracker keeps a lost
+        // track alive 1.5 s so its id survives a dropout, but its box is then a drifting guess;
+        // shown, it reads as a second box beside the real one. The engine still sees it.
+        let visible = Set(tracks.filter { $0.misses <= 2 }.map(\.id))
 
         let yawCorrection = headingDelta(yaw: input.yaw, t: t)
         let states: [TrackState] = tracks.map { tr in
-            let z = geo.range(box: tr.box, cls: tr.cls)
+            let z = rangeFilter.update(id: tr.id, z: geo.range(box: tr.box, cls: tr.cls), t: t)
             var gap = geo.gap(box: tr.box, cls: tr.cls, z: z)
             gap -= geo.headingCorrection(deltaHeadingRad: yawCorrection, z: z)
             let inv = ttc.update(id: tr.id, box: tr.box, t: t,
@@ -213,7 +226,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
         let message = FrameMessage(
             t: t, fps: frameTimes.count, temp: input.thermal, speed: input.speed, heading: input.heading,
             demo: input.demo,
-            tracks: states.map { s in
+            tracks: states.filter { visible.contains($0.id) }.map { s in
                 let d = byID[s.id]
                 return TrackMessage(id: s.id, cls: s.cls, x: s.gap, z: s.z, invTTC: s.invTTC,
                                     gapPred: d?.gapPred ?? abs(s.gap), level: d?.level ?? 0,
@@ -229,17 +242,18 @@ nonisolated final class RearWorker: @unchecked Sendable {
             peer.send(message)
         }
 
-        let overlay = tracks.map { tr in
+        let overlay = tracks.filter { visible.contains($0.id) }.map { tr in
             OverlayTrack(id: tr.id, cls: tr.cls,
                          rect: CGRect(x: tr.box.x / w, y: tr.box.y / h, width: tr.box.w / w, height: tr.box.h / h),
-                         level: byID[tr.id]?.level ?? 0)
+                         level: byID[tr.id]?.level ?? 0, z: stateByID[tr.id]?.z ?? 0)
         }
         let image = wantsPreviewImage
             ? ciContext.createCGImage(CIImage(cvPixelBuffer: frame.pixelBuffer), from: CGRect(x: 0, y: 0, width: w, height: h))
             : nil
         publish(RearSnapshot(message: message, overlay: overlay, inferenceMs: ms,
                              benchMs: bench.reduce(0) { $0 + $1.ms } / Double(max(bench.count, 1)),
-                             peer: peer.state, previewImage: image))
+                             peer: peer.state, previewImage: image,
+                             focal: geo.f, focalFromLens: geoFromIntrinsics))
     }
 
     /// Bike yaw relative to a slow (2 s) reference heading. CoreMotion yaw is positive
@@ -270,7 +284,9 @@ nonisolated final class RearWorker: @unchecked Sendable {
         let hadAlert = sentLevel.values.contains { $0.level >= 2 }
         for d in decisions where d.level >= 2 {
             let key = (d.grip, d.level)
-            if let prev = sentLevel[d.id], prev == key { continue }
+            // Buzz once per car: on its first alert, on a 2 -> 3 escalation, or if it moves to
+            // the other grip. The engine reports the level every frame; repeats stay silent.
+            if let prev = sentLevel[d.id], prev.grip == d.grip, prev.level >= d.level { continue }
             sentLevel[d.id] = key
             if let cmd = BLECommand.from(grip: d.grip, level: d.level) { sendHaptic(cmd) }
         }
