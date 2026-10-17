@@ -49,12 +49,17 @@ nonisolated struct RearInputs: Sendable {
 nonisolated final class RearWorker: @unchecked Sendable {
     static let detectionHz = 10.0
     static let cameraHeight = 1.0
+    /// Lens right of the bike's centreline, metres. 0.10 from the wheel's place in the ride
+    /// footage (70% across a 0.70 f/W frame, ~0.4 m below the lens); `-cameraOffset 0.12`
+    /// once someone measures the mount.
+    static let cameraOffset = UserDefaults.standard.string(forKey: "cameraOffset").flatMap(Double.init) ?? 0.10
 
     let inputs = OSAllocatedUnfairLock(initialState: RearInputs())
     let source: CaptureSource
     let peer = PeerLink.Rear()
     private let detector: Detector
     private var filter = DetectionFilter()
+    private var egoMask = EgoMask()
     private let tracker = Tracker()
     private let ttc = TTCEstimator()
     private let rangeFilter = RangeFilter()
@@ -151,12 +156,14 @@ nonisolated final class RearWorker: @unchecked Sendable {
                                         v0: frame.intrinsics?.cy ?? h / 2,
                                         cameraHeight: frame.cameraHeight ?? Self.cameraHeight,
                                         imageW: w, imageH: h)
+            gapEstimator?.cameraOffset = Self.cameraOffset
         }
         let geo = gapEstimator!
 
         let t0 = ContinuousClock.now
         filter.exclusionZones = input.exclusionZones
-        let detections = filter.apply(detector.detect(frame.pixelBuffer), imageW: w, imageH: h)
+        let detections = egoMask.apply(filter.apply(detector.detect(frame.pixelBuffer), imageW: w, imageH: h),
+                                       imageW: w, imageH: h, t: t)
         let took = (ContinuousClock.now - t0).components
         let ms = Double(took.seconds) * 1000 + Double(took.attoseconds) / 1e15
         let tracks = tracker.update(detections: detections, dt: dt)
