@@ -44,6 +44,9 @@ import os
     override init() {
         super.init()
         if let path = UserDefaults.standard.string(forKey: "replay") { replayURL = URL(fileURLWithPath: path) }
+        // -peer <name>: pair with that front only. Set here rather than passed down,
+        // because the browser is built inside RearWorker. Must precede start().
+        PeerLink.preferredFront = UserDefaults.standard.string(forKey: "peer")
         if let text = UserDefaults.standard.string(forKey: "exclude") {
             exclusionZones = text.split(separator: ";").compactMap { DetectionFilter.Zone(String($0)) }
         }
