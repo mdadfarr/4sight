@@ -39,6 +39,9 @@ import os
     private let location = CLLocationManager()
     private let motion = CMMotionManager()
     private var thermalObserver: NSObjectProtocol?
+    /// The grips' link and this phone's battery go to the front with every frame.
+    private var gripsWatch: AnyCancellable?
+    private var batteryObserver: NSObjectProtocol?
     /// GPS log of the clip being replayed; the Simulator's own location is useless for this.
     private var rideTrack: RideTrack?
     private var firstFrameT: Double?
@@ -94,6 +97,13 @@ import os
                 self?.worker?.inputs.withLock { $0.yaw = yaw }
             }
         }
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        gripsWatch = haptics.$state.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in
+            Task { @MainActor in self?.syncInputs() }
+        }
+        batteryObserver = NotificationCenter.default.addObserver(
+            forName: UIDevice.batteryLevelDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in Task { @MainActor in self?.syncInputs() } }
         thermalObserver = NotificationCenter.default.addObserver(
             forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -110,6 +120,8 @@ import os
         location.stopUpdatingLocation()
         motion.stopDeviceMotionUpdates()
         if let o = thermalObserver { NotificationCenter.default.removeObserver(o) }
+        if let o = batteryObserver { NotificationCenter.default.removeObserver(o) }
+        gripsWatch = nil
         thermalObserver = nil
     }
 
@@ -151,9 +163,12 @@ import os
     /// Copies the main-actor sensor/toggle values into the worker (yaw arrives separately).
     private func syncInputs() {
         let (demo, log, temp, spd, hdg, zones, eng) = (demoMode, logging, thermal, speed, heading, exclusionZones, engine)
+        let grips = haptics.state == .connected ? "connected" : "searching"
+        let level = UIDevice.current.batteryLevel
+        let battery: Double? = level >= 0 ? Double(level) : nil
         worker?.inputs.withLock {
             $0.demo = demo; $0.logging = log; $0.thermal = temp; $0.speed = spd; $0.heading = hdg
-            $0.exclusionZones = zones; $0.engine = eng
+            $0.exclusionZones = zones; $0.engine = eng; $0.grips = grips; $0.battery = battery
         }
     }
 

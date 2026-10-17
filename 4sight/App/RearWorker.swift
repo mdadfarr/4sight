@@ -44,6 +44,8 @@ nonisolated struct RearInputs: Sendable {
     var demo = false
     var thermal: ThermalLabel = .nominal
     var logging = false
+    var grips = "searching"
+    var battery: Double?
     var exclusionZones: [DetectionFilter.Zone] = []
 }
 
@@ -236,7 +238,8 @@ nonisolated final class RearWorker: @unchecked Sendable {
                 // The front shows an answer for 3 s; stop sending it once it is spent.
                 if let current = m, t - current.t > 3 { m = nil }
                 return m
-            })
+            },
+            grips: input.grips, battery: input.battery)
         if t - lastSendT >= 1.0 / 15 {
             lastSendT = t
             peer.send(message)

@@ -42,6 +42,8 @@ Transport: Network.framework peer-to-peer TCP, Bonjour type `_foursight._tcp`, f
 | `merge.clear` | bool | true = safe to move into that lane, false = blocked |
 | `merge.blocked_by` | int \| absent | the track id that blocked it, absent when clear |
 | `merge.t` | double | rear-phone time the answer was computed |
+| `grips` | string \| absent | `connected` \| `searching`: the rear phone's BLE link to the grips (absent from older rear builds) |
+| `battery` | double \| absent | rear phone battery 0–1, absent when iOS does not report it |
 
 The front must show `merge` for 3 s from `merge.t` and then drop it, and must render it
 differently from the level colours (a banner on the side asked about, green or red, matching

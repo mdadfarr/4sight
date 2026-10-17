@@ -16,7 +16,21 @@ final class RideFlow: ObservableObject {
 
     @Published var phase: Phase = .home
     @Published var picking = false
+    /// Set when the picker was opened from a Places circle: the pick is saved there
+    /// instead of starting a route.
+    @Published var pickingFor: SavedPlaces.Slot?
     @Published private(set) var recents = RecentPlaces.load()
+    @Published private(set) var saved = SavedPlaces.load()
+
+    func save(_ item: MKMapItem, as slot: SavedPlaces.Slot) {
+        let place = RecentPlace(item)
+        switch slot {
+        case .home: saved.home = place
+        case .work: saved.work = place
+        case .extra: saved.extra = saved.extra.filter { $0.id != place.id } + [place]
+        }
+        saved.save()
+    }
 
     /// Metres from the destination at which the ride is called done. A cyclist stops
     /// short of the pin more often than on it.
@@ -124,5 +138,26 @@ struct RideSummary: Equatable {
     var minutes: Int { max(1, Int((seconds / 60).rounded())) }
     var distanceText: String {
         metres < 1000 ? "\(Int(metres.rounded())) m" : String(format: "%.1f km", metres / 1000)
+    }
+}
+
+/// Home, Work and any added places, on this phone only, like recents.
+struct SavedPlaces: Codable {
+    enum Slot: Equatable { case home, work, extra }
+
+    var home: RecentPlace?
+    var work: RecentPlace?
+    var extra: [RecentPlace] = []
+    private static let key = "savedPlaces"
+
+    static func load() -> SavedPlaces {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let decoded = try? JSONDecoder().decode(SavedPlaces.self, from: data) else { return SavedPlaces() }
+        return decoded
+    }
+
+    func save() {
+        guard let data = try? JSONEncoder().encode(self) else { return }
+        UserDefaults.standard.set(data, forKey: Self.key)
     }
 }

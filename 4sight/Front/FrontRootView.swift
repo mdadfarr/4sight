@@ -22,7 +22,8 @@ struct FrontRootView: View {
         ZStack {
             switch flow.phase {
             case .home:
-                PassiveHomeView(model: model, flow: flow, onPick: preview, onDemo: startDemo)
+                PassiveHomeView(model: model, flow: flow, onPick: preview, onDemo: startDemo,
+                                onRiskMap: { showingRiskMap = true })
             case .preview:
                 RoutePreviewView(model: model, plans: plans, destination: destination,
                                  chosen: $chosen, onStart: start, onCancel: { flow.phase = .home })
@@ -39,7 +40,12 @@ struct FrontRootView: View {
         .sheet(isPresented: $flow.picking) {
             DestinationPickerView { item in
                 flow.picking = false
-                preview(item)
+                if let slot = flow.pickingFor {
+                    flow.save(item, as: slot)
+                    flow.pickingFor = nil
+                } else {
+                    preview(item)
+                }
             }
         }
         .sheet(isPresented: $showingRiskMap) { RiskMapView(demo: args.demoEvents) }
