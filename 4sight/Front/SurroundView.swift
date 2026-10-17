@@ -10,7 +10,8 @@ struct SurroundView: View {
     static let bikeInset: CGFloat = 24
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1 / 20)) { _ in
+        TimelineView(.periodic(from: .now, by: 1 / 20)) { timeline in
+            let t = model.now(timeline.date)
             Canvas { ctx, size in
                 let apex = CGPoint(x: size.width / 2, y: size.height - Self.bikeInset)
                 let scale = Self.scale(for: size)
@@ -25,6 +26,13 @@ struct SurroundView: View {
                     p.move(to: CGPoint(x: apex.x + x * scale, y: apex.y))
                     p.addLine(to: CGPoint(x: apex.x + x * scale, y: apex.y - Self.range * scale))
                     ctx.stroke(p, with: .color(Theme.line), lineWidth: 1)
+                }
+                // Far tracks first so near ones draw on top.
+                for track in (model.frame?.tracks ?? []).sorted(by: { $0.z > $1.z }) {
+                    guard let m = model.motions[track.id] else { continue }
+                    let pos = model.position(of: m, at: t)
+                    let centre = CGPoint(x: apex.x + pos.x * scale, y: apex.y - pos.y * scale)
+                    TrackGlyph.draw(track, at: centre, z: pos.y, scale: scale, t: t, in: &ctx)
                 }
             }
             .overlay(alignment: .bottom) {

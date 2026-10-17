@@ -12,10 +12,12 @@ struct FrontRootView: View {
             }
         }
         .background(Theme.bg)
+        .overlay { EdgeGlowView(model: model) }
         .ignoresSafeArea()
         .preferredColorScheme(.dark)
         .onAppear {
             // shortcut: PeerFeed lands in front/peer-feed; until then everything is synthetic.
+            model.freeze = args.freeze
             model.start(feed: SyntheticFeed(scenario: args.scenario, freeze: args.freeze))
         }
     }
