@@ -12,7 +12,6 @@ struct RearView: View {
     @State private var bench = false
     @State private var showPicker = false
     @State private var diagnostics = false
-    @State private var showDiagnostics = false
     @State private var savedBrightness: CGFloat = 1
     /// Dimming is explained before it happens, never sprung on the rider: the card says
     /// what it does, and a tap on the dimmed screen brightens it for a while.
@@ -23,21 +22,21 @@ struct RearView: View {
     static let wakeSeconds = 15.0
 
     var body: some View {
-        GeometryReader { geo in
-            if geo.size.width > geo.size.height { landscape(geo.size) } else { portrait }
-        }
+        portrait
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.bg)
         .overlay { if mountCard { mountPrompt } }
         .simultaneousGesture(TapGesture().onEnded { wake() })
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
+            OrientationLock.set(.portrait)
             savedBrightness = screen?.brightness ?? 1
             pipeline.start()
         }
         .onChange(of: dimWhenMounted) { applyBrightness() }
         .onDisappear {
             pipeline.stop()
+            OrientationLock.set(.allButUpsideDown)
             UIApplication.shared.isIdleTimerDisabled = false
             screen?.brightness = savedBrightness
         }
@@ -103,60 +102,17 @@ struct RearView: View {
 
     private var portrait: some View {
         ScrollView {
+            // Camera first, right under the Dynamic Island: mounted sideways in the rack,
+            // that end of the screen is the part that shows.
             VStack(alignment: .leading, spacing: 14) {
-                chips
                 preview.frame(maxWidth: .infinity, maxHeight: 520)
+                chips
                 statusLine
                 controls
                 diagnosticsSection
                 errorText
             }
             .padding(16)
-        }
-    }
-
-    /// Mounted sideways the whole page fits without scrolling: the camera on top, where
-    /// it shows through the mount, status beside it, the few controls in one row below.
-    private func landscape(_ size: CGSize) -> some View {
-        VStack(spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
-                preview.frame(maxHeight: size.height - 76)
-                VStack(alignment: .leading, spacing: 10) {
-                    statusGrid
-                    statusLine
-                    errorText
-                }
-                .frame(width: min(260, size.width * 0.3))
-            }
-            HStack(spacing: 10) {
-                Toggle(isOn: $dimWhenMounted) {
-                    Text("Dim when mounted").font(.system(size: 15, weight: .semibold, design: .rounded))
-                }
-                .tint(Theme.amber)
-                .padding(.horizontal, 14).frame(height: 50)
-                .background(Theme.ground, in: RoundedRectangle(cornerRadius: 14))
-                ShareLink(items: GPSLog.shareable) {
-                    Label("Share ride data · \(pipeline.eventCount)", systemImage: "square.and.arrow.up")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .padding(.horizontal, 14).frame(height: 50)
-                        .background(Theme.ground, in: RoundedRectangle(cornerRadius: 14))
-                }
-                Button { showDiagnostics = true } label: {
-                    Label("Diagnostics", systemImage: "gauge.with.dots.needle.33percent")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .padding(.horizontal, 14).frame(height: 50)
-                        .background(Theme.ground, in: RoundedRectangle(cornerRadius: 14))
-                }
-            }
-            .foregroundStyle(Theme.text)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .sheet(isPresented: $showDiagnostics) {
-            ScrollView { diagnosticsSection.padding(20) }
-                .background(Theme.bg)
-                .presentationDetents([.medium, .large])
-                .preferredColorScheme(.dark)
         }
     }
 
@@ -238,16 +194,6 @@ struct RearView: View {
             cell("Battery", battery)
         }
         .padding(.vertical, 10)
-        .background(Theme.ground, in: RoundedRectangle(cornerRadius: 14))
-    }
-
-    /// The same four, two by two, for the narrow column beside the landscape preview.
-    private var statusGrid: some View {
-        Grid(horizontalSpacing: 0, verticalSpacing: 12) {
-            GridRow { cell("Front", frontState); cell("Grips", gripsState) }
-            GridRow { cell("GPS", gpsState); cell("Battery", battery) }
-        }
-        .padding(.vertical, 12)
         .background(Theme.ground, in: RoundedRectangle(cornerRadius: 14))
     }
 
