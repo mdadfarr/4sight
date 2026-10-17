@@ -26,14 +26,19 @@ nonisolated struct RearSnapshot: @unchecked Sendable {
     var previewImage: CGImage?
 }
 
+/// Which decision engine runs: metric ThreatEngine (default) or Arshiya's frame-fraction DangerEngine.
+nonisolated enum Engine: String, Sendable { case threat, danger }
+
 /// Sensor values the main actor pushes in; read once per frame.
 nonisolated struct RearInputs: Sendable {
+    var engine: Engine = .threat
     var speed = 0.0
     var heading = -1.0
     var yaw: Double?
     var demo = false
     var thermal: ThermalLabel = .nominal
     var logging = false
+    var exclusionZones: [DetectionFilter.Zone] = []
 }
 
 /// Everything off the main actor: capture → detect → track → TTC/gap → ThreatEngine → links.
@@ -45,9 +50,11 @@ nonisolated final class RearWorker: @unchecked Sendable {
     let source: CaptureSource
     let peer = PeerLink.Rear()
     private let detector: Detector
+    private var filter = DetectionFilter()
     private let tracker = Tracker()
     private let ttc = TTCEstimator()
     private let engine = ThreatEngine()
+    private let danger = DangerAdapter()
     private let sendHaptic: @Sendable (BLECommand) -> Void
     private let publish: @Sendable (RearSnapshot) -> Void
     private let wantsPreviewImage: Bool
@@ -66,6 +73,15 @@ nonisolated final class RearWorker: @unchecked Sendable {
     private var bench: [(t: Double, ms: Double)] = []
     /// Highest level ever sent to the grips per track id; drives the "send on change" rule.
     private var sentLevel: [Int: (grip: String, level: Int)] = [:]
+
+    // Pipeline instrumentation (`log stream --predicate 'subsystem == "com.zupersun.foursight"'`).
+    private static let log = Logger(subsystem: "com.zupersun.foursight", category: "pipeline")
+    private var wallStart: Date?
+    private var firstPTS = 0.0
+    private var lastFrameT = -Double.infinity
+    private var minGap = Double.infinity
+    private var dropped = 0
+    private var stat = (count: 0, ms: [Double](), maxLag: 0.0, since: 0.0)
 
     init(source: CaptureSource, previewImage: Bool,
          sendHaptic: @escaping @Sendable (BLECommand) -> Void,
@@ -102,6 +118,13 @@ nonisolated final class RearWorker: @unchecked Sendable {
         let input = inputs.withLock { $0 }
         let t = frame.timestamp
         syncLogger(on: input.logging, frame: frame)
+        if wallStart == nil { wallStart = Date(); firstPTS = t; stat.since = t }
+        if lastFrameT.isFinite {   // gaps larger than the source cadence = frames the stream buffer dropped
+            let gap = t - lastFrameT
+            minGap = min(minGap, gap)
+            if gap > 1.5 * minGap { dropped += Int((gap / minGap).rounded()) - 1 }
+        }
+        lastFrameT = t
 
         let hz = input.thermal == .serious || input.thermal == .critical ? 5.0 : Self.detectionHz
         guard t - lastDetectT >= 1 / hz - 0.001 else { return }
@@ -113,16 +136,22 @@ nonisolated final class RearWorker: @unchecked Sendable {
         if gapEstimator == nil || (frame.intrinsics != nil && !geoFromIntrinsics) {
             geoFromIntrinsics = frame.intrinsics != nil
             gapEstimator = GapEstimator(f: frame.intrinsics?.fx ?? 0.9 * w, u0: frame.intrinsics?.cx ?? w / 2,
-                                        v0: frame.intrinsics?.cy ?? h / 2, cameraHeight: Self.cameraHeight,
+                                        v0: frame.intrinsics?.cy ?? h / 2,
+                                        cameraHeight: frame.cameraHeight ?? Self.cameraHeight,
                                         imageW: w, imageH: h)
         }
         let geo = gapEstimator!
 
         let t0 = ContinuousClock.now
-        let detections = detector.detect(frame.pixelBuffer)
+        filter.exclusionZones = input.exclusionZones
+        let detections = filter.apply(detector.detect(frame.pixelBuffer), imageW: w, imageH: h)
         let took = (ContinuousClock.now - t0).components
         let ms = Double(took.seconds) * 1000 + Double(took.attoseconds) / 1e15
         let tracks = tracker.update(detections: detections, dt: dt)
+        for tr in tracks where filter.jumped(id: tr.id, box: tr.box, imageW: w) {
+            ttc.reset(id: tr.id); lastGap[tr.id] = nil   // size jump: history is from another vehicle or a cut
+        }
+        filter.forget(except: Set(tracks.map(\.id)))
 
         let yawCorrection = headingDelta(yaw: input.yaw, t: t)
         let states: [TrackState] = tracks.map { tr in
@@ -136,9 +165,38 @@ nonisolated final class RearWorker: @unchecked Sendable {
         }
         lastGap = lastGap.filter { k, _ in tracks.contains { $0.id == k } }
 
-        let decisions = engine.update(tracks: states, bikeSpeed: input.speed, demoMode: input.demo, now: t)
+        let decisions: [Decision], gripDecisions: [Decision]
+        if input.engine == .danger {
+            (decisions, gripDecisions) = danger.update(tracks: tracks, t: t, imageW: w, imageH: h)
+        } else {
+            decisions = engine.update(tracks: states, bikeSpeed: input.speed, demoMode: input.demo, now: t)
+            gripDecisions = decisions
+        }
         let byID = Dictionary(decisions.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        driveHaptics(decisions: decisions, present: Set(tracks.map(\.id)))
+        driveHaptics(decisions: gripDecisions, present: Set(tracks.map(\.id)))
+        EventLogger.shared.record(decisions: decisions, states: states, input: input)
+
+        let lag = Date().timeIntervalSince(wallStart!) - (t - firstPTS)
+        let ids = tracks.map { String($0.id) }.joined(separator: ",")
+        Self.log.log("\(String(format: "frame pts=%.2f lag=%.3f inf=%.1fms tracks=%d ids=%@", t, lag, ms, tracks.count, ids), privacy: .public)")
+        let stateByID = Dictionary(states.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        for s in states {
+            let d = byID[s.id]
+            Self.log.log("\(String(format: "track pts=%.2f id=%d cls=%@ z=%.1f gap=%.2f gapV=%.2f invTTC=%.3f level=%d gapPred=%.2f", t, s.id, s.cls.rawValue, s.z, s.gap, s.gapVelocity, s.invTTC, d?.level ?? 0, d?.gapPred ?? 0), privacy: .public)")
+        }
+        for d in decisions where d.level >= 2 {
+            let s = stateByID[d.id]
+            Self.log.log("\(String(format: "alert pts=%.2f id=%d cls=%@ level=%d grip=%@ z=%.1f invTTC=%.3f gapPred=%.2f", t, d.id, s?.cls.rawValue ?? "?", d.level, d.grip, s?.z ?? 0, s?.invTTC ?? 0, d.gapPred), privacy: .public)")
+        }
+        stat.count += 1; stat.ms.append(ms); stat.maxLag = max(stat.maxLag, lag)
+        if t - stat.since >= 5 {
+            let sorted = stat.ms.sorted()
+            let p95 = sorted[min(sorted.count - 1, Int(Double(sorted.count) * 0.95))]
+            let line = String(format: "summary pts=%.1f fps=%.1f dropped=%d inf_mean=%.1fms inf_p95=%.1fms max_lag=%.3f", t,
+                              Double(stat.count) / (t - stat.since), dropped, sorted.reduce(0, +) / Double(sorted.count), p95, stat.maxLag)
+            Self.log.log("\(line, privacy: .public)")
+            stat = (0, [], 0, t)
+        }
 
         frameTimes.append(t)
         frameTimes.removeAll { t - $0 > 1 }

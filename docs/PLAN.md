@@ -7,8 +7,8 @@ Product name: 4sight (may change). Repo: github.com/mdadfarr/4sight. Contracts: 
 | Who | Machine | Owns |
 |---|---|---|
 | **A — Jasper** | Mac + Xcode | The whole iOS core: Xcode project, `FourSightKit` (Protocol, Perception, ThreatEngine, Links), rear role UI, single-phone mode, integration, submission |
-| **B** | Windows + RTX 3080 | Everything ML: YOLO export to Core ML (WSL2), training they've chosen, Python replay harness, labels, metrics |
-| **C — Arshiya** | Mac + Xcode | Hardware build + firmware, runs the **frontend agent loop** (reviews/merges its PRs), demo video, pitch |
+| **B — Arshiya** | Windows + RTX 3080 | Everything ML: `ml/` (Python detector, tracker, danger logic + tests, replay scripts), YOLO export to Core ML, the DangerEngine logic (Swift port lives in `FourSightKit/Sources/ThreatEngine/Danger/`), labels, metrics |
+| **C** (Mac teammate, name TBC) | Mac + Xcode | Hardware build + firmware, runs the **frontend agent loop** (reviews/merges its PRs), demo video, pitch |
 | **D** | — | Hardware build (wiring, box, mount, grips, LEDs), ride footage, demo video, pitch |
 
 The front-phone UI is written by a Claude Code session using `.claude/skills/4sight-front/`, one screenshot-verified PR at a time. Humans approve PRs; nobody designs by hand.
@@ -25,6 +25,11 @@ REAR iPhone 16 Pro Max (rack, facing back) — the brain, works alone
 Single-phone mode = rear role with no front phone found: grips + LEDs only. Audio tones = reach.
 
 ## Decisions log
+
+- **Two engines, switchable.** `ThreatEngine` (default): metric passing gap + inv TTC from GapEstimator/TTCEstimator, ISO-17387-style thresholds, alert-once, right-hook hold. `DangerEngine` (Arshiya's, `ThreatEngine/Danger/`): frame-fraction TTC from a line through 1/width, lateral check in vehicle widths, side by image thirds, 1 s hold. Both sit behind one `DetectionFilter` (min width 4 %, exclusion zones, large+unsure, size-jump reset). Switch with `-engine danger|threat` at launch or the Engine picker in RearView (`@AppStorage("engine")`); `-exclude x1,y1,x2,y2[;...]` sets the zones. Tomorrow's oncoming-car test runs both; we keep whichever fires correctly.
+
+- **Front UI design is settled (2026-10-17)**: a slight follow camera over the rider showing the route ahead and the rear traffic, vehicles coloured by level, screen edges flashing the grip's beat. Source of truth is `docs/mock/front.html`; the brief in `.claude/skills/4sight-front/SKILL.md` summarises it. The vehicle rendering stays — a redesign that deleted it was not adopted.
+- **Maps: Apple MapKit**, not Google. `MKDirections` with `.cycling` for the route, `MKLocalSearchCompleter` for search. Google's terms appear to bar DIY turn-by-turn from its Directions API (unverified, second-hand) and its sanctioned Navigation SDK targets drivers. Detections are placed relative to the rider from the camera, so GPS drift moves rider and traffic together. OpenStreetMap is for bike-lane and ward analysis, not routing.
 
 - No DRV2605L. Bare motors on GPIO via transistor + flyback diode, PWM patterns in firmware. Two amber LEDs behave like a car blind-spot light (steady at level 1–2, flashing at 3).
 - One native app, role toggle Rear/Front. Front UI is SwiftUI, agent-built.
@@ -56,6 +61,7 @@ Single-phone mode = rear role with no front phone found: grips + LEDs only. Audi
 
 | Step | Done when |
 |---|---|
+| 0. Rear mount is landscape. Tap Rear, look at the preview: if the road is upside down, rotate the phone 180° in the mount. Detection assumes landscape and this orientation. | Preview right way up |
 | 1. Throwaway `BenchView`: live camera → Detector, print ms/inference, fps, thermal. Detection is capped at 10 fps for now (safety); raise only after this measurement | You know the number. < 25 ms → 640 at 30 fps; else 416, every other frame |
 | 2. `RearPipeline`: CaptureSource → Detector → Tracker → TTC → Gap → ThreatEngine → FrameMessage | On the ride footage via `FileSource` in Simulator, an overtake shows inv_ttc > 0 ~3 s before the pass |
 | 3. Wire `HapticsLink` + `PeerLink` + GPS/IMU into the pipeline; `RearView` with fps/thermal/links, `isIdleTimerDisabled`, dim | Grips buzz from a replayed overtake with no front phone connected |
@@ -67,7 +73,7 @@ Single-phone mode = rear role with no front phone found: grips + LEDs only. Audi
 ## Cut line
 
 - **Must by 24:** detection + tracking + ThreatEngine on device; BLE → grips + LEDs; front surround view over P2P; demo video; Devpost.
-- **Should by 36:** real nav HUD; replayed-ride demo mode; right-hook alert; pedestrian handling; close-pass log; metrics in README.
+- **Should by 36:** real nav HUD; replayed-ride demo mode; right-hook alert; pedestrian handling; close-pass log; near-miss risk map (`tools/riskmap.py`, built; done when a real ride produces events.jsonl); metrics in README.
 - **Reach:** audio tones; Tiger Data upload.
 
 ## Hardware (C + D)
@@ -101,7 +107,7 @@ Rules: Swift 6 toolchain, language mode 5, iOS 26, SwiftUI, no third-party packa
 Current step: <paste the row from "Jasper's build order" in docs/PLAN.md>.
 ```
 
-## Prompt B — ML (Windows)
+## Prompt B — Arshiya: ML (Windows)
 
 ```
 You are helping build 4sight, a 36-hour hackathon prototype that warns cyclists about vehicles approaching from behind using a rear-facing iPhone camera running YOLO. I own everything ML and the Python tooling in tools/. The iOS teammate consumes my outputs; docs/CONTRACTS.md defines the JSON and class names he expects and it is frozen.
@@ -119,7 +125,7 @@ Rules: scripts under 300 lines, argparse CLIs, no notebooks in the repo, no clou
 Current task: <step number>.
 ```
 
-## Prompt C — Arshiya: hardware + firmware + frontend-loop operator (Mac)
+## Prompt C — hardware + firmware + frontend-loop operator (Mac)
 
 ```
 You are helping build 4sight, a 36-hour hackathon prototype that warns cyclists about vehicles approaching from behind. I own the hardware build, the ESP32 firmware, and I operate the Claude Code session that builds the front-phone UI. Read docs/CONTRACTS.md (BLE section is my spec, frozen), firmware/README.md, and docs/PLAN.md "Hardware".
@@ -148,3 +154,11 @@ When I ask for help, give me checklists, shopping lists (Canada Robotix, Creatro
 
 Current task: <paste>.
 ```
+
+## Decisions added day 1 (morning)
+
+- **Front role:** the cloud session's follow-view design wins (3D sketch of nearby objects stays; see docs/mock/front.html). Edge-flash-only map design is dropped. Local frontend terminal owns only the Risk map screen.
+- **Routing:** Apple MapKit (`MKDirections` cycling, `MKLocalSearchCompleter`), already on `front/destination-picker`. No Google. Verify Toronto cycling coverage in the Maps app before the demo. GPS drift moves rider and detections together, so it doesn't change the danger picture.
+- **Outside data:** no detector training this hackathon (Jasper's call). The rosbag drive (`tools/mcap_to_ride.py`, `replay-sidecars` branch) and our own ride footage are for TESTING and for tuning danger thresholds in `ml/replay_danger.py` against: recall ≥ 90 %, < 1 false alert/km, ≥ 2 s lead. Toronto KSI collisions, wards, census: pitch map and near-miss analysis only.
+- **Map context at runtime (stretch):** MapKit route steps / OSM tags could raise right-hook sensitivity before an intersection with a right turn and shift gap thresholds in a bike lane. Rule inputs, cheap; only after the core loop is verified on the bike.
+- **Near-miss log:** `Documents/events.jsonl` on the rear phone (EventLogger.swift), `tools/riskmap.py` renders the map; `--demo` gives a synthetic Bloor/College set labelled SYNTHETIC for the pitch.

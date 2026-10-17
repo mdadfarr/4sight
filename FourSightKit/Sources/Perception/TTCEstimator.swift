@@ -17,6 +17,9 @@ public final class TTCEstimator {
 
     public init() {}
 
+    /// Drops one track's history (after a size jump: video cut or id swap).
+    public func reset(id: Int) { hist[id] = nil }
+
     /// Returns invTTC (1/s) or nil until enough history exists. Freezes while the box
     /// touches the frame edge because a clipped box no longer measures the vehicle.
     public func update(id: Int, box: Box, t: Double, touchesEdge: Bool) -> Double? {
