@@ -8,6 +8,12 @@ import SwiftUI
 struct RolePickerView: View {
     @State private var role = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)["role"] as? String ?? ""
     @AppStorage("lastRole") private var lastRole = ""
+    /// The opening moment: the logo alone in the middle, pulsing once, then it rises into
+    /// its place on the role screen while the map and the choices fade in.
+    @State private var splash = true
+    @State private var pulse = false
+    /// Where the logo sits on the role screen, to start it from the middle of the screen.
+    @State private var logoMidY: CGFloat = 0
 
     var body: some View {
         switch role {
@@ -17,33 +23,71 @@ struct RolePickerView: View {
         }
     }
 
+    /// Placeholder until the logo lands: swap this tile for the asset.
+    private var logo: some View {
+        RoundedRectangle(cornerRadius: 24)
+            .fill(Light.blue)
+            .frame(width: 88, height: 88)
+            .overlay(Image(systemName: "eye.fill").font(.system(size: 38, weight: .semibold)).foregroundStyle(.white))
+            .shadow(color: Light.blue.opacity(0.3), radius: 12, y: 6)
+    }
+
+    /// One logo throughout: it starts in the middle of the screen with everything else
+    /// hidden, breathes once while the app gets ready, then glides up into its place as
+    /// the map and the choices fade in.
     private var picker: some View {
+        GeometryReader { geo in
+            choices(lift: splash ? geo.frame(in: .global).midY - logoMidY : 0)
+        }
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.9)) { pulse = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.86)) { splash = false }
+            }
+        }
+    }
+
+    private func choices(lift: CGFloat) -> some View {
         VStack(spacing: 0) {
             Spacer(minLength: 20)
-            // Placeholder until the logo lands: swap this tile for the asset.
-            RoundedRectangle(cornerRadius: 24)
-                .fill(Light.blue)
+            // The logo's resting place, measured unmoved; the logo itself is drawn over it
+            // and slid from the middle of the screen.
+            Color.clear
                 .frame(width: 88, height: 88)
-                .overlay(Image(systemName: "eye.fill").font(.system(size: 38, weight: .semibold)).foregroundStyle(.white))
-                .shadow(color: Light.blue.opacity(0.3), radius: 12, y: 6)
-            Text("4sight")
-                .font(.system(size: 36, weight: .bold, design: .rounded))
-                .foregroundStyle(Light.ink)
-                .padding(.top, 18)
-            Text("See what\u{2019}s coming from behind.")
-                .font(.system(size: 17, design: .rounded))
-                .foregroundStyle(Light.dim)
-                .padding(.top, 4)
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).midY } action: { logoMidY = $0 }
+                .overlay {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 30)
+                            .stroke(Light.blue.opacity(pulse ? 0 : 0.35), lineWidth: 2)
+                            .frame(width: pulse ? 150 : 96, height: pulse ? 150 : 96)
+                            .opacity(splash ? 1 : 0)
+                        logo
+                    }
+                    .offset(y: lift)
+                    .opacity(logoMidY == 0 ? 0 : 1)          // not until its place is known
+                }
+                .zIndex(1)
+            Group {
+                Text("4sight")
+                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .foregroundStyle(Light.ink)
+                    .padding(.top, 18)
+                Text("See what\u{2019}s coming from behind.")
+                    .font(.system(size: 17, design: .rounded))
+                    .foregroundStyle(Light.dim)
+                    .padding(.top, 4)
 
-            Spacer(minLength: 20)
-            Text("Where is this phone going?")
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundStyle(Light.ink)
-                .padding(.bottom, 16)
-            HStack(spacing: 12) {
-                choice("front", title: "Handlebar", symbol: "bicycle")
-                choice("rear", title: "Rear rack", symbol: "camera.fill")
+                Spacer(minLength: 20)
+                Text("Where is this phone going?")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(Light.ink)
+                    .padding(.bottom, 16)
+                HStack(spacing: 12) {
+                    choice("front", title: "Handlebar", symbol: "bicycle")
+                    choice("rear", title: "Rear rack", symbol: "camera.fill")
+                }
             }
+            .opacity(splash ? 0 : 1)
 
             Spacer(minLength: 20)
         }
@@ -58,11 +102,17 @@ struct RolePickerView: View {
     private var backdrop: some View {
         ZStack {
             Light.sheet
-            Map(initialPosition: .userLocation(fallback: .region(MKCoordinateRegion(
-                center: .init(latitude: 43.7845, longitude: -79.1873),
-                span: MKCoordinateSpan(latitudeDelta: 0.03, longitudeDelta: 0.03)))), interactionModes: []) {}
-                .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
-                .allowsHitTesting(false)
+            // Not until the splash is done: the map is slow to start, and the first frame
+            // has to be light enough for the logo to show before it.
+            if !splash {
+                Map(initialPosition: .userLocation(fallback: .region(MKCoordinateRegion(
+                    center: .init(latitude: 43.7845, longitude: -79.1873),
+                    span: MKCoordinateSpan(latitudeDelta: 0.03, longitudeDelta: 0.03)))), interactionModes: []) {}
+                    .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
+            Light.sheet.opacity(splash ? 1 : 0)
             LinearGradient(stops: [.init(color: Light.sheet.opacity(0.35), location: 0),
                                    .init(color: Light.sheet.opacity(0.75), location: 0.3),
                                    .init(color: Light.sheet, location: 0.55)],
