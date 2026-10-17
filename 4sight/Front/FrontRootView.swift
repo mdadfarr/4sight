@@ -22,7 +22,6 @@ struct FrontRootView: View {
             DestinationPickerView { item in Task { try? await router.route(to: item) } }
         }
         .onAppear {
-            // shortcut: PeerFeed lands in front/peer-feed; until then everything is synthetic.
             model.freeze = args.freeze
             if args.mockRoute {
                 model.nav = .mock
@@ -31,7 +30,9 @@ struct FrontRootView: View {
                 router.requestAuthorization()
                 pickingDestination = true
             }
-            model.start(feed: SyntheticFeed(scenario: args.scenario, freeze: args.freeze))
+            model.start(feed: args.synthetic
+                        ? SyntheticFeed(scenario: args.scenario, freeze: args.freeze)
+                        : PeerFeed())
         }
     }
 }

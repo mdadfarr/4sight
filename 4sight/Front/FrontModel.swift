@@ -24,9 +24,15 @@ final class FrontModel: ObservableObject {
         freeze ?? date.timeIntervalSinceReferenceDate
     }
 
+    /// Link counts as lost after this long without a frame.
+    static let lostAfter = 1.5
+    private var lastFrameAt: Double?
+    private var watchdog: Task<Void, Never>?
+
     func start(feed: TrackFeed) {
         stop()
         self.feed = feed
+        link = .searching
         feed.start()
         consumer = Task { [weak self] in
             for await f in feed.frames {
@@ -34,15 +40,25 @@ final class FrontModel: ObservableObject {
                 self.ingest(f)
             }
         }
+        guard freeze == nil else { return }
+        watchdog = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard let self, let last = self.lastFrameAt else { continue }
+                if self.now() - last > Self.lostAfter { self.link = .lost }
+            }
+        }
     }
 
     func stop() {
         consumer?.cancel()
+        watchdog?.cancel()
         feed?.stop()
     }
 
     private func ingest(_ f: FrameMessage) {
         let t = now()
+        lastFrameAt = t
         var next: [Int: Motion] = [:]
         for tr in f.tracks {
             let target = CGPoint(x: tr.x, y: tr.z)
