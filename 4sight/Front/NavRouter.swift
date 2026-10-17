@@ -5,6 +5,9 @@ import MapKit
 @MainActor
 final class NavRouter: NSObject, CLLocationManagerDelegate {
     var onUpdate: (NavState?) -> Void = { _ in }
+    /// Where the rider is and which way they face, for the heading-up route.
+    var onPose: (CLLocation, Double?) -> Void = { _, _ in }
+    private var compass: Double?
 
     private let location = CLLocationManager()
     private var steps: [NavStep] = []
@@ -42,7 +45,14 @@ final class NavRouter: NSObject, CLLocationManagerDelegate {
         steps = plan.steps
         load(points: plan.coordinates.map { MKMapPoint($0) }, stepDistances: steps.map(\.distance))
         location.startUpdatingLocation()
+        location.startUpdatingHeading()
         if let loc = location.location { update(with: loc) } else { onUpdate(state(at: 0)) }
+    }
+
+    /// GPS course while moving; it is undefined at a standstill, so below about walking
+    /// pace the compass takes over.
+    private func heading(for loc: CLLocation) -> Double? {
+        loc.speed > 1.5 && loc.course >= 0 ? loc.course : compass
     }
 
     /// Geometry only, so the projection can be checked without MKDirections.
@@ -57,6 +67,7 @@ final class NavRouter: NSObject, CLLocationManagerDelegate {
 
     func stop() {
         location.stopUpdatingLocation()
+        location.stopUpdatingHeading()
         steps = []
         onUpdate(nil)
     }
@@ -66,7 +77,16 @@ final class NavRouter: NSObject, CLLocationManagerDelegate {
         Task { @MainActor in self.update(with: loc) }
     }
 
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateHeading h: CLHeading) {
+        let degrees = h.trueHeading >= 0 ? h.trueHeading : h.magneticHeading
+        Task { @MainActor in
+            self.compass = degrees
+            if let loc = self.location.location { self.onPose(loc, self.heading(for: loc)) }
+        }
+    }
+
     private func update(with loc: CLLocation) {
+        onPose(loc, heading(for: loc))
         guard !steps.isEmpty else { return }
         onUpdate(state(at: progress(of: MKMapPoint(loc.coordinate))))
     }
