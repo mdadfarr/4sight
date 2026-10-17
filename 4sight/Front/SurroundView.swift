@@ -23,11 +23,18 @@ struct SurroundView: View {
         .background(Palette.ground)
     }
 
+    /// The scripted ride keeps the mock's whole invented street. The live feed gets only
+    /// what is real: the road, the route the rider chose, and what the rear camera saw.
     private func draw(_ ctx: inout GraphicsContext, t: Double) {
-        SceneRenderer.ground(&ctx, t)
-        SceneRenderer.blocks(&ctx, t)
-        RouteRibbon.draw(&ctx, t)
-        SceneRenderer.parked(&ctx, t)
+        if model.scripted {
+            SceneRenderer.ground(&ctx, t)
+            SceneRenderer.blocks(&ctx, t)
+            RouteRibbon.draw(&ctx, t)
+            SceneRenderer.parked(&ctx, t)
+        } else {
+            SceneRenderer.road(&ctx, travelled: model.travelled)
+            RouteRibbon.draw(&ctx, line: model.route.line(at: t))
+        }
         let blocker = MergeBanner.current(model.frame, link: model.link)?.blockedBy
         for track in model.tracks(at: t) {
             if track.id == blocker { VehicleSprite.blockedRing(&ctx, track) }
@@ -35,7 +42,7 @@ struct SurroundView: View {
         }
         VehicleSprite.puck(&ctx)
         SceneRenderer.haze(&ctx)
-        SceneRenderer.labels(&ctx, t)
+        if model.scripted { SceneRenderer.labels(&ctx, t) }
     }
 
     /// Only what the rear camera can actually see, painted far-behind last because

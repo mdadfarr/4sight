@@ -1,4 +1,5 @@
 import Combine
+import CoreLocation
 import Foundation
 import Protocol
 
@@ -31,6 +32,17 @@ final class FrontModel: ObservableObject {
     /// the script's own street and distances then; on a live feed with no destination
     /// it says so instead of inventing a turn.
     private(set) var scripted = false
+
+    /// Live mode only: metres actually ridden, from the ground speed in each frame, so
+    /// the road moves when the bike does and is still when it is stopped.
+    private(set) var travelled = 0.0
+
+    /// Live mode only: the real route and which way the rider faces.
+    var route = LiveRoute()
+
+    func pose(_ loc: CLLocation, heading: Double?) {
+        route.update(loc, heading: heading, at: now())
+    }
 
     private var feed: TrackFeed?
     private var consumer: Task<Void, Never>?
@@ -82,6 +94,8 @@ final class FrontModel: ObservableObject {
 
     private func ingest(_ f: FrameMessage) {
         let t = now()
+        // A gap longer than half a second is a dropped link, not distance ridden.
+        if let last = lastFrameAt { travelled += f.speed * min(max(t - last, 0), 0.5) }
         lastFrameAt = t
         var next: [Int: Motion] = [:]
         for tr in f.tracks {

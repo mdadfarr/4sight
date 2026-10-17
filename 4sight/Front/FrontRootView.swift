@@ -64,6 +64,7 @@ struct FrontRootView: View {
         showingRiskMap = args.demoEvents
         model.freeze = args.freeze
         router.onUpdate = advance
+        router.onPose = { model.pose($0, heading: $1) }
         if args.mockRoute { model.nav = .mock }
         // The scripted ride and the frozen screenshots start mid-ride; a real launch
         // starts stopped, with nowhere to go yet.
@@ -103,6 +104,7 @@ struct FrontRootView: View {
     private func start(_ plan: RoutePlan) {
         rideStarted = Date()
         model.beginRide()
+        model.route.coordinates = plan.coordinates
         router.start(plan)
         flow.phase = .riding
     }
