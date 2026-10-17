@@ -27,15 +27,18 @@ public final class FileSource: CaptureSource, @unchecked Sendable {
                     [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])
                 reader.add(output)
                 reader.startReading()
-                let wall = Date()
+                var wall = Date()
                 var first: Double?
                 while !Task.isCancelled, let sample = output.copyNextSampleBuffer() {
                     guard let pb = CMSampleBufferGetImageBuffer(sample) else { continue }
                     let pts = CMSampleBufferGetPresentationTimeStamp(sample).seconds
-                    let base = first ?? pts
-                    first = base
-                    let due = pts - base - Date().timeIntervalSince(wall)
+                    var due = pts - (first ?? pts) - Date().timeIntervalSince(wall)
+                    // Decoder itself more than 1 s behind (overloaded host): restart pacing from here.
+                    if first == nil || due < -1 { first = pts; wall = Date(); due = 0 }
                     if due > 0 { try await Task.sleep(nanoseconds: UInt64(due * 1e9)) }
+                    // Late frame: drop it here like a live camera would. Yielding it would let the
+                    // reader's pixel-buffer pool back-pressure us into consumer-paced playback.
+                    if due < -0.05 { continue }
                     continuation?.yield(CapturedFrame(pixelBuffer: pb, timestamp: pts, intrinsics: nil))
                 }
             } catch {}
