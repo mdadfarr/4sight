@@ -7,12 +7,14 @@ static const char* CMD_UUID     = "2490e4c3-b5b8-40db-8ab6-8cc856e1fa31";
 static const char* EVT_UUID     = "0f343fab-5e83-41a9-afb1-07dc42818c5f";
 
 enum Side { L = 0, R = 1 };
-static const uint8_t MOTOR_PIN[2][2] = {{25, 26}, {32, 33}};
-static const uint8_t LED_PIN[2]      = {27, 14};
-static const uint8_t BTN_PIN[2]      = {18, 19};        // merge buttons, to GND, INPUT_PULLUP
-static const uint8_t MERGE_PIN[2][2] = {{16, 17}, {22, 23}};  // per side: {green, red}
-static const uint8_t PWM_CH[2][2]    = {{0, 1}, {2, 3}};
-static const uint8_t DUTY_MAX = 204;  // 80% of 255, motor rating
+// Pin map (Hack the Valley build): one coin motor per grip through a 2N2222A (1k to the
+// base, 1N4007 across the motor), a green and a red LED per side (150 ohm), a merge button
+// per side to GND. Leave RX0, TX0, D2, D5, D12, D15, D21 free.
+static const uint8_t MOTOR_PIN[2]    = {25, 26};
+static const uint8_t BTN_PIN[2]      = {32, 33};        // merge buttons, to GND, INPUT_PULLUP
+static const uint8_t MERGE_PIN[2][2] = {{18, 19}, {22, 23}};  // per side: {green, red}
+static const uint8_t PWM_CH[2]       = {0, 1};
+static const uint8_t DUTY_MAX = 204;  // 80% of 255: 3 V motors on the 3V3 rail
 
 // Motor patterns: alternating on/off durations in ms, starting with ON.
 struct Pattern { uint8_t n; uint16_t d[7]; };
@@ -26,11 +28,11 @@ static const Pattern PATTERNS[] = {
 static const uint8_t OFFLINE = 4;
 
 // Per-side state
-static uint8_t  level[2]   = {0, 0};   // 0..3, drives LED
+static uint8_t  level[2]   = {0, 0};   // 0..3, alert level; lights that side's red LED
 static uint32_t lastCmd[2] = {0, 0};   // for 2 s LED timeout
 static uint8_t  pending[2] = {0, 0};   // pattern waiting for the motor player
 
-// Merge check, per side. Independent of the motor player and the amber LEDs.
+// Merge check, per side. Shares the red LED with alerts: either one lights it.
 enum MergeState { M_IDLE = 0, M_WAIT, M_GREEN, M_RED, M_BLINK };
 static uint8_t  mergeState[2] = {M_IDLE, M_IDLE};
 static uint32_t mergeT0[2]    = {0, 0};
@@ -54,27 +56,24 @@ static char     bleCmd[5] = {0};
 static volatile bool bleCmdReady = false;
 
 // Core 3 dropped ledcSetup/ledcAttachPin and ledcWrite takes the pin, not the channel.
-static void pwmInit(int s, int m) {
+static void pwmInit(int s) {
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
-  ledcAttach(MOTOR_PIN[s][m], 200, 8);
+  ledcAttach(MOTOR_PIN[s], 200, 8);
 #else
-  ledcSetup(PWM_CH[s][m], 200, 8);
-  ledcAttachPin(MOTOR_PIN[s][m], PWM_CH[s][m]);
+  ledcSetup(PWM_CH[s], 200, 8);
+  ledcAttachPin(MOTOR_PIN[s], PWM_CH[s]);
 #endif
 }
 
-static void pwmWrite(int s, int m, uint8_t duty) {
+static void pwmWrite(int s, uint8_t duty) {
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
-  ledcWrite(MOTOR_PIN[s][m], duty);
+  ledcWrite(MOTOR_PIN[s], duty);
 #else
-  ledcWrite(PWM_CH[s][m], duty);
+  ledcWrite(PWM_CH[s], duty);
 #endif
 }
 
-static void motors(Side s, bool on) {
-  pwmWrite(s, 0, on ? DUTY_MAX : 0);
-  pwmWrite(s, 1, on ? DUTY_MAX : 0);
-}
+static void motors(Side s, bool on) { pwmWrite(s, on ? DUTY_MAX : 0); }
 
 static void stopPlayer() {
   if (active >= 0) motors((Side)active, false);
@@ -90,7 +89,7 @@ static void startPlayer(Side s, uint32_t now) {
 
 static void allOff() {
   stopPlayer();
-  for (int s = 0; s < 2; s++) { level[s] = 0; pending[s] = 0; digitalWrite(LED_PIN[s], LOW); }
+  for (int s = 0; s < 2; s++) { level[s] = 0; pending[s] = 0; }
 }
 
 static void handleCmd(const char* cmd, uint32_t now) {
@@ -114,6 +113,7 @@ static void handleCmd(const char* cmd, uint32_t now) {
     if (mergeState[s] == M_WAIT) {
       mergeState[s] = cmd[0] == 'G' ? M_GREEN : M_RED;
       mergeT0[s] = now;
+      if (cmd[0] == 'N') pending[s] = 2;     // blocked: the grip says so too, two pulses
     } else {
       Serial.printf("late/unsolicited merge answer ignored: %s\n", cmd);
     }
@@ -149,14 +149,11 @@ class CmdCB : public NimBLECharacteristicCallbacks {
 void setup() {
   Serial.begin(115200);
   for (int s = 0; s < 2; s++) {
-    pinMode(LED_PIN[s], OUTPUT);
     pinMode(BTN_PIN[s], INPUT_PULLUP);
     pinMode(MERGE_PIN[s][0], OUTPUT);
     pinMode(MERGE_PIN[s][1], OUTPUT);
-    for (int m = 0; m < 2; m++) {
-      pwmInit(s, m);
-      pwmWrite(s, m, 0);
-    }
+    pwmInit(s);
+    pwmWrite(s, 0);
   }
 
   NimBLEDevice::init("4sight");
@@ -209,11 +206,9 @@ void loop() {
     else if (pending[R]) startPlayer(R, now);
   }
 
-  // LEDs
+  // Alert levels time out 2 s after the last command; they light the red LED below.
   for (int s = 0; s < 2; s++) {
     if (level[s] && now - lastCmd[s] >= 2000) level[s] = 0;
-    bool on = level[s] == 3 ? ((now / 125) & 1) : level[s] > 0;  // level 3: 4 Hz flash
-    digitalWrite(LED_PIN[s], on);
   }
 
   // Merge buttons, debounced 25 ms. A press always restarts that side's cycle.
@@ -233,15 +228,19 @@ void loop() {
     }
   }
 
-  // Merge LEDs. Unknown is never green: no answer within 1.5 s blinks red 4 Hz for 3 s.
+  // LEDs. Green only for a clear merge answer. Red for a blocked answer, for no answer
+  // within 1.5 s (blinks 4 Hz for 3 s: unknown is never green), or for a car alert on
+  // that side (steady; level 3 flashes 4 Hz). A car alert also cancels a green.
   for (int s = 0; s < 2; s++) {
     if (mergeState[s] == M_WAIT) {
       if (now - mergeT0[s] >= 1500) { mergeState[s] = M_BLINK; mergeT0[s] = now; }
     } else if (mergeState[s] != M_IDLE && now - mergeT0[s] >= 3000) {
       mergeState[s] = M_IDLE;
     }
-    digitalWrite(MERGE_PIN[s][0], mergeState[s] == M_GREEN);
-    digitalWrite(MERGE_PIN[s][1], mergeState[s] == M_RED ||
-                                  (mergeState[s] == M_BLINK && ((now / 125) & 1)));
+    bool flash = (now / 125) & 1;
+    bool alert = level[s] == 3 ? flash : level[s] > 0;
+    bool red = alert || mergeState[s] == M_RED || (mergeState[s] == M_BLINK && flash);
+    digitalWrite(MERGE_PIN[s][0], mergeState[s] == M_GREEN && level[s] == 0);
+    digitalWrite(MERGE_PIN[s][1], red);
   }
 }

@@ -6,21 +6,23 @@ BLE protocol and patterns are defined in `../docs/CONTRACTS.md`.
 
 | GPIO | Part |
 |---|---|
-| 25 | Left motor 1 (via NPN/MOSFET low-side switch) |
-| 26 | Left motor 2 (via NPN/MOSFET low-side switch) |
-| 32 | Right motor 1 (via NPN/MOSFET low-side switch) |
-| 33 | Right motor 2 (via NPN/MOSFET low-side switch) |
-| 27 | Left amber LED, 220 Ω to GND |
-| 14 | Right amber LED, 220 Ω to GND |
-| 18 | Left merge button, other side to GND (INPUT_PULLUP, pressed = LOW) |
-| 19 | Right merge button, other side to GND (INPUT_PULLUP, pressed = LOW) |
-| 16 | Left merge LED green, 220 Ω to GND |
-| 17 | Left merge LED red, 220 Ω to GND |
-| 22 | Right merge LED green, 220 Ω to GND |
-| 23 | Right merge LED red, 220 Ω to GND |
+| 25 | Left motor: 1 kΩ to a 2N2222A base; emitter to GND, collector to the motor's blue wire |
+| 26 | Right motor: same as left |
+| 18 | Left green LED, 150 Ω, LED to GND |
+| 19 | Left red LED, 150 Ω, LED to GND |
+| 22 | Right green LED, 150 Ω, LED to GND |
+| 23 | Right red LED, 150 Ω, LED to GND |
+| 32 | Left merge button, other leg to GND (INPUT_PULLUP, pressed = LOW) |
+| 33 | Right merge button, other leg to GND (INPUT_PULLUP, pressed = LOW) |
 
-Motors are PWM at 200 Hz, duty capped at 80 %. Left and right pairs never run together.
-The merge LEDs are separate from the amber alert LEDs and run independently of the motors.
+Each 3 V coin motor (85 mA): red wire to 3V3, blue wire to the transistor's collector, a
+1N4007 across the motor with the stripe to 3V3. Power bank → USB-C → the board's 3V3 rail.
+Leave RX0, TX0, D2, D5, D12, D15 and D21 free.
+
+Motors are PWM at 200 Hz, duty capped at 80 %, and the two sides never run together.
+Green lights only for a clear merge answer. Red lights for a blocked answer (with two
+pulses on that grip), for no answer within 1.5 s (blinking), or for a car alert on that
+side (steady; flashing at level 3).
 
 ## Build / flash / monitor
 
