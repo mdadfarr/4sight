@@ -15,6 +15,8 @@ nonisolated struct OverlayTrack: Sendable, Identifiable {
     let cls: VehicleClass
     let rect: CGRect
     let level: Int
+    /// Metres behind, as the engine sees it.
+    let z: Double
 }
 
 nonisolated struct RearSnapshot: @unchecked Sendable {
@@ -236,7 +238,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
         let overlay = tracks.filter { visible.contains($0.id) }.map { tr in
             OverlayTrack(id: tr.id, cls: tr.cls,
                          rect: CGRect(x: tr.box.x / w, y: tr.box.y / h, width: tr.box.w / w, height: tr.box.h / h),
-                         level: byID[tr.id]?.level ?? 0)
+                         level: byID[tr.id]?.level ?? 0, z: stateByID[tr.id]?.z ?? 0)
         }
         let image = wantsPreviewImage
             ? ciContext.createCGImage(CIImage(cvPixelBuffer: frame.pixelBuffer), from: CGRect(x: 0, y: 0, width: w, height: h))

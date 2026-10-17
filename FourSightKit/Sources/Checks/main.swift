@@ -129,6 +129,14 @@ do {
     check(near(est.gap(box: Box(x: 700, y: 300, w: 200, h: 100), cls: .car, z: 20), -1.47, 1e-9), "gap geometry un-mirrored -> -1.47")
     check(near(est.range(box: Box(x: 0, y: 310, w: 90, h: 100), cls: .car), 20, 1e-9), "ground-plane range 20 m")
     check(near(est.range(box: Box(x: 0, y: 620, w: 90, h: 100), cls: .car), 20, 1e-9), "width fallback 20 m")
+    // People by apparent height: 1.7 m tall at 85 px with f=1000 is 20 m, wherever the feet are.
+    check(near(est.range(box: Box(x: 0, y: 200, w: 30, h: 85), cls: .person), 20, 1e-9),
+          "person range from height, 20 m")
+    check(near(est.range(box: Box(x: 0, y: 450, w: 30, h: 85), cls: .person), 20, 1e-9),
+          "person range ignores camera tilt (same height, lower in frame)")
+    // Feet cut off by the bottom edge: the height is truncated, so it must not be used.
+    check(est.range(box: Box(x: 0, y: 300, w: 30, h: 600), cls: .person) != 1000 * 1.7 / 600,
+          "person cut off at the frame edge does not use truncated height")
 }
 
 // Ride sidecars (replayed footage from tools/mcap_to_ride.py)

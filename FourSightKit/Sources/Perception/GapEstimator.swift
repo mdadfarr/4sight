@@ -17,8 +17,29 @@ public struct GapEstimator: Sendable {
         self.imageW = imageW; self.imageH = imageH
     }
 
-    /// Z (metres behind) from the box bottom on the ground plane, with a width fallback.
+    /// Typical real height, metres, of what each class's box covers. YOLO's bicycle and
+    /// motorcycle boxes cover the machine, not the rider, who gets a person box of his own.
+    static func realHeight(_ cls: VehicleClass) -> Double? {
+        switch cls {
+        case .person: return 1.7
+        case .bicycle: return 1.1
+        case .motorcycle: return 1.2
+        default: return nil
+        }
+    }
+
+    /// Z (metres behind) for a box.
+    ///
+    /// People and two-wheelers: from apparent height, Z = f * H / h. Ground-plane range
+    /// assumes the lens is level at a known height, and a handheld or bouncing phone is
+    /// neither, so a tilt of a few degrees put a person 8 m away at the rider's wheel.
+    /// Height needs neither. Vehicles keep the ground plane, which the replay validated.
     public func range(box: Box, cls: VehicleClass) -> Double {
+        // A box cut off by the top or bottom edge is shorter than the object, so its
+        // height would read too far; fall through to the ground plane / width instead.
+        if let realH = Self.realHeight(cls), box.y > 2, box.bottom < imageH - 2, box.h > 4 {
+            return f * realH / box.h
+        }
         let dv = box.bottom - v0
         if box.bottom < imageH - 2, dv > 0 {
             let z = f * cameraHeight / dv

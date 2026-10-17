@@ -1,5 +1,6 @@
 import AVFoundation
 import Perception
+import Protocol
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -25,6 +26,7 @@ final class PreviewUIView: UIView {
     var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
     let imageLayer = CALayer()
     private var boxes: [CAShapeLayer] = []
+    private var labels: [CATextLayer] = []
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -43,15 +45,23 @@ final class PreviewUIView: UIView {
         while boxes.count < tracks.count {
             let l = CAShapeLayer(); l.fillColor = nil; l.lineWidth = 2
             layer.addSublayer(l); boxes.append(l)
+            let t = CATextLayer(); t.fontSize = 13; t.contentsScale = UIScreen.main.scale
+            t.foregroundColor = UIColor.white.cgColor; t.backgroundColor = UIColor.black.withAlphaComponent(0.6).cgColor
+            layer.addSublayer(t); labels.append(t)
         }
         for (i, l) in boxes.enumerated() {
-            guard i < tracks.count else { l.path = nil; continue }
+            guard i < tracks.count else { l.path = nil; labels[i].isHidden = true; continue }
             let t = tracks[i]
             let r = previewLayer.session != nil
                 ? previewLayer.layerRectConverted(fromMetadataOutputRect: t.rect)
                 : fitted(t.rect)
             l.path = UIBezierPath(rect: r).cgPath
             l.strokeColor = (t.level >= 2 ? UIColor(Theme.red) : t.level == 1 ? UIColor(Theme.amber) : UIColor(Theme.edge)).cgColor
+            // Distance on every box, so a range estimate can be checked against a tape measure.
+            let label = labels[i]
+            label.isHidden = false
+            label.string = String(format: " %@ %.1f m ", t.cls.rawValue, t.z)
+            label.frame = CGRect(x: r.minX, y: max(r.minY - 18, 0), width: 120, height: 18)
         }
     }
 
