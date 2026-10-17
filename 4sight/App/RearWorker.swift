@@ -276,7 +276,9 @@ nonisolated final class RearWorker: @unchecked Sendable {
         let hadAlert = sentLevel.values.contains { $0.level >= 2 }
         for d in decisions where d.level >= 2 {
             let key = (d.grip, d.level)
-            if let prev = sentLevel[d.id], prev == key { continue }
+            // Buzz once per car: on its first alert, on a 2 -> 3 escalation, or if it moves to
+            // the other grip. The engine reports the level every frame; repeats stay silent.
+            if let prev = sentLevel[d.id], prev.grip == d.grip, prev.level >= d.level { continue }
             sentLevel[d.id] = key
             if let cmd = BLECommand.from(grip: d.grip, level: d.level) { sendHaptic(cmd) }
         }

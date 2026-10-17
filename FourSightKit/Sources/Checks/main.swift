@@ -41,10 +41,10 @@ do {
     check(run(e, car(-0.8), frames: 3)?.level == 1, "debounce holds level <2 for 3 frames")
     let d = run(e, car(-0.8), frames: 1, from: 1)
     check(d?.level == 2 && d?.grip == "L", "closing car 0.8 m -> level 2 grip L")
-    check(run(e, car(-0.8), frames: 1, from: 2)?.level == 1, "alert once")
+    check(run(e, car(-0.8), frames: 1, from: 2)?.level == 2, "threat stays red while it lasts")
     let imm = TrackState(id: 1, cls: .car, z: 10, gap: -0.5, invTTC: 1)
-    check(run(e, imm, frames: 1, from: 3)?.level == 3, "escalation to 3 allowed once")
-    check(run(e, imm, frames: 1, from: 4)?.level == 1, "no second escalation")
+    check(run(e, imm, frames: 1, from: 3)?.level == 3, "escalates to imminent")
+    check(run(e, imm, frames: 1, from: 4)?.level == 3, "imminent stays imminent while it lasts")
 }
 check(run(ThreatEngine(), car(-1.2), frames: 10)?.level == 1, "1.2 m -> caution only")
 check(run(ThreatEngine(), car(-2.0), frames: 10)?.level == 0, "2.0 m -> level 0")
