@@ -35,7 +35,7 @@ struct NavHUDView: View {
             // The mock paints a status bar because a canvas has none; the real one
             // already sits over this banner, so drawing a second would double it.
 
-            Image(systemName: "arrow.turn.up.left")
+            Image(systemName: turnSymbol)
                 .font(.system(size: 34, weight: .semibold))
                 .foregroundStyle(Palette.text).at(46, 104)
                 .opacity(hasRoute ? 1 : 0)
@@ -48,7 +48,7 @@ struct NavHUDView: View {
                 .frame(width: Design.width - 40, height: 1).at(20, 160, anchor: .topLeading)
             Text("Then").font(.system(size: 15, design: .rounded))
                 .fixedSize().foregroundStyle(Palette.textDim).at(22, 182, anchor: .bottomLeading)
-            Image(systemName: "arrow.turn.up.right")
+            Image(systemName: thenSymbol)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Palette.text).at(72, 176)
                 .opacity(hasRoute ? 1 : 0)
@@ -144,17 +144,30 @@ struct NavHUDView: View {
         if let nav = model.nav { return Self.metres(nav.distanceToManoeuvre) }
         return model.scripted ? scriptedDistance : ""
     }
+    /// MKRoute steps start with their manoeuvre, so the turn at the end of the current
+    /// step is the next step's: "↱ 228 m, Ellesmere Road", like Google Maps.
+    private func step(_ ahead: Int) -> NavStep? {
+        guard let nav = model.nav, nav.currentIndex + ahead < nav.steps.count else { return nil }
+        return nav.steps[nav.currentIndex + ahead]
+    }
+    private var turnSymbol: String {
+        if model.nav != nil { return step(1)?.symbol ?? "flag.checkered" }
+        return "arrow.turn.up.left"
+    }
+    private var thenSymbol: String {
+        if model.nav != nil { return step(2)?.symbol ?? "flag.checkered" }
+        return "arrow.turn.up.right"
+    }
     private var streetText: String {
-        if let nav = model.nav { return nav.current.street }
+        if let nav = model.nav { return step(1)?.street ?? nav.current.street }
         return model.scripted ? World.turnStreet.name : "No destination"
     }
     private var thenText: String {
-        guard let nav = model.nav, nav.currentIndex + 1 < nav.steps.count else {
-            return model.nav == nil && !model.scripted
-                ? "Set one from the route button" : "900 m · Bloor St W"
+        guard model.nav != nil else {
+            return model.scripted ? "900 m · Bloor St W" : "Set one from the route button"
         }
-        let next = nav.steps[nav.currentIndex + 1]
-        return "\(Self.metres(next.distance)) · \(next.street)"
+        guard let then = step(2) else { return step(1) == nil ? "Arrive" : "Then arrive" }
+        return "\(Self.metres(step(1)?.distance ?? 0)) · \(then.street)"
     }
     /// A route or the script means there is a speed to show; a live feed with no frame
     /// yet does not, and a standing-still readout of 13 km/h would be a lie.

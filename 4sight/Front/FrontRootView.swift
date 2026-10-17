@@ -67,6 +67,7 @@ struct FrontRootView: View {
         router.onUpdate = advance
         router.onPose = { model.pose($0, heading: $1) }
         if args.mockRoute { model.nav = .mock }
+        if args.previewRide { return startPreviewRide() }
         // The scripted ride and the frozen screenshots start mid-ride; a real launch
         // starts stopped, with nowhere to go yet.
         if args.synthetic || args.mockRoute {
@@ -86,6 +87,21 @@ struct FrontRootView: View {
         model.nav = .mock
         model.beginRide()
         model.start(feed: SyntheticFeed(freeze: nil, demo: true))
+        flow.phase = .riding
+    }
+
+    /// `-previewRide`: the live renderer on a pretend lap, for the simulator. Fixes go
+    /// through `model.pose` exactly as NavRouter's do; nav is set directly so the lap
+    /// never counts as an arrival.
+    private func startPreviewRide() {
+        let ride = PreviewRide()
+        ride.onFix = { loc, course, ahead, nav in
+            model.pose(loc, heading: course)
+            model.route.coordinates = ahead
+            model.nav = nav
+        }
+        model.beginRide()
+        model.start(feed: ride)
         flow.phase = .riding
     }
 

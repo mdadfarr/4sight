@@ -14,6 +14,11 @@ enum Palette {
     static let labelInk = Color(hex: 0x3B4250)
     static let labelRoute = Color(hex: 0x0A6CDF)
     static let road = Color(hex: 0xDEE3E8)
+    /// Live map: real streets read darker than the mock's so the white paint shows.
+    static let street = Color(hex: 0xC7CED6)
+    static let kerb = Color(hex: 0xB2BAC3)
+    static let sidewalk = Color(hex: 0xF6F7F9)
+    static let bikeLane = Color(hex: 0x9ED3A6)
     static let parkBay = Color(hex: 0xD9DEE4)
     static let cone = Color.white.opacity(0.5)
     static let body = Color(hex: 0xC3C9D1)
