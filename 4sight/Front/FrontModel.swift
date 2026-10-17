@@ -19,6 +19,14 @@ final class FrontModel: ObservableObject {
     /// When set, every clock in the UI reads this value (deterministic screenshots).
     var freeze: Double?
 
+    /// The worst level each track reached during this ride, so the summary counts a
+    /// vehicle once however long it stayed alongside.
+    private var worstSeen: [Int: Int] = [:]
+    var closePasses: Int { worstSeen.values.filter { $0 == 2 }.count }
+    var imminent: Int { worstSeen.values.filter { $0 >= 3 }.count }
+
+    func beginRide() { worstSeen.removeAll() }
+
     /// True while the scripted ride is driving the screen. The HUD only falls back to
     /// the script's own street and distances then; on a live feed with no destination
     /// it says so instead of inventing a turn.
@@ -75,6 +83,7 @@ final class FrontModel: ObservableObject {
             next[tr.id] = Motion(from: from, to: target, arrival: t + Self.slide)
         }
         motions = next
+        for tr in f.tracks { worstSeen[tr.id] = max(worstSeen[tr.id] ?? 0, tr.level) }
         frame = f
         link = .connected
         alerts.update(AlertBands.zones(SurroundView.visibleTracks(f)), now: t)
