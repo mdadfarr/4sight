@@ -19,6 +19,11 @@ final class FrontModel: ObservableObject {
     /// When set, every clock in the UI reads this value (deterministic screenshots).
     var freeze: Double?
 
+    /// True while the scripted ride is driving the screen. The HUD only falls back to
+    /// the script's own street and distances then; on a live feed with no destination
+    /// it says so instead of inventing a turn.
+    private(set) var scripted = false
+
     private var feed: TrackFeed?
     private var consumer: Task<Void, Never>?
 
@@ -35,6 +40,7 @@ final class FrontModel: ObservableObject {
     func start(feed: TrackFeed) {
         stop()
         self.feed = feed
+        scripted = feed is SyntheticFeed
         link = .searching
         feed.start()
         consumer = Task { [weak self] in
