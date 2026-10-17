@@ -4,8 +4,7 @@
 // Feed it the vehicles seen in each frame; it says how strongly to vibrate
 // the left and right handles.
 //
-// NOT compiled or run by the author (no Mac). Run DangerEngineTests.swift
-// first (Cmd+U in Xcode) before relying on it.
+// Compiles in FourSightKit; scenarios are checked by `swift run Checks`.
 //
 // Units: pass `width`, `centerX` and `centerY` in any unit as long as
 // `frameWidth` and `frameHeight` in the config use the same unit. With Vision's
@@ -25,68 +24,80 @@
 
 import Foundation
 
-enum AlertLevel: Int, Comparable {
+public enum AlertLevel: Int, Comparable, Sendable {
     case off = 0       // nothing
     case gentle = 1    // very close and creeping toward the bike
     case warning = 2   // time to collision under ttcWarnSeconds
     case urgent = 3    // time to collision under ttcUrgentSeconds
 
-    static func < (a: AlertLevel, b: AlertLevel) -> Bool { a.rawValue < b.rawValue }
+    public static func < (a: AlertLevel, b: AlertLevel) -> Bool { a.rawValue < b.rawValue }
 }
 
 /// A rectangle as fractions of the frame, 0 to 1.
-struct ExclusionZone {
-    var x1: Double
-    var y1: Double
-    var x2: Double
-    var y2: Double
+public struct ExclusionZone: Sendable {
+    public var x1: Double
+    public var y1: Double
+    public var x2: Double
+    public var y2: Double
+    public init(x1: Double, y1: Double, x2: Double, y2: Double) {
+        self.x1 = x1; self.y1 = y1; self.x2 = x2; self.y2 = y2
+    }
 }
 
-struct DangerConfig {
-    var frameWidth: Double = 640
-    var frameHeight: Double = 360          // only needed for exclusion zones
-    var windowSeconds: Double = 0.5        // how far back the trend line looks
-    var minSamples: Int = 5                // frames needed inside the window
-    var minSpanSeconds: Double = 0.1
-    var ttcWarnSeconds: Double = 3.0
-    var ttcUrgentSeconds: Double = 2.0
-    var closeFraction: Double = 0.6        // box wider than this fraction of the frame = very close
-    var minGrowthPerSecond: Double = 0.01  // below 1% of frame width per second = not growing
-    var holdSeconds: Double = 1.0          // keep an alert on this long after the danger passes
-    var dropTrackAfterSeconds: Double = 1.0
-    var mirror: Bool = true                // rear camera: image left is the rider's right
+public struct DangerConfig: Sendable {
+    public var frameWidth: Double = 640
+    public var frameHeight: Double = 360          // only needed for exclusion zones
+    public var windowSeconds: Double = 0.5        // how far back the trend line looks
+    public var minSamples: Int = 5                // frames needed inside the window
+    public var minSpanSeconds: Double = 0.1
+    public var ttcWarnSeconds: Double = 3.0
+    public var ttcUrgentSeconds: Double = 2.0
+    public var closeFraction: Double = 0.6        // box wider than this fraction of the frame = very close
+    public var minGrowthPerSecond: Double = 0.01  // below 1% of frame width per second = not growing
+    public var holdSeconds: Double = 1.0          // keep an alert on this long after the danger passes
+    public var dropTrackAfterSeconds: Double = 1.0
+    public var mirror: Bool = true                // rear camera: image left is the rider's right
 
-    var minWidthFraction: Double = 0.04    // ignore boxes narrower than this fraction of the frame
-    var largeFraction: Double = 0.5        // a box at least this wide counts as "large"...
-    var largeMinConfidence: Double = 0.5   // ...and is ignored unless the detector is at least this sure
-    var jumpRatio: Double = 1.6            // size change between two frames beyond this = reset
-    var maxLateralWidths: Double = 1.0     // off centre by more than this many vehicle widths = passing by
-    var exclusionZones: [ExclusionZone] = []
+    public var minWidthFraction: Double = 0.04    // ignore boxes narrower than this fraction of the frame
+    public var largeFraction: Double = 0.5        // a box at least this wide counts as "large"...
+    public var largeMinConfidence: Double = 0.5   // ...and is ignored unless the detector is at least this sure
+    public var jumpRatio: Double = 1.6            // size change between two frames beyond this = reset
+    public var maxLateralWidths: Double = 1.0     // off centre by more than this many vehicle widths = passing by
+    public var exclusionZones: [ExclusionZone] = []
+    public init() {}
 }
 
-struct Detection {
-    var trackID: Int          // from SimpleTracker; negative means "no id", ignored
-    var centerX: Double
-    var width: Double
-    var centerY: Double? = nil    // only needed for exclusion zones
-    var confidence: Double = 1.0  // detector confidence, 0 to 1
+/// One vehicle in one frame. Named DangerDetection so it does not clash with Perception.Detection.
+public struct DangerDetection: Sendable {
+    public var trackID: Int          // from a tracker; negative means "no id", ignored
+    public var centerX: Double
+    public var width: Double
+    public var centerY: Double? = nil    // only needed for exclusion zones
+    public var confidence: Double = 1.0  // detector confidence, 0 to 1
+    public init(trackID: Int, centerX: Double, width: Double, centerY: Double? = nil, confidence: Double = 1.0) {
+        self.trackID = trackID; self.centerX = centerX; self.width = width
+        self.centerY = centerY; self.confidence = confidence
+    }
 }
 
-enum Side { case left, right, both }   // from the rider's point of view
+public enum Side: Sendable { case left, right, both }   // from the rider's point of view
 
-struct Assessment {
-    var trackID: Int
-    var level: AlertLevel
-    var ttcSeconds: Double?
-    var growthPerSecond: Double
-    var widthFraction: Double
-    var side: Side
+public struct Assessment: Sendable {
+    public var trackID: Int
+    public var level: AlertLevel
+    public var ttcSeconds: Double?
+    public var growthPerSecond: Double
+    public var widthFraction: Double
+    public var side: Side
 }
 
-struct DangerOutput {
-    var left: AlertLevel = .off
-    var right: AlertLevel = .off
-    var vehicles: [Assessment] = []   // only vehicles with level above .off
+public struct DangerOutput: Sendable {
+    public var left: AlertLevel = .off
+    public var right: AlertLevel = .off
+    public var vehicles: [Assessment] = []   // only vehicles with level above .off
+    public init(left: AlertLevel = .off, right: AlertLevel = .off, vehicles: [Assessment] = []) {
+        self.left = left; self.right = right; self.vehicles = vehicles
+    }
 }
 
 typealias Point = (t: Double, w: Double)
@@ -112,20 +123,20 @@ func fitLine(_ points: [Point]) -> (slope: Double, fittedLast: Double) {
     return (slope: slope, fittedLast: meanW + slope * (ts[ts.count - 1] - meanT))
 }
 
-final class DangerEngine {
-    let config: DangerConfig
+public final class DangerEngine {
+    public let config: DangerConfig
     private var samples: [Int: [Sample]] = [:]
     private var lastSeen: [Int: Double] = [:]
     private var heldLeft: (level: AlertLevel, until: Double) = (level: .off, until: -1)
     private var heldRight: (level: AlertLevel, until: Double) = (level: .off, until: -1)
 
-    init(config: DangerConfig = DangerConfig()) {
+    public init(config: DangerConfig = DangerConfig()) {
         self.config = config
     }
 
     /// Process one frame. Call it every frame, even when nothing was detected.
     /// `time` is in seconds (for example the frame's presentation timestamp).
-    func update(time t: Double, detections: [Detection]) -> DangerOutput {
+    public func update(time t: Double, detections: [DangerDetection]) -> DangerOutput {
         var instLeft = AlertLevel.off
         var instRight = AlertLevel.off
         var vehicles: [Assessment] = []
@@ -165,7 +176,7 @@ final class DangerEngine {
         return DangerOutput(left: left, right: right, vehicles: vehicles)
     }
 
-    private func isIgnored(_ det: Detection) -> Bool {
+    private func isIgnored(_ det: DangerDetection) -> Bool {
         let widthFraction = det.width / config.frameWidth
         if widthFraction < config.minWidthFraction { return true }   // too small and far to measure
         if widthFraction >= config.largeFraction && det.confidence < config.largeMinConfidence {
@@ -193,7 +204,7 @@ final class DangerEngine {
         return max(inst, level)
     }
 
-    private func assess(_ det: Detection, _ buf: [Sample], at t: Double) -> Assessment {
+    private func assess(_ det: DangerDetection, _ buf: [Sample], at t: Double) -> Assessment {
         let window = buf.filter { $0.t >= t - config.windowSeconds - 1e-9 }
         let widthFraction = window.last?.w ?? 0
         let side = sideFor(centerX: det.centerX)

@@ -5,21 +5,25 @@
 // Apple's Vision framework returns boxes but no persistent ids, and
 // DangerEngine needs them. A port of tracker.py.
 //
-// NOT compiled or run by the author (no Mac). Run DangerEngineTests.swift first.
+// Not used by the app (Perception.Tracker supplies ids); kept as the reference port.
 
 import Foundation
 
-struct Box {
-    var x1: Double
-    var y1: Double
-    var x2: Double
-    var y2: Double
+/// Corner box. Named SimpleBox so it does not clash with Perception.Box.
+public struct SimpleBox: Sendable {
+    public var x1: Double
+    public var y1: Double
+    public var x2: Double
+    public var y2: Double
+    public init(x1: Double, y1: Double, x2: Double, y2: Double) {
+        self.x1 = x1; self.y1 = y1; self.x2 = x2; self.y2 = y2
+    }
 
-    var width: Double { x2 - x1 }
-    var centerX: Double { (x1 + x2) / 2 }
+    public var width: Double { x2 - x1 }
+    public var centerX: Double { (x1 + x2) / 2 }
 }
 
-func iou(_ a: Box, _ b: Box) -> Double {
+public func iou(_ a: SimpleBox, _ b: SimpleBox) -> Double {
     let iw = max(0, min(a.x2, b.x2) - max(a.x1, b.x1))
     let ih = max(0, min(a.y2, b.y2) - max(a.y1, b.y1))
     let inter = iw * ih
@@ -27,19 +31,19 @@ func iou(_ a: Box, _ b: Box) -> Double {
     return union > 0 ? inter / union : 0
 }
 
-final class SimpleTracker {
+public final class SimpleTracker {
     private let iouThreshold: Double
     private let maxMissed: Int   // frames a vehicle may vanish and still keep its id
-    private var tracks: [Int: (box: Box, missed: Int)] = [:]
+    private var tracks: [Int: (box: SimpleBox, missed: Int)] = [:]
     private var nextID = 1
 
-    init(iouThreshold: Double = 0.3, maxMissed: Int = 5) {
+    public init(iouThreshold: Double = 0.3, maxMissed: Int = 5) {
         self.iouThreshold = iouThreshold
         self.maxMissed = maxMissed
     }
 
     /// Takes this frame's boxes, returns one id per box (same order).
-    func update(_ boxes: [Box]) -> [Int] {
+    public func update(_ boxes: [SimpleBox]) -> [Int] {
         var pairs: [(score: Double, box: Int, track: Int)] = []
         for (bi, box) in boxes.enumerated() {
             for (tid, track) in tracks {

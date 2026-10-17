@@ -98,5 +98,8 @@ do {
     check(near(est.range(box: Box(x: 0, y: 620, w: 90, h: 100), cls: .car), 20, 1e-9), "width fallback 20 m")
 }
 
+// DangerEngine + SimpleTracker (Arshiya), see DangerChecks.swift
+runDangerChecks()
+
 print(failures == 0 ? "ALL CHECKS PASSED" : "\(failures) CHECK(S) FAILED")
 exit(failures == 0 ? 0 : 1)
