@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSCameraUsageDescription</key>
+	<string>4sight watches the road behind you with the rear camera.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Speed and heading tune the warnings and are logged for replay.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Handlebar yaw corrects the passing-gap estimate.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Connects to the handlebar grip buzzer.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Streams threat data to the front phone over peer-to-peer Wi-Fi.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_foursight._tcp</string>
+	</array>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+</dict>
+</plist>
