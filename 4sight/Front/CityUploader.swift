@@ -8,7 +8,7 @@ import SwiftUI
 /// The 4sight server (docs/DATA_PIPELINE.md). Empty: rides are kept in the outbox but
 /// nothing is sent, and the close-pass map shows only the rider's own events.
 enum CityAPI {
-    static let base = ""
+    static let base = "https://4sight-server.vercel.app"
 }
 
 /// Sends finished rides to the city map. One JSON file per ride in Documents/outbox/,
