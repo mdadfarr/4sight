@@ -109,7 +109,10 @@ final class NavRouter: NSObject, CLLocationManagerDelegate {
         onPose(loc, heading(for: loc))
         guard !steps.isEmpty else { return }
         let p = MKMapPoint(loc.coordinate)
-        onUpdate(state(at: progress(of: p)))
+        var nav = state(at: progress(of: p))
+        nav.offRoute = offRoute(p)
+        nav.accuracy = loc.horizontalAccuracy
+        onUpdate(nav)
         offRouteFixes = offRoute(p) > Self.offRouteMetres && loc.horizontalAccuracy < 25 ? offRouteFixes + 1 : 0
         if offRouteFixes >= Self.offRouteNeeded, Date().timeIntervalSince(lastReroute) > 15, let destination {
             lastReroute = Date()

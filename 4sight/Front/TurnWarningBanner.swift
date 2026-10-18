@@ -49,7 +49,8 @@ struct TurnWarningBanner: View {
 
     /// What is ahead: the next turn when it is close, else the next junction straight through.
     private func manoeuvre(at now: Date) -> RouteManoeuvre? {
-        guard let nav = model.nav else { return nil }
+        // Off the route the turn distances are measured from somewhere else: no warning.
+        guard let nav = model.nav, !nav.isOffRoute else { return nil }
         let turn = nav.currentIndex + 1 < nav.steps.count ? nav.steps[nav.currentIndex + 1].symbol : ""
         let toTurn = nav.distanceToManoeuvre
         if turn.contains("left"), toTurn <= 60 { return .turnLeft(inMetres: toTurn) }

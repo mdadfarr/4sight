@@ -167,15 +167,20 @@ struct NavHUDView: View {
         guard let rider = model.route.riderCoordinate(at: Date()) else { return nil }
         return model.lanePlan?.cue(at: rider)
     }
-    private var nearTurn: Bool { (model.nav?.distanceToManoeuvre ?? 0) <= Self.turnNear }
+    private var nearTurn: Bool {
+        guard let nav = model.nav, !nav.isOffRoute else { return false }
+        return nav.distanceToManoeuvre <= Self.turnNear
+    }
 
     private var bannerSymbol: String {
-        guard model.nav != nil else { return "arrow.turn.up.left" }      // the script's turn
+        guard let nav = model.nav else { return "arrow.turn.up.left" }  // the script's turn
+        if nav.isOffRoute { return "location.north.line.fill" }
         guard nearTurn else { return "arrow.up" }
         return step(1)?.symbol ?? "flag.checkered"
     }
     private var bannerTitle: String {
         if let nav = model.nav {
+            if nav.isOffRoute { return Self.metres(nav.offRoute) }
             let m = Self.metres(nav.distanceToManoeuvre)
             return nearTurn ? "In \(m)" : m
         }
@@ -185,6 +190,10 @@ struct NavHUDView: View {
         guard model.nav != nil else {
             return model.scripted ? "Turn onto \(World.turnStreet.name)" : "No destination"
         }
+        if let nav = model.nav, nav.isOffRoute {
+            return nav.isWeakFix ? "Head to the route · weak GPS" : "Head to the route"
+        }
+        if model.nav?.isWeakFix == true { return "Weak GPS, distances are rough" }
         guard nearTurn else { return "Continue straight" }
         guard let next = step(1) else { return "Arrive at destination" }
         if next.symbol.contains("uturn") { return "Make a U-turn" }
@@ -215,8 +224,12 @@ struct NavHUDView: View {
     }
 
     /// "120 m" under a kilometre, "2.3 km" above.
+    /// Rounded like a car's nav: 5 m steps under 100 m, 10 m under 1 km, so GPS jitter
+    /// does not make the number flicker.
     static func metres(_ m: Double) -> String {
-        m < 1000 ? "\(Int(m.rounded())) m" : String(format: "%.1f km", m / 1000)
+        if m >= 1000 { return String(format: "%.1f km", m / 1000) }
+        let step = m < 100 ? 5.0 : 10.0
+        return "\(Int((m / step).rounded() * step)) m"
     }
 
     private static func clock(_ nav: NavState) -> String {
