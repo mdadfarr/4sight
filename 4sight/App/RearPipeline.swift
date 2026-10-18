@@ -57,7 +57,8 @@ import os
         if let path = UserDefaults.standard.string(forKey: "replay") { replayURL = URL(fileURLWithPath: path) }
         // -peer <name>: pair with that front only. Set here rather than passed down,
         // because the browser is built inside RearWorker. Must precede start().
-        PeerLink.preferredFront = UserDefaults.standard.string(forKey: "peer")
+        // Also set from Diagnostics ("Pair only with front named"); empty means any front.
+        PeerLink.preferredFront = UserDefaults.standard.string(forKey: "peer").flatMap { $0.isEmpty ? nil : $0 }
         if let text = UserDefaults.standard.string(forKey: "exclude") {
             exclusionZones = text.split(separator: ";").compactMap { DetectionFilter.Zone(String($0)) }
         }

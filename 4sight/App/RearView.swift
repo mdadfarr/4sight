@@ -16,6 +16,9 @@ struct RearView: View {
     /// Dimming is explained before it happens, never sprung on the rider: the card says
     /// what it does, and a tap on the dimmed screen brightens it for a while.
     @AppStorage("rearDim") private var dimWhenMounted = true
+    /// The front's name ("This phone" on its home screen). Empty joins the first front found,
+    /// which can be a simulator or another team's phone running 4sight.
+    @AppStorage("peer") private var pairWith = ""
     // `-skipMountCard YES` for simulator screenshots of the page behind it.
     @State private var mountCard = !UserDefaults.standard.bool(forKey: "skipMountCard")
     @State private var awakeUntil = Date.distantPast
@@ -356,6 +359,24 @@ struct RearView: View {
                     Text(String(format: "%.1f ms", pipeline.benchMs))
                         .font(.system(size: 44, weight: .bold, design: .rounded).monospacedDigit())
                 }
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 10) {
+                        Text("Pair only with front named")
+                        TextField("Any front", text: $pairWith)
+                            .fontWeight(.semibold).multilineTextAlignment(.trailing)
+                            .autocorrectionDisabled().textInputAutocapitalization(.never)
+                            .submitLabel(.done)
+                            .onSubmit {
+                                pairWith = pairWith.trimmingCharacters(in: .whitespaces)
+                                PeerLink.preferredFront = pairWith.isEmpty ? nil : pairWith
+                                pipeline.start()   // the browser takes the name when it is built
+                            }
+                    }
+                    Text("Type the name shown as \"This phone\" on the front's home screen. Empty joins the first front it finds.")
+                        .font(.system(size: 12, design: .rounded)).foregroundStyle(Theme.textDim)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 4)
                 // Real buttons with a line each saying what they do: a bare tappable line in a
                 // list of toggles does not read as something to press.
                 diagnosticButton(pipeline.replayURL == nil ? "Replay a recorded clip" : "Back to camera",

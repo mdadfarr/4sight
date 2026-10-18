@@ -127,7 +127,9 @@ static void handleCmd(const char* cmd, uint32_t now) {
 
 class ServerCB : public NimBLEServerCallbacks {
   void onConnect(NimBLEServer*, NimBLEConnInfo&) override {
-    connected = true; lastMsgMs = millis(); offlinePlayed = false;
+    // Armed by the first command, not the connection: the phone needs ~1 s after
+    // connecting to find the characteristic, which used to play "link lost" on every start.
+    connected = true; lastMsgMs = millis(); offlinePlayed = true;
     Serial.println("ble: connected");
   }
   void onDisconnect(NimBLEServer*, NimBLEConnInfo&, int) override {
