@@ -4,16 +4,18 @@ BLE protocol and patterns are defined in `../docs/CONTRACTS.md`.
 
 ## Wiring
 
-| GPIO | Part |
-|---|---|
-| 25 | Left motor: 1 kΩ to a 2N2222A base; emitter to GND, collector to the motor's blue wire |
-| 26 | Right motor: same as left |
-| 18 | Left green LED, 150 Ω, LED to GND |
-| 19 | Left red LED, 150 Ω, LED to GND |
-| 22 | Right green LED, 150 Ω, LED to GND |
-| 23 | Right red LED, 150 Ω, LED to GND |
-| 32 | Left merge button, other leg to GND (INPUT_PULLUP, pressed = LOW) |
-| 33 | Right merge button, other leg to GND (INPUT_PULLUP, pressed = LOW) |
+| GPIO | Part | Board pin (column, position from the top) |
+|---|---|---|
+| 25 | Left motor: 1 kΩ to a 2N2222A base; emitter to GND, collector to the motor's blue wire | right, 8th |
+| 26 | Right motor: same as left | right, 7th |
+| 18 | Left green LED, 150 Ω, LED to GND | left, 9th |
+| 19 | Left red LED, 150 Ω, LED to GND | left, 10th |
+| 22 | Right green LED, 150 Ω, LED to GND | left, 14th |
+| 23 | Right red LED, 150 Ω, LED to GND | left, 15th (bottom) |
+| 32 | Left merge button, other leg to GND (INPUT_PULLUP, pressed = LOW) | right, 10th |
+| 33 | Right merge button, other leg to GND (INPUT_PULLUP, pressed = LOW) | right, 9th |
+| 3V3 | + rail | left, 1st |
+| GND | − rail | left 2nd or right 2nd |
 
 Each 3 V coin motor (85 mA): red wire to 3V3, blue wire to the transistor's collector, a
 1N4007 across the motor with the stripe to 3V3. Power bank → USB-C → the board's 3V3 rail.
