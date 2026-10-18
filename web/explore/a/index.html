@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>4sight Close-Pass Map</title>
+<meta name="description" content="Where Toronto drivers pass cyclists too close: close passes per 100 km by street, with City of Toronto injury and bike lane data. Today's close passes are example data.">
+<meta name="theme-color" content="#F4F5F7">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="a.css">
+</head>
+<body>
+<div class="app">
+<div class="stage">
+  <div id="map" role="region" aria-label="Map of Toronto. The list of streets and wards in the panel has the same information."></div>
+
+  <main class="sheet" id="sheet" data-open="false">
+    <button class="handle" id="handle" type="button" aria-controls="sheet" aria-expanded="false">
+      <span class="grip" aria-hidden="true"></span><span class="sr">Show more of the panel</span>
+    </button>
+
+    <div id="home">
+      <header class="intro">
+        <p class="brand"><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5C6.5 5 2.6 9.2 1.5 12c1.1 2.8 5 7 10.5 7s9.4-4.2 10.5-7C21.4 9.2 17.5 5 12 5Z" fill="#fff"/><circle cx="12" cy="12" r="3.6" fill="#0A6CDF"/></svg></span>4sight</p>
+        <h1 id="home-title" tabindex="-1">Where Toronto drivers pass cyclists too close</h1>
+      </header>
+
+      <section class="story" aria-live="polite">
+        <p class="big"><span class="num" id="big-num">–</span> <span class="unit" id="big-unit"></span></p>
+        <p class="lede" id="big-text">Loading…</p>
+        <p class="source"><span class="pill" id="pill">Example data</span> <span id="source-text"></span></p>
+        <ul class="legend" id="legend" aria-label="Map key"></ul>
+      </section>
+
+      <div class="chips" role="group" aria-label="What the map shows">
+        <button type="button" class="chip" data-story="passes" aria-pressed="true">Close passes</button>
+        <button type="button" class="chip" data-story="injuries" aria-pressed="false">Injuries</button>
+        <button type="button" class="chip" data-story="lanes" aria-pressed="false">Bike lanes</button>
+      </div>
+
+      <section class="find" aria-labelledby="find-h">
+        <h2 id="find-h">Streets and wards</h2>
+        <label class="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+          <span class="sr">Find your street or ward</span>
+          <input id="q" type="search" placeholder="Find your street or ward" autocomplete="off" aria-controls="results">
+        </label>
+        <div id="results" class="results"></div>
+      </section>
+
+      <p class="links">
+        <button type="button" class="link" data-dialog="data-dialog">Get the data</button>
+        <span aria-hidden="true">·</span>
+        <button type="button" class="link" data-dialog="how-dialog">How this works / privacy</button>
+      </p>
+    </div>
+
+    <article id="detail" class="detail" hidden aria-labelledby="detail-title">
+      <button type="button" class="back" id="back">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>Back to map
+      </button>
+      <p class="kicker" id="detail-kicker"></p>
+      <h2 id="detail-title" tabindex="-1"></h2>
+      <div id="detail-body"></div>
+      <p class="share">
+        <button type="button" class="copy" id="copy">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>Copy link
+        </button>
+        <span id="copy-status" role="status"></span>
+      </p>
+    </article>
+  </main>
+</div>
+
+<footer class="foot" aria-labelledby="foot-h">
+  <p><strong id="foot-h">Get the data.</strong> Free to use, updated live: new rides appear within a minute.</p>
+  <ul>
+    <li><a href="https://4sight-server.vercel.app/v1/streets.csv">Every street (spreadsheet)</a></li>
+    <li><a href="https://4sight-server.vercel.app/v1/wards.csv">Every ward, with the City's figures (spreadsheet)</a></li>
+    <li><a href="https://4sight-server.vercel.app/v1/city-risk.geojson">Map data for developers (GeoJSON)</a></li>
+  </ul>
+</footer>
+</div>
+
+<dialog id="how-dialog" aria-labelledby="how-h">
+  <form method="dialog"><button class="close" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></form>
+  <h2 id="how-h">How this works</h2>
+  <p><strong>A close pass</strong> is when a vehicle overtook a rider too close. A rear-facing camera on the bike detects it and logs where and when.</p>
+  <p>We add up close passes on each street and divide by how far riders went there, so a busy street isn't red just because more people ride it. The result is <strong>close passes per 100 km ridden</strong>.</p>
+  <p><strong>Example data.</strong> The close passes on this map today are computer-generated. They show how the map will work. They are not real rides yet. Real rides will be labelled "Real rides", and our own trial rides "Test ride".</p>
+  <p><strong>Injuries and bike lanes</strong> come from the City of Toronto (Vision Zero and the cycling network). Injury counts are not per rider: far more people ride downtown, so more injuries there partly reflects more riding. Nothing here shows that a lane causes or prevents injuries.</p>
+  <p>Decisions about bike lanes are being made without near-miss data. 4sight is a way to collect it.</p>
+  <h3>Privacy</h3>
+  <ul>
+    <li>No accounts. Riders are not identified.</li>
+    <li>No video is uploaded.</li>
+    <li>The start and end of every ride are trimmed off, so homes and workplaces don't show.</li>
+    <li>Ride routes are not published, only totals per street.</li>
+  </ul>
+</dialog>
+
+<dialog id="data-dialog" aria-labelledby="data-h">
+  <form method="dialog"><button class="close" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></form>
+  <h2 id="data-h">Get the data</h2>
+  <p>Free to use, updated live: new rides appear within a minute. The close passes are example data today.</p>
+  <ul class="downloads">
+    <li><a href="https://4sight-server.vercel.app/v1/streets.csv">Every street (spreadsheet)</a><span>close passes and km ridden per street</span></li>
+    <li><a href="https://4sight-server.vercel.app/v1/wards.csv">Every ward, with the City's figures (spreadsheet)</a><span>close passes, injuries and bike lane km per ward</span></li>
+    <li><a href="https://4sight-server.vercel.app/v1/city-risk.geojson">Map data for developers (GeoJSON)</a><span>street segments and close passes</span></li>
+  </ul>
+  <p class="api">API: <code>GET https://4sight-server.vercel.app/v1/city-risk.geojson</code></p>
+  <p class="fine">City data: Open Government Licence – Toronto; street geometry © OpenStreetMap (ODbL); 4sight data: licence to be confirmed.</p>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="a.js"></script>
+</body>
+</html>

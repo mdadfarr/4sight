@@ -43,6 +43,8 @@ nonisolated struct RearInputs: Sendable {
     var grips = "searching"
     var battery: Double?
     var exclusionZones: [DetectionFilter.Zone] = []
+    /// Bumped by "Forget wheel position": the worker drops the learned bike parts and relearns.
+    var forgetWheel = 0
 }
 
 /// Everything off the main actor: capture → detect → track → TTC/gap → ThreatEngine → links.
@@ -76,6 +78,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
     private var egoMask = EgoMask()
     static let egoKey = "egoZones"
     private var savedEgoZones = -1
+    private var forgotWheel = 0
     private let tracker = Tracker()
     private let ttc = TTCEstimator()
     private let rangeFilter = RangeFilter()
@@ -178,6 +181,11 @@ nonisolated final class RearWorker: @unchecked Sendable {
             egoMask = EgoMask(zones: saved.count == 2 && saved[0] == "\(Int(w))x\(Int(h))"
                 ? saved[1].split(separator: ";").compactMap { DetectionFilter.Zone(String($0)) } : [])
             savedEgoZones = egoMask.zones.count
+        }
+        if input.forgetWheel != forgotWheel {
+            forgotWheel = input.forgetWheel
+            egoMask = EgoMask(); savedEgoZones = 0
+            UserDefaults.standard.removeObject(forKey: Self.egoKey)
         }
         let geo = gapEstimator!
 

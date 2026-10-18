@@ -9,7 +9,8 @@ osm:  named arterials from tools/cache/toronto_streets.json (OpenStreetMap, the 
       street's ways are chained end to end and cut into ~400 m segments, long enough that a
       segment collects the 2 km of riding the public map asks for. bike lane -> painted, else none.
       (4sight/Front/Streets.json is not used: its roads carry no street names.)
-city: data/city/segments.geojson, the City of Toronto file (docs/DATA_PIPELINE.md).
+city: data/city/segments.geojson, the City of Toronto file (docs/DATA_PIPELINE.md, built by
+      tools/city_segments.py), plus the wards and cyclist KSI tables from web/data/city/.
 
 Either way the old segments are replaced, so loading the City file switches the map over.
 Data © OpenStreetMap contributors, ODbL; City of Toronto Open Data.
@@ -19,8 +20,6 @@ import json
 import math
 import os
 from pathlib import Path
-
-import psycopg
 
 ROOT = Path(__file__).resolve().parent.parent
 PIECE_M = 400
@@ -96,10 +95,37 @@ def city_segments():
     return segs
 
 
+def load_city_context(conn):
+    """Wards (with their per-ward totals) and cyclist KSI points from web/data/city/."""
+    city = ROOT / "web/data/city"
+    wards = json.loads((city / "wards.geojson").read_text())["features"]
+    ksi = json.loads((city / "cyclist_ksi_2022_2026.geojson").read_text())["features"]
+    num = lambda v, t: None if v in (None, "") else t(v)  # noqa: E731
+    conn.execute("DELETE FROM wards")
+    conn.execute("DELETE FROM city_ksi")
+    with conn.cursor() as cur:
+        cur.executemany(
+            "INSERT INTO wards (ward, ward_name, cyclist_ksi, fatal, seriously_injured, protected_km, painted_km, "
+            "shared_km, trail_km, planned_km, geom) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
+            "ST_GeomFromGeoJSON(%s)::geography)",
+            [(int(p["ward"]), p["ward_name"], num(p["cyclist_ksi"], int), num(p["fatal"], int),
+              num(p["seriously_injured"], int), num(p["protected_km"], float), num(p["painted_km"], float),
+              num(p["shared_km"], float), num(p["trail_km"], float), num(p["planned_km"], float),
+              json.dumps(f["geometry"])) for f in wards for p in [f["properties"]]])
+        cur.executemany(
+            "INSERT INTO city_ksi (id, date, time, outcome, location, ward, geom) "
+            "VALUES (%s, %s, %s, %s, %s, %s, ST_GeomFromGeoJSON(%s)::geography)",
+            [(i, p["date"], p.get("time"), p["outcome"], p.get("location"), num(p.get("ward"), int),
+              json.dumps(f["geometry"])) for i, f in enumerate(ksi) for p in [f["properties"]]])
+
+
 def main():
+    import psycopg  # here, so tools/city_segments.py can reuse osm_segments without it
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", choices=["osm", "city"], required=True)
-    segs = osm_segments() if ap.parse_args().source == "osm" else city_segments()
+    source = ap.parse_args().source
+    segs = osm_segments() if source == "osm" else city_segments()
     segs = [s for s in segs if len(s["coords"]) >= 2]
     with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
         with conn.transaction():
@@ -112,6 +138,8 @@ def main():
                       "SRID=4326;LINESTRING(" + ",".join(f"{x} {y}" for x, y in s["coords"]) + ")") for s in segs])
             for table in ("ride_points", "near_misses"):
                 conn.execute(f"UPDATE {table} SET segment_id = match_segment(geom)")
+            if source == "city":
+                load_city_context(conn)
         for view in ("segment_km_hourly", "segment_passes_hourly"):
             conn.execute(f"CALL refresh_continuous_aggregate('{view}', NULL, NULL)")
         matched = conn.execute("SELECT count(segment_id), count(*) FROM ride_points").fetchone()

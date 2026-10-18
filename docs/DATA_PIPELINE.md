@@ -8,8 +8,9 @@ change it only together.
 1. During a ride the **front phone** logs near misses (from the rear phone's frames) and its own
    GPS. The rider does nothing.
 2. When the ride ends (Exit or arrival), if the rider left "Add my near misses to Toronto's
-   public safety map" on (asked once, at setup), the app trims the first and last 200 m and
-   POSTs the ride. No signal: it queues and retries.
+   public safety map" on (asked once, at setup), the app trims the first and last 50 m and
+   POSTs the ride. No signal: it queues and retries. A ride over 20 000 points (5.5 h at 1 Hz)
+   goes as several consecutive POSTs, so nothing is cut.
 3. The **server** (the only thing holding the database URL) validates, rate-limits and inserts
    into **Tiger Data** (TimescaleDB + PostGIS).
 4. Tiger Data's **real-time continuous aggregates** keep close passes per 100 km by street

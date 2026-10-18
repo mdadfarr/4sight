@@ -30,6 +30,9 @@ import os
     @Published var logging = false { didSet { syncInputs() } }
     /// Frame-fraction rectangles hiding the bike's own parts; `-exclude x1,y1,x2,y2[;...]` at launch.
     @Published var exclusionZones: [DetectionFilter.Zone] = [] { didSet { syncInputs() } }
+    /// Counts presses of "Forget wheel position"; the worker acts on each change.
+    private var forgetWheel = 0
+    func forgetWheelPosition() { forgetWheel += 1; syncInputs() }
     @Published private(set) var replayURL: URL?
 
     let haptics = HapticsLink()
@@ -54,7 +57,8 @@ import os
         if let path = UserDefaults.standard.string(forKey: "replay") { replayURL = URL(fileURLWithPath: path) }
         // -peer <name>: pair with that front only. Set here rather than passed down,
         // because the browser is built inside RearWorker. Must precede start().
-        PeerLink.preferredFront = UserDefaults.standard.string(forKey: "peer")
+        // Also set from Diagnostics ("Pair only with front named"); empty means any front.
+        PeerLink.preferredFront = UserDefaults.standard.string(forKey: "peer").flatMap { $0.isEmpty ? nil : $0 }
         if let text = UserDefaults.standard.string(forKey: "exclude") {
             exclusionZones = text.split(separator: ";").compactMap { DetectionFilter.Zone(String($0)) }
         }
@@ -168,12 +172,14 @@ import os
     /// Copies the main-actor sensor/toggle values into the worker (yaw arrives separately).
     private func syncInputs() {
         let (demo, log, temp, spd, hdg, zones) = (demoMode, logging, thermal, speed, heading, exclusionZones)
+        let forget = forgetWheel
         let grips = haptics.state == .connected ? "connected" : "searching"
         let level = UIDevice.current.batteryLevel
         let battery: Double? = level >= 0 ? Double(level) : nil
         worker?.inputs.withLock {
             $0.demo = demo; $0.logging = log; $0.thermal = temp; $0.speed = spd; $0.heading = hdg
             $0.exclusionZones = zones; $0.grips = grips; $0.battery = battery
+            $0.forgetWheel = forget
         }
     }
 

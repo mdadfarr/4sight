@@ -8,7 +8,7 @@ import SwiftUI
 /// The 4sight server (docs/DATA_PIPELINE.md). Empty: rides are kept in the outbox but
 /// nothing is sent, and the close-pass map shows only the rider's own events.
 enum CityAPI {
-    static let base = ""
+    static let base = "https://4sight-server.vercel.app"
 }
 
 /// Sends finished rides to the city map. One JSON file per ride in Documents/outbox/,
@@ -34,19 +34,24 @@ final class CityUploader: ObservableObject {
     /// Sends run one after another, so a launch flush and a ride end never post a file twice.
     private var sending: Task<Set<String>, Never>?
 
-    func submit(_ ride: RideUpload) {
-        let name = "ride-\(Int(ride.started.timeIntervalSince1970)).json"
+    /// One ride, as one upload or (over 5.5 h) several consecutive ones.
+    func submit(_ parts: [RideUpload]) {
+        var names: [String] = []
         do {
             try FileManager.default.createDirectory(at: Self.outbox, withIntermediateDirectories: true)
-            try ride.json().write(to: Self.outbox.appendingPathComponent(name), options: .atomic)
+            for part in parts {
+                let name = "ride-\(Int(part.started.timeIntervalSince1970)).json"
+                try part.json().write(to: Self.outbox.appendingPathComponent(name), options: .atomic)
+                names.append(name)
+            }
         } catch {
             return Self.log.error("outbox write failed: \(error.localizedDescription)")
         }
-        let n = ride.events.count
+        let n = parts.reduce(0) { $0 + $1.events.count }
         Task {
             let sent = await flush().value
             guard n > 0 else { return }
-            show(sent.contains(name)
+            show(Set(names).isSubset(of: sent)
                  ? "\(n) near miss\(n == 1 ? "" : "es") added to Toronto\u{2019}s safety map"
                  : "Ride saved, will upload when online")
         }
@@ -163,4 +168,36 @@ struct UploadNote: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
+}
+
+/// The City of Toronto's own layers, bundled (CityLayers.json from tools/city_app_layers.py):
+/// protected and painted bike lanes, and every cyclist killed or seriously injured 2022 to
+/// Oct 2026 (Vision Zero). Real City data, drawn under the near misses for context.
+struct CityContext {
+    struct Lane: Identifiable { let id: Int; let protected: Bool; let points: [CLLocationCoordinate2D] }
+    struct KSI: Identifiable { let id: Int; let coordinate: CLLocationCoordinate2D; let killed: Bool }
+    let lanes: [Lane]
+    let ksi: [KSI]
+
+    private struct File: Decodable {
+        struct L: Decodable { let t: String; let p: [Double] }
+        struct K: Decodable { let lat: Double; let lon: Double; let killed: Bool }
+        let lanes: [L]
+        let ksi: [K]
+    }
+
+    static let bundled: CityContext? = {
+        guard let url = Bundle.main.url(forResource: "CityLayers", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let f = try? JSONDecoder().decode(File.self, from: data) else { return nil }
+        return CityContext(
+            lanes: f.lanes.enumerated().map { i, l in
+                Lane(id: i, protected: l.t == "protected", points: stride(from: 0, to: l.p.count - 1, by: 2).map {
+                    CLLocationCoordinate2D(latitude: l.p[$0], longitude: l.p[$0 + 1])
+                })
+            },
+            ksi: f.ksi.enumerated().map { i, k in
+                KSI(id: i, coordinate: CLLocationCoordinate2D(latitude: k.lat, longitude: k.lon), killed: k.killed)
+            })
+    }()
 }

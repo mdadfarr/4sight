@@ -48,8 +48,9 @@ static uint8_t  step     = 0;
 static uint32_t stepStart = 0;
 
 static volatile bool connected = false;
-static uint32_t lastMsgMs = 0;
-static bool offlinePlayed = false;
+// Written by the BLE callbacks (other core), read by loop(): volatile so neither caches them.
+static volatile uint32_t lastMsgMs = 0;
+static volatile bool offlinePlayed = true;   // disarmed until the first command arrives
 
 // BLE write lands here; loop() handles it so all state lives on one task.
 static char     bleCmd[5] = {0};
@@ -127,11 +128,14 @@ static void handleCmd(const char* cmd, uint32_t now) {
 
 class ServerCB : public NimBLEServerCallbacks {
   void onConnect(NimBLEServer*, NimBLEConnInfo&) override {
-    connected = true; lastMsgMs = millis(); offlinePlayed = false;
+    // Armed by the first command, not the connection: the phone needs ~1 s after
+    // connecting to find the characteristic. Disarm before `connected` goes true, since
+    // loop() on the other core can run between these lines.
+    offlinePlayed = true; lastMsgMs = millis(); connected = true;
     Serial.println("ble: connected");
   }
   void onDisconnect(NimBLEServer*, NimBLEConnInfo&, int) override {
-    connected = false;
+    connected = false; offlinePlayed = true;   // a clean disconnect is not a lost link
     Serial.println("ble: disconnected, advertising");
     NimBLEDevice::startAdvertising();
   }

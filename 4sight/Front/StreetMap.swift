@@ -59,6 +59,37 @@ struct StreetMap {
          (c.latitude - origin.latitude) * 111_320)
     }
 
+    /// Where the rider stands relative to the street network: metres to the nearest road or
+    /// path, and whether they are inside a mapped building. Nil when no street is mapped
+    /// within 200 m (outside the bundled area), where the map cannot tell.
+    func networkGap(_ c: CLLocationCoordinate2D) -> (metres: Double, indoors: Bool)? {
+        let p = local(c)
+        let around = near(p, radius: 200)
+        let ways = around.filter { $0.kind == .road || $0.kind == .path || $0.kind == .crossing }
+        guard !ways.isEmpty else { return nil }
+        var best = Double.infinity
+        for w in ways {
+            for i in 1..<w.pts.count {
+                let a = w.pts[i - 1], b = w.pts[i], de = b.e - a.e, dn = b.n - a.n, l2 = de * de + dn * dn
+                let t = l2 > 0 ? min(max(((p.e - a.e) * de + (p.n - a.n) * dn) / l2, 0), 1) : 0
+                best = min(best, hypot(a.e + de * t - p.e, a.n + dn * t - p.n) - (w.width / 2))
+            }
+        }
+        let indoors = around.contains { $0.kind == .building && Self.inside(p, $0.pts) }
+        return (max(best, 0), indoors)
+    }
+
+    /// Even-odd point-in-polygon on map metres.
+    static func inside(_ p: (e: Double, n: Double), _ ring: [(e: Double, n: Double)]) -> Bool {
+        var hit = false, j = ring.count - 1
+        for i in ring.indices {
+            let a = ring[i], b = ring[j]
+            if (a.n > p.n) != (b.n > p.n), p.e < (b.e - a.e) * (p.n - a.n) / (b.n - a.n) + a.e { hit.toggle() }
+            j = i
+        }
+        return hit
+    }
+
     /// Map metres back to a coordinate; inverse of `local`.
     func coordinate(_ p: (e: Double, n: Double)) -> CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: origin.latitude + p.n / 111_320,

@@ -8,11 +8,14 @@ Two endpoints over Tiger Cloud (TimescaleDB + PostGIS), built to `docs/DATA_PIPE
 - `GET /v1/city-risk.geojson`: street segments with close passes per 100 km (segments
   with at least 2 km ridden) and the newest 500 passes. Open CORS, cached 60 s.
   `?demo=1` includes demo rides.
+- `GET /v1/streets.csv`, `GET /v1/wards.csv`: the same public numbers as spreadsheets (per
+  street segment; per ward with the City's figures beside 4sight's). Demo rides left out;
+  example (synthetic) data is a column, never hidden.
 
 The server is the only thing holding `DATABASE_URL`. The app, the website and this repo
 never see it. Never commit it or paste it anywhere public.
 
-Files: `api/rides.py`, `api/city_risk.py` (Vercel Python functions), `api/_store.py`
+Files: `api/rides.py`, `api/city_risk.py`, `api/export.py` (Vercel Python functions), `api/_store.py`
 (validation, insert, GeoJSON; also used by the loaders), `schema.sql`, `demo.sql`,
 `dev.py` (both endpoints on a local port), `test_store.py` (validation checks, no database).
 
