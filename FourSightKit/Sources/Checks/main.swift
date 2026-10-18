@@ -51,10 +51,6 @@ check(run(ThreatEngine(), car(-2.0), frames: 10)?.level == 0, "2.0 m -> level 0"
 check(run(ThreatEngine(), car(-1.3, cls: .bus), frames: 4)?.level == 2, "bus 1.3 m -> threat")
 check(run(ThreatEngine(), TrackState(id: 1, cls: .car, z: 10, gap: -0.5, invTTC: 1), frames: 4)?.level == 3, "aReq 5 -> imminent")
 check(run(ThreatEngine(), TrackState(id: 1, cls: .car, z: 10, gap: -0.5, invTTC: 0), frames: 10)?.level == 0, "parked car silent")
-check(run(ThreatEngine(), TrackState(id: 1, cls: .person, z: 2.5, gap: 0, invTTC: 0.4), frames: 10, speed: 0, demo: true)?.level == 0,
-      "demo: person fidgeting 2.5 m behind (1 m/s) silent")
-check((run(ThreatEngine(), TrackState(id: 1, cls: .person, z: 6, gap: 0, invTTC: 0.6), frames: 10, speed: 0, demo: true)?.level ?? 0) >= 2,
-      "demo: person running at the camera (3.6 m/s) alerts")
 check(run(ThreatEngine(), TrackState(id: 1, cls: .car, z: 5, gap: -1.2, invTTC: 0.1), frames: 10, speed: 1)?.level == 0, "slow vehicle: no caution")
 check(run(ThreatEngine(), TrackState(id: 1, cls: .car, z: 5, gap: -1.2, invTTC: 0.1), frames: 10, speed: 0)?.level == 1, "bike speed unknown (0): slow rule off, caution kept")
 do {

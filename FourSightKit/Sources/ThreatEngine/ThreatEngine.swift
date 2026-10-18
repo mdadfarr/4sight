@@ -44,10 +44,6 @@ public struct ThreatConfig: Sendable {
     public var slowVehicleSpeed = 2.8
     public var rightHookHold = 3.0
     public var closingInvTTC = 0.02
-    /// Demo mode only: a person or bicycle counts as closing above this speed (m/s), so a
-    /// runner alerts but someone fidgeting or strolling a few metres behind does not. Up close
-    /// a small change in a person's box reads as a big invTTC; cars do not change shape.
-    public var demoClosingSpeed = 2.0
     public var rightHookNearZ = 15.0
     public var forgetAfter = 60.0
     /// Gap prediction clamps: a lane change is ~1-1.5 m/s sideways, and past 3 s the
@@ -90,8 +86,7 @@ public final class ThreatEngine {
             var level = 0
             var grip = "-"
             var gapPred = abs(t.gap)
-            let onFoot = t.cls == .person || t.cls == .bicycle
-            let closing = t.invTTC > cfg.closingInvTTC && (!onFoot || t.z * t.invTTC >= cfg.demoClosingSpeed)
+            let closing = t.invTTC > cfg.closingInvTTC
             if closing {
                 let ttc = 1 / t.invTTC
                 let v = min(max(t.gapVelocity, -cfg.maxGapVelocity), cfg.maxGapVelocity)
