@@ -1,0 +1,6 @@
+*.rvf
+*.rvf.lock
+*.db
+.claude-flow
+.swarm
+.env*
