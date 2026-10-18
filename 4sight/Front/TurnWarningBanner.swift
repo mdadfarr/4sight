@@ -2,9 +2,11 @@ import Protocol
 import SwiftUI
 import ThreatEngine
 
-/// The right-hook warning: in the last 60 m before a turn, a vehicle behind on that side
-/// that will reach the rider first takes over the manoeuvre banner in amber. Navigation
-/// knows the turn and the rear camera knows the vehicle; this is where they meet.
+/// Where the route meets traffic from behind (see ThreatEngine/TurnConflict.swift): before a
+/// left turn, a vehicle coming up on the left; at a junction the rider goes straight
+/// through, a car overtaking that may turn right across them (the right hook); before a
+/// right turn, a cyclist squeezing past on the right. It takes over the manoeuvre banner in
+/// amber. Navigation knows what is ahead and the rear camera knows who is coming.
 ///
 /// Held 1.5 s after the vehicle clears, so a track flickering out for a frame cannot make
 /// the banner blink. The merge answer, drawn above it, still wins while it shows.
@@ -16,8 +18,7 @@ struct TurnWarningBanner: View {
 
     /// Not observed: the timeline below redraws often enough to read it.
     private final class Hold {
-        var vehicle: VehicleClass = .car
-        var side: TurnSide = .right
+        var conflict: RouteConflict?
         var until = Date.distantPast
     }
 
@@ -37,42 +38,51 @@ struct TurnWarningBanner: View {
     }
 
     /// Re-evaluates the conflict for this moment and returns what to show, if anything.
-    private func warning(at now: Date) -> (vehicle: VehicleClass, side: TurnSide)? {
-        if model.link == .connected, let nav = model.nav, nav.currentIndex + 1 < nav.steps.count,
-           let frame = model.frame {
-            let symbol = nav.steps[nav.currentIndex + 1].symbol
-            let side: TurnSide? = symbol.contains("right") ? .right : symbol.contains("left") ? .left : nil
-            if let side, let hit = turnConflict(turn: side, metresToTurn: nav.distanceToManoeuvre, tracks: frame.tracks) {
-                hold.vehicle = hit.cls; hold.side = side
-                hold.until = now.addingTimeInterval(Self.holdSeconds)
-            }
+    private func warning(at now: Date) -> RouteConflict? {
+        if model.link == .connected, let frame = model.frame, let ahead = manoeuvre(at: now),
+           let hit = routeConflict(ahead, tracks: frame.tracks) {
+            hold.conflict = hit
+            hold.until = now.addingTimeInterval(Self.holdSeconds)
         }
-        return now < hold.until ? (hold.vehicle, hold.side) : nil
+        return now < hold.until ? hold.conflict : nil
     }
 
-    private func panel(_ w: (vehicle: VehicleClass, side: TurnSide)) -> some View {
-        let right = w.side == .right
-        let name = switch w.vehicle {
+    /// What is ahead: the next turn when it is close, else the next junction straight through.
+    private func manoeuvre(at now: Date) -> RouteManoeuvre? {
+        guard let nav = model.nav else { return nil }
+        let turn = nav.currentIndex + 1 < nav.steps.count ? nav.steps[nav.currentIndex + 1].symbol : ""
+        let toTurn = nav.distanceToManoeuvre
+        if turn.contains("left"), toTurn <= 60 { return .turnLeft(inMetres: toTurn) }
+        if turn.contains("right"), toTurn <= 30 { return .turnRight(inMetres: toTurn) }
+        guard let rider = model.route.riderCoordinate(at: now),
+              let toJunction = model.lanePlan?.metresToJunction(at: rider), toJunction < toTurn - 10 else { return nil }
+        return .straightThroughJunction(inMetres: toJunction)
+    }
+
+    private func panel(_ c: RouteConflict) -> some View {
+        let name = switch c.track.cls {
         case .bicycle: "Cyclist"
         case .motorcycle: "Motorcycle"
         case .bus: "Bus"
         case .truck: "Truck"
         default: "Car"
         }
+        let (icon, title, line): (String, String, String) = switch c {
+        case .letPassBeforeLeft: ("arrow.turn.up.left", "\(name) coming up on your left", "Let it pass before moving over")
+        case .rightHookAtJunction: ("exclamationmark.triangle.fill", "\(name) passing at the junction", "Watch for it turning right")
+        case .passingOnRight: ("arrow.turn.up.right", "\(name) passing on your right", "Let it go before turning")
+        }
         return ZStack(alignment: .topLeading) {
             Rectangle().fill(Palette.amber)
             HStack(spacing: 18) {
-                Image(systemName: "exclamationmark.triangle.fill")
+                Image(systemName: icon)
                     .font(.system(size: 38, weight: .semibold))
                     .frame(width: 48)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(name) on your \(right ? "right" : "left")")
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
-                    Text("Wait before turning \(right ? "right" : "left")")
-                        .font(.system(size: 19, weight: .semibold, design: .rounded))
-                        .opacity(0.85)
+                    Text(title).font(.system(size: 28, weight: .bold, design: .rounded))
+                    Text(line).font(.system(size: 19, weight: .semibold, design: .rounded)).opacity(0.85)
                 }
-                .lineLimit(1).minimumScaleFactor(0.8)
+                .lineLimit(1).minimumScaleFactor(0.75)
             }
             .foregroundStyle(Color(hex: 0x1B1300))
             .padding(.leading, 26).padding(.trailing, 16)

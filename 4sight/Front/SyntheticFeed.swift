@@ -60,9 +60,6 @@ final class SyntheticFeed: TrackFeed {
         // Safe passes, the common case: a car a full lane over and a slow truck in the
         // far lane. Seen, drawn grey, no edge glow and no buzz.
         Cue(id: 9, cls: .car, from: 1, to: 6, x0: -4.6, x1: -4.6, z0: 36, z1: 1, level: 0),
-        // A car coming up on the rider's right, the right-hook setup: on a route with a
-        // right turn ahead this raises the turn warning.
-        Cue(id: 12, cls: .car, from: 2, to: 7, x0: 1.7, x1: 1.4, z0: 32, z1: 3, level: 1),
         Cue(id: 10, cls: .truck, from: 13, to: 21, x0: -4.4, x1: -4.4, z0: 34, z1: 14, level: 0),
         // An oncoming car that has just passed, pulling away in the far lane: drawn facing
         // away, in the oncoming lane, never an alert.

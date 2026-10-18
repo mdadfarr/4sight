@@ -21,6 +21,9 @@ struct LanePlan {
 
     let samples: [Sample]
     let map: StreetMap
+    /// Route distances of junctions, where the route crosses a mapped crosswalk: the right
+    /// hook happens there, so the turn warning watches the last 35 m before each.
+    let junctions: [Double]
 
     static let step = 4.0
     /// Hold the left lane this far before a left turn.
@@ -96,17 +99,33 @@ struct LanePlan {
             out.append(q)
         }
         samples = out
+        junctions = Self.junctions(along: pts, crossings: map.ways.filter {
+            $0.kind == .crossing && $0.hi.e > lo.0 - 30 && $0.lo.e < hi.0 + 30 && $0.hi.n > lo.1 - 30 && $0.lo.n < hi.1 + 30
+        })
     }
 
     // MARK: - Banner
 
     /// What the banner says about the next planned move within `horizon` metres of
     /// `rider`, or nil while the plan is steady. Also nil off the route.
-    func cue(at rider: CLLocationCoordinate2D, horizon: Double = 60) -> (text: String, symbol: String, metres: Double)? {
+    /// The sample the rider is at, or nil off the route.
+    private func index(of rider: CLLocationCoordinate2D) -> Int? {
         let r = map.local(rider)
         guard let i = samples.indices.min(by: {
             hypot(samples[$0].e - r.e, samples[$0].n - r.n) < hypot(samples[$1].e - r.e, samples[$1].n - r.n)
         }), hypot(samples[i].e - r.e, samples[i].n - r.n) < 30 else { return nil }
+        return i
+    }
+
+    /// Metres to the next junction ahead on the route, or nil.
+    func metresToJunction(at rider: CLLocationCoordinate2D) -> Double? {
+        guard let i = index(of: rider) else { return nil }
+        let s = samples[i].s
+        return junctions.first { $0 > s }.map { $0 - s }
+    }
+
+    func cue(at rider: CLLocationCoordinate2D, horizon: Double = 60) -> (text: String, symbol: String, metres: Double)? {
+        guard let i = index(of: rider) else { return nil }
         let here = samples[i]
         guard let next = samples[i...].first(where: { $0.spot != here.spot && $0.s - here.s <= horizon }) else { return nil }
         let toLeft = next.spot == .leftLane
@@ -121,6 +140,20 @@ struct LanePlan {
     }
 
     // MARK: - Geometry
+
+    /// Route distances where a crosswalk passes within 10 m of the route, one per 20 m.
+    private static func junctions(along pts: [(e: Double, n: Double)], crossings: [StreetMap.Way]) -> [Double] {
+        var out: [Double] = []
+        for (i, p) in pts.enumerated() {
+            let s = Double(i) * step
+            if let last = out.last, s - last < 20 { continue }
+            let near = crossings.contains { w in
+                w.pts.contains { hypot($0.e - p.e, $0.n - p.n) < 10 }
+            }
+            if near { out.append(s) }
+        }
+        return out
+    }
 
     private static func resample(_ line: [(e: Double, n: Double)], every d: Double) -> [(e: Double, n: Double)] {
         var out = [line[0]], carry = 0.0
