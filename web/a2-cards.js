@@ -50,7 +50,7 @@ window.makeCards = function (c) {
   // Test rides first: they are never example data or real riding.
   const sourceNote = (p) => p.demo ? `<p class="note"><span class="pill test">Test ride</span> A practice run or stage showing, not real riding.</p>`
     : p.synthetic ? `<p class="note"><span class="pill">Example data</span> Computer-generated to show how the map will work, not a real ride.</p>` : `<p class="note"><span class="pill real">Real ride</span></p>`;
-  const exampleLine = (sh) => sh > 0 ? `<p class="note">Example data: computer-generated near misses that show how the map will work. Not real rides yet.</p>` : "";
+  const exampleLine = (sh) => sh > 0 ? `<p class="note">Example data: computer-generated near misses that show how the map will work. Real rides are labelled Real ride.</p>` : "";
 
   // City lane types per street, matched by name.
   const cityLanes = {};

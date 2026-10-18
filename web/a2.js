@@ -195,7 +195,7 @@
   const ksiCount = ksiFC?.features.length, killedCount = ksiFC?.features.filter(killed).length;
   const protectedKm = wards.length ? Math.round(sum("protected_km")) : null;
   const PASS_TEXT = "A close pass is when a vehicle overtakes a rider too close, detected by a rear-facing camera on the bike.";
-  const EXAMPLE_TEXT = "Computer-generated near misses that show how the map will work. Not real rides yet.";
+  const EXAMPLE_TEXT = "Computer-generated near misses that show how the map will work. The first real rides are in, labelled Real ride.";
   const STAT = {
     passes: null, // set by useRisk
     injuries: [ksiCount ?? "–", "cyclists killed or seriously injured since 2022", cityPill],
@@ -220,7 +220,7 @@
       html = `<p class="big"><span class="num">${num}</span> <span class="unit">${unit}</span></p><p class="lede">${text}</p><p class="source">${pill} <span>${source}</span></p>`;
     } else {
       html = `<ul class="stats">${layers.map((l) => `<li><b>${STAT[l][0]}</b><span>${STAT[l][1]}</span>${STAT[l][2]}</li>`).join("")}</ul>`
-        + (on.has("passes") ? `<p class="lede">${PASS_TEXT}${share > 0 ? " Example data: computer-generated near misses that show how the map will work, not real rides yet." : ""}</p>` : "");
+        + (on.has("passes") ? `<p class="lede">${PASS_TEXT}${share > 0 ? " Most are example data: computer-generated near misses that show how the map will work; the first real rides are in." : ""}</p>` : "");
     }
     const nTest = test ? risk.passes.filter((f) => f.properties.demo).length : 0;
     if (on.has("passes") && test) html += `<p class="lede">Including test rides: ${nTest} close pass${nTest === 1 ? "" : "es"} from test rides, ringed in blue.</p>`;
