@@ -1,3 +1,4 @@
+import Combine
 import Links
 import MapKit
 import Protocol
@@ -32,7 +33,8 @@ struct PassiveHomeView: View {
     @State private var detentBeforeSearch = Detent.half
     @State private var resolving = false
     @FocusState private var fieldFocused: Bool
-    @StateObject private var completer = DestinationPickerView.Completer()
+    @StateObject private var completer = Completer()
+    @State private var savingAs: SavedPlaces.Slot?
     private static let spring = Animation.spring(response: 0.35, dampingFraction: 0.86)
 
     static let peekHeight = 196.0
@@ -161,26 +163,35 @@ struct PassiveHomeView: View {
         .onChange(of: detent) { _, d in if searching && d != .full { endSearch(restore: false) } }
     }
 
-    private func startSearch() {
+    /// `slot` set (a Places circle or +): the pick is saved there instead of starting a route.
+    private func startSearch(for slot: SavedPlaces.Slot? = nil) {
         withAnimation(Self.spring) {
+            savingAs = slot
             detentBeforeSearch = detent
             detent = .full
             searching = true
         }
+        fieldFocused = true
     }
 
     private func endSearch(restore: Bool = true) {
         fieldFocused = false
         withAnimation(Self.spring) {
             searching = false
+            savingAs = nil
             completer.query = ""
             if restore { detent = detentBeforeSearch }
         }
     }
 
     private func go(_ item: MKMapItem) {
-        endSearch(restore: false)
-        onPick(item)
+        if let slot = savingAs {
+            flow.save(item, as: slot)
+            endSearch()
+        } else {
+            endSearch(restore: false)
+            onPick(item)
+        }
     }
 
     private func pick(_ completion: MKLocalSearchCompletion) {
@@ -188,8 +199,23 @@ struct PassiveHomeView: View {
         resolving = true
         Task {
             defer { resolving = false }
-            if let item = await DestinationPickerView.resolve(completion) { go(item) }
+            let search = MKLocalSearch(request: MKLocalSearch.Request(completion: completion))
+            if let item = try? await search.start().mapItems.first { go(item) }
         }
+    }
+
+    final class Completer: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
+        @Published var query = "" { didSet { completer.queryFragment = query } }
+        @Published var results: [MKLocalSearchCompletion] = []
+        private let completer = MKLocalSearchCompleter()
+
+        override init() {
+            super.init()
+            completer.delegate = self
+            completer.resultTypes = [.address, .pointOfInterest]
+        }
+
+        func completerDidUpdateResults(_ c: MKLocalSearchCompleter) { results = c.results }
     }
 
     /// Recents before a letter is typed, then the matches; the keyboard covers the bottom
@@ -257,11 +283,20 @@ struct PassiveHomeView: View {
         return s
     }
 
+    private var prompt: String {
+        switch savingAs {
+        case .home: "Set Home"
+        case .work: "Set Work"
+        case .extra: "Add a place"
+        case nil: "Where to?"
+        }
+    }
+
     private var searchRow: some View {
         HStack(spacing: 10) {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass").font(.system(size: 17, weight: .semibold))
-                TextField("", text: $completer.query, prompt: Text("Where to?").foregroundStyle(Light.dim))
+                TextField("", text: $completer.query, prompt: Text(prompt).foregroundStyle(Light.dim))
                     .focused($fieldFocused)
                     .foregroundStyle(Light.ink)
                     .autocorrectionDisabled()
@@ -326,7 +361,7 @@ struct PassiveHomeView: View {
                 if let last = flow.recents.items.first {
                     chip("clock", last.name) { onPick(last.mapItem) }
                 }
-                Button { flow.pickingFor = .extra; flow.picking = true } label: {
+                Button { startSearch(for: .extra) } label: {
                     Image(systemName: "plus").font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(Light.blue)
                         .frame(width: 44, height: 44)
@@ -417,7 +452,7 @@ struct PassiveHomeView: View {
     private func placeCircle(_ symbol: String, _ title: String, _ place: RecentPlace?,
                              slot: SavedPlaces.Slot, filled: Bool = false, add: Bool = false) -> some View {
         Button {
-            if let place { onPick(place.mapItem) } else { flow.pickingFor = slot; flow.picking = true }
+            if let place { onPick(place.mapItem) } else { startSearch(for: slot) }
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: symbol)

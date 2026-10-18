@@ -38,17 +38,6 @@ struct FrontRootView: View {
             if routing { RoutePreviewSkeleton() }
         }
         .preferredColorScheme(.light)
-        .sheet(isPresented: $flow.picking) {
-            DestinationPickerView { item in
-                flow.picking = false
-                if let slot = flow.pickingFor {
-                    flow.save(item, as: slot)
-                    flow.pickingFor = nil
-                } else {
-                    preview(item)
-                }
-            }
-        }
         .sheet(isPresented: $showingRiskMap) { RiskMapView(demo: args.demoEvents) }
         .overlay(alignment: .top) { UploadNote(uploader: uploader) }
         .onAppear(perform: begin)
