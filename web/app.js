@@ -7,8 +7,32 @@
   const LEVEL = { 2: C("--serious"), 3: C("--critical") };
   const NAMES = { car: "Car", truck: "Truck", bus: "Bus", motorcycle: "Motorcycle", bicycle: "Bicycle", person: "Person", unknown: "Unknown" };
 
-  const [events, rides] = await Promise.all(
+  // Live from the 4sight server (GET /v1/city-risk.geojson) when API is set, else the static
+  // files. ?api=<base> overrides it, ?demo=1 adds demo rides. Falls back to the static files
+  // if the server does not answer.
+  const params = new URLSearchParams(location.search);
+  const API = params.get("api") ?? "";
+  const live = API && await fetch(`${API}/v1/city-risk.geojson${params.get("demo") === "1" ? "?demo=1" : ""}`)
+    .then((r) => r.ok ? r.json() : null).catch(() => null);
+  const [events, rides] = live ? fromServer(live) : await Promise.all(
     ["data/events.geojson", "data/rides.geojson"].map((u) => fetch(u).then((r) => r.json())));
+
+  // The server's segments stand in for rides and its passes for events. shortcut: segments
+  // carry no hour and only a synthetic share (>= half counts as synthetic), and passes are
+  // the newest 500, so hour filters drop the km and rates undercount past 500 passes;
+  // add per-hour, per-source totals to the GET if the site needs exact live numbers.
+  function fromServer(fc) {
+    const lane = (t) => t === "protected" || t === "painted";
+    const seg = fc.features.filter((f) => f.geometry.type === "LineString");
+    const pts = fc.features.filter((f) => f.properties.kind === "pass");
+    return [
+      { type: "FeatureCollection", features: pts.map((f) => ({ ...f, properties: {
+        ...f.properties, bike_lane: lane(f.properties.lane_type), street: f.properties.street || "Other streets" } })) },
+      { type: "FeatureCollection", features: seg.map((f) => ({ ...f, properties: {
+        street: f.properties.street, km: f.properties.km, km_bike: lane(f.properties.lane_type) ? f.properties.km : 0,
+        synthetic: f.properties.synthetic_share >= 0.5, hour: null } })) },
+    ];
+  }
 
   const form = document.getElementById("filters");
   const hours = [...Array(24).keys()];
@@ -89,7 +113,7 @@
       p.street,
       [p.gap_m != null && `${p.gap_m.toFixed(2)} m gap`, p.ttc_s != null && `${p.ttc_s.toFixed(1)} s to contact`].filter(Boolean).join(" · "),
       [p.hour != null && hourLabel(p.hour), p.bike_lane ? "bike lane" : "no bike lane"].filter(Boolean).join(" · "),
-      p.synthetic ? `<span style="color:${C("--synthetic")}">Synthetic</span>` : p.test_ride ? "Real · test ride" : "Real ride",
+      p.synthetic ? `<span style="color:${C("--synthetic")}">Synthetic</span>` : p.demo ? "Demo ride" : p.test_ride ? "Real · test ride" : "Real ride",
     ];
     return rows.filter(Boolean).join("<br>");
   }
