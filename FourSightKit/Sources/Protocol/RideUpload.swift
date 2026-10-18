@@ -108,11 +108,20 @@ public struct RideLog: Sendable {
     /// trimmed ends go too, since their position would give the same places away. A ride over
     /// 20 000 points (5.5 h) goes as several consecutive uploads rather than losing any of it.
     /// started/ended are the kept points' times, so they do not reveal the trimmed ends either.
+    /// A test ride (demo) that never moved 100 m, like a bike standing still on a stage, would
+    /// trim to nothing; it is sent whole instead, since where it happened is the venue, not a
+    /// home. Real rides always keep the trim.
     public func uploads(install: String, app: String, demo: Bool) -> [RideUpload] {
-        let kept = RideUpload.trim(points)
+        let trimmed = RideUpload.trim(points)
+        let whole = trimmed.isEmpty && demo
+        let kept = whole ? points : trimmed
         return stride(from: 0, to: kept.count, by: RideUpload.maxPoints).map { start in
             let chunk = Array(kept[start..<min(start + RideUpload.maxPoints, kept.count)])
-            let from = chunk[0][0], to = start + chunk.count < kept.count ? kept[start + chunk.count][0] : chunk.last![0] + 0.01
+            let last = start + chunk.count >= kept.count
+            // A sent-whole ride keeps every near miss, even one seen before the first fix
+            // or after the last (indoors the phone may get one fix a minute).
+            let from = whole && start == 0 ? -Double.infinity : chunk[0][0]
+            let to = !last ? kept[start + chunk.count][0] : whole ? Double.infinity : chunk.last![0] + 0.01
             // One event per track id: the first moment it reached its worst level.
             var worst: [Int: RideUpload.Event] = [:]
             for (id, e) in sightings where e.t >= from && e.t < to && (worst[id]?.level ?? 0) < e.level {
