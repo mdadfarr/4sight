@@ -115,12 +115,18 @@ struct RolePickerView: View {
             // Not until the splash is done: the map is slow to start, and the first frame
             // has to be light enough for the logo to show before it.
             if !splash {
-                Map(initialPosition: .userLocation(fallback: .region(MKCoordinateRegion(
-                    center: .init(latitude: 43.7845, longitude: -79.1873),
-                    span: MKCoordinateSpan(latitudeDelta: 0.03, longitudeDelta: 0.03)))), interactionModes: []) {}
-                    .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
+                GeometryReader { geo in
+                    Map(initialPosition: .userLocation(fallback: .region(MKCoordinateRegion(
+                        center: .init(latitude: 43.7845, longitude: -79.1873),
+                        span: MKCoordinateSpan(latitudeDelta: 0.03, longitudeDelta: 0.03)))), interactionModes: []) {}
+                        .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
+                        // Twice the screen tall and centred on the logo's resting place, so the
+                        // rider's own spot sits under the logo, not in the middle of the screen.
+                        .frame(height: geo.size.height * 2)
+                        .position(x: geo.size.width / 2, y: logoMidY)
+                }
+                .allowsHitTesting(false)
+                .transition(.opacity)
             }
             Light.sheet.opacity(splash ? 1 : 0)
             LinearGradient(stops: [.init(color: Light.sheet.opacity(0.35), location: 0),
