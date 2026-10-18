@@ -15,6 +15,7 @@ let package = Package(
         // XCTest is absent from Command Line Tools; `swift run Checks` covers the same cases.
         .executableTarget(name: "Checks", dependencies: ["Protocol", "ThreatEngine", "Perception"]),
         .executableTarget(name: "ReplayBoxes", dependencies: ["Protocol", "Perception"]),
+        .executableTarget(name: "ReplayAlerts", dependencies: ["Protocol", "Perception", "ThreatEngine"]),
         .testTarget(name: "ProtocolTests", dependencies: ["Protocol"]),
         .testTarget(name: "ThreatEngineTests", dependencies: ["ThreatEngine", "Protocol"]),
         .testTarget(name: "PerceptionTests", dependencies: ["Perception", "Protocol"]),

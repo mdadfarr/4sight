@@ -306,6 +306,21 @@ struct RearView: View {
         .foregroundStyle(Theme.text)
     }
 
+    private func diagnosticButton(_ title: String, icon: String, detail: String,
+                                  action: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button(action: action) {
+                Label(title, systemImage: icon)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered).controlSize(.large).tint(Theme.amber)
+            Text(detail).font(.system(size: 12, design: .rounded)).foregroundStyle(Theme.textDim)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.top, 4)
+    }
+
     private func option(_ title: String, _ detail: String, isOn: Binding<Bool>) -> some View {
         Toggle(isOn: isOn) {
             VStack(alignment: .leading, spacing: 3) {
@@ -341,13 +356,19 @@ struct RearView: View {
                     Text(String(format: "%.1f ms", pipeline.benchMs))
                         .font(.system(size: 44, weight: .bold, design: .rounded).monospacedDigit())
                 }
-                HStack {
-                    Button("Replay file…") { showPicker = true }
-                    if pipeline.replayURL != nil { Button("Back to camera") { pipeline.setReplay(nil) } }
+                // Real buttons with a line each saying what they do: a bare tappable line in a
+                // list of toggles does not read as something to press.
+                diagnosticButton(pipeline.replayURL == nil ? "Replay a recorded clip" : "Back to camera",
+                                 icon: pipeline.replayURL == nil ? "film" : "camera",
+                                 detail: "Runs a saved video through detection instead of the live camera.") {
+                    if pipeline.replayURL == nil { showPicker = true } else { pipeline.setReplay(nil) }
                 }
                 // The wheel spot is remembered across launches; after moving the mount, or a
                 // desk test that taught it a chair or someone's feet, start it over.
-                Button("Forget wheel position") { pipeline.forgetWheelPosition() }
+                diagnosticButton("Forget wheel position", icon: "arrow.counterclockwise",
+                                 detail: "After moving the mount. Relearns the bike's wheel in a few seconds; keep the view behind the bike empty.") {
+                    pipeline.forgetWheelPosition()
+                }
             }
             .padding(.top, 10)
         } label: {
