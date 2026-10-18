@@ -46,7 +46,8 @@
   // Created once layout has settled, so the first fit uses the map's real height.
   await document.fonts.ready;
   await new Promise(requestAnimationFrame);
-  const map = L.map("map", { preferCanvas: true, zoomControl: true });
+  // One canvas for every vector layer (City layers included); tolerance makes thin lines hoverable.
+  const map = L.map("map", { renderer: L.canvas({ tolerance: 4 }), zoomControl: true });
   if (events.features.length) map.fitBounds(L.geoJSON(events).getBounds(), { padding: [30, 30] });
   else map.setView([43.705, -79.33], 12);
   const esri = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/";
@@ -54,6 +55,7 @@
     maxZoom: 16, attribution: "Basemap © Esri · Streets © OpenStreetMap contributors",
   }).addTo(map);
   const labels = L.tileLayer(esri + "World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}", { maxZoom: 16, pane: "overlayPane" });
+  const city = window.cityLayers?.(map);
   let rideLayer, pointLayer, heatLayer;
 
   function state() {
@@ -77,6 +79,7 @@
     const rd = rides.features.filter((f) => sourceOK(f.properties, s) && inHours(f.properties.hour, s));
     drawMap(ev, rd, s);
     drawStats(ev, rd, s);
+    city?.update(ev);
   }
 
   function drawMap(ev, rd, s) {
