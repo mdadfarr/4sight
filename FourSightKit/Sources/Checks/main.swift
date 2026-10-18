@@ -262,6 +262,7 @@ runDangerChecks()
 
 // Merge-check button, see MergeChecks.swift
 runMergeChecks(check)
+runTurnChecks(check)
 
 // ThreatEngine + DangerEngine fused, see FusionChecks.swift
 runFusionChecks(check)

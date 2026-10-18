@@ -57,6 +57,7 @@ struct FrontRootView: View {
             SurroundView(model: model)
             NavHUDView(model: model, onExit: exitRide)
             AlertOverlay(model: model)
+            TurnWarningBanner(model: model)
             MergeBannerView(model: model)
         }
         .ignoresSafeArea()

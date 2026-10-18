@@ -3,14 +3,14 @@ import Foundation
 
 /// Where on the street to ride along the route, like Google Maps lane guidance: the
 /// bike lane where OSM has one, else the right-hand lane; the left lane of your own
-/// direction before a left turn on a multi-lane road; the sidewalk along a big road
-/// with no bike lane, where one is mapped. Planned from the map and the route, not
-/// measured: phone GPS (3–5 m) cannot tell lanes apart.
+/// direction before a left turn on a multi-lane road. Never the sidewalk: adult cyclists
+/// may not ride on Toronto sidewalks. Planned from the map and the route, not measured:
+/// phone GPS (3–5 m) cannot tell lanes apart.
 ///
 /// The route line is moved onto that spot, and each move is a `changing` stretch the
 /// renderer draws white with arrows and the banner announces.
 struct LanePlan {
-    enum Spot: Equatable { case road, bikeLane, rightLane, leftLane, sidewalk }
+    enum Spot: Equatable { case road, bikeLane, rightLane, leftLane }
 
     struct Sample {
         let e, n: Double       // map metres, already moved onto the spot
@@ -45,7 +45,7 @@ struct LanePlan {
             ($0.kind == .road || $0.kind == .path)
                 && $0.hi.e > lo.0 - 30 && $0.lo.e < hi.0 + 30 && $0.hi.n > lo.1 - 30 && $0.lo.n < hi.1 + 30
         }
-        let roads = ways.filter { $0.kind == .road }, paths = ways.filter { $0.kind == .path }
+        let roads = ways.filter { $0.kind == .road }
 
         // Target spot and lateral offset (metres right of the road centre, along travel).
         var target: [(spot: Spot, lat: Double, centre: (e: Double, n: Double)?)] = []
@@ -59,14 +59,10 @@ struct LanePlan {
             let lanesHere = max(twoWay ? max(w.lanes, 2) / 2 : max(w.lanes, 1), 1)
             let laneW = (twoWay ? h : w.width) / Double(lanesHere)
             let leftTurnSoon = turns.contains { $0 > s && $0 - s < Self.leftTurnLead }
-            let big = (twoWay && w.lanes >= 4) || (!twoWay && w.lanes >= 3) || w.width >= 12
-            let walk = big && !w.bike ? Self.sidewalk(m.centre, d, in: paths, beyond: h) : nil
             if leftTurnSoon && lanesHere >= 2 {
                 target.append((.leftLane, (twoWay ? 0 : -h) + laneW / 2, m.centre))
             } else if w.bike {
                 target.append((.bikeLane, h - 0.8, m.centre))
-            } else if let walk {
-                target.append((.sidewalk, walk, m.centre))
             } else {
                 target.append((.rightLane, h - min(laneW, 3.3) / 2, m.centre))
             }
@@ -113,13 +109,12 @@ struct LanePlan {
         }), hypot(samples[i].e - r.e, samples[i].n - r.n) < 30 else { return nil }
         let here = samples[i]
         guard let next = samples[i...].first(where: { $0.spot != here.spot && $0.s - here.s <= horizon }) else { return nil }
-        let toLeft = next.spot == .leftLane || here.spot == .sidewalk
+        let toLeft = next.spot == .leftLane
         let text: String
         switch next.spot {
         case .bikeLane: text = "Move into the bike lane"
         case .leftLane: text = "Move to the left lane to turn left"
-        case .rightLane: text = here.spot == .sidewalk ? "Back onto the road" : "Keep to the right lane"
-        case .sidewalk: text = "Use the sidewalk"
+        case .rightLane: text = "Keep to the right lane"
         case .road: return nil
         }
         return (text, toLeft ? "arrow.up.left" : "arrow.up.right", next.s - here.s)
@@ -176,16 +171,5 @@ struct LanePlan {
             }
         }
         return best.map { ($0.0, $0.1) }
-    }
-
-    /// Lateral offset (right of `c` along `d`) of a parallel sidewalk on the right
-    /// between the kerb and 12 m beyond it, or nil.
-    private static func sidewalk(_ c: (e: Double, n: Double), _ d: (Double, Double),
-                                 in paths: [StreetMap.Way], beyond h: Double) -> Double? {
-        let right = (d.1, -d.0)
-        let probe = (e: c.e + right.0 * (h + 4), n: c.n + right.1 * (h + 4))
-        guard let m = nearest(probe, d, in: paths, within: 8) else { return nil }
-        let lat = (m.centre.e - c.e) * right.0 + (m.centre.n - c.n) * right.1
-        return lat > h && lat < h + 12 ? lat : nil
     }
 }
