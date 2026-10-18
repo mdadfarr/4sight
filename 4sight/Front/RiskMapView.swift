@@ -12,6 +12,8 @@ struct RiskMapView: View {
     @State private var camera: MapCameraPosition = .region(Self.region(for: []))
     @State private var city: CityLayer?
     @State private var showCity = true
+    /// Practice and stage-demo rides, left off the public layer unless asked for.
+    @AppStorage("showTestRides") private var showTestRides = false
     let demo: Bool
 
     var body: some View {
@@ -27,7 +29,10 @@ struct RiskMapView: View {
             }
             ForEach(city?.passes ?? []) { pass in
                 Annotation(coordinate: pass.coordinate) {
-                    Circle().fill(pass.level >= 3 ? Light.red : Light.amber).opacity(0.7).frame(width: 6, height: 6)
+                    // A test ride's pass is larger and ringed blue, so it is never read as real riding.
+                    Circle().fill(pass.level >= 3 ? Light.red : Light.amber).opacity(pass.demo ? 1 : 0.7)
+                        .frame(width: pass.demo ? 11 : 6, height: pass.demo ? 11 : 6)
+                        .overlay(Circle().stroke(Light.blue, lineWidth: pass.demo ? 2 : 0))
                 } label: { EmptyView() }
             }
             if showCity, let ctx = CityContext.bundled {
@@ -63,7 +68,7 @@ struct RiskMapView: View {
             store.load(demo: demo)
             camera = .region(Self.region(for: store.events))
         }
-        .task { city = await CityLayer.load() }
+        .task(id: showTestRides) { city = await CityLayer.load(testRides: showTestRides) }
     }
 
     // MARK: - Pieces
@@ -101,6 +106,15 @@ struct RiskMapView: View {
             if CityContext.bundled != nil {
                 Toggle(isOn: $showCity) {
                     Text("City of Toronto: protected (green) and painted (blue) lanes; black dots, cyclists killed or seriously injured 2022\u{2013}26")
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(Light.dim)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .tint(Light.blue)
+            }
+            if !CityAPI.base.isEmpty {
+                Toggle(isOn: $showTestRides) {
+                    Text("Include test rides (practice and stage demos, ringed in blue)")
                         .font(.system(size: 12, design: .rounded))
                         .foregroundStyle(Light.dim)
                         .fixedSize(horizontal: false, vertical: true)

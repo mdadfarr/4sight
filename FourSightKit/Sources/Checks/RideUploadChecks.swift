@@ -51,6 +51,17 @@ func runRideUploadChecks(_ check: (Bool, String) -> Void) {
     empty.add(track: 1, event(1, level: 3))
     check(empty.uploads(install: "x", app: "a", demo: false).isEmpty, "ride with an event but no GPS: no upload")
 
+    // A bike standing still on a stage: a teammate walks past, the rider taps Exit.
+    var stage = RideLog()
+    for i in 0..<40 { stage.add(t: t0 + Double(i) * 3, lat: 43.7840 + Double(i % 3) * 0.000005, lon: -79.1860, speed: 0) }
+    stage.add(track: 1, RideUpload.Event(t: t0 + 200, lat: 43.784, lon: -79.186, cls: .person, level: 2,
+                                         side: "L", gapM: 0.6, ttcS: 1.2, speed: 0))
+    let staged = stage.uploads(install: "x", app: "a", demo: true)
+    check(staged.count == 1 && staged[0].points.count == 40 && staged[0].events.count == 1,
+          "test ride that never moved: sent whole, its near miss kept (even after the last fix)")
+    check(stage.uploads(install: "x", app: "a", demo: false).isEmpty, "real ride that never moved: still trimmed to nothing")
+    check(log.uploads(install: "x", app: "a", demo: true).first?.points.count == 81, "test ride that moved: trimmed like any ride")
+
     // A 12.5 h ride (45 000 fixes, ~200 km) with a near miss every 10 minutes: split, nothing lost.
     var long = RideLog()
     for i in 0..<45_000 {

@@ -10,19 +10,19 @@ enum Side { L = 0, R = 1 };
 // Pin map (Hack the Valley build): one coin motor per grip through a 2N2222A (1k to the
 // base, 1N4007 across the motor), a green and a red LED per side (150 ohm), a merge button
 // per side to GND. Leave RX0, TX0, D2, D5, D12, D15, D21 free.
-static const uint8_t MOTOR_PIN[2]    = {25, 26};
-static const uint8_t BTN_PIN[2]      = {32, 33};        // merge buttons, to GND, INPUT_PULLUP
-static const uint8_t MERGE_PIN[2][2] = {{18, 19}, {22, 23}};  // per side: {green, red}
+static const uint8_t MOTOR_PIN[2]    = {26, 25};        // as wired on the bike: 26 drives the left grip
+static const uint8_t BTN_PIN[2]      = {33, 32};        // merge buttons, to GND, INPUT_PULLUP; as wired on the bike, 33 is the left grip's
+static const uint8_t MERGE_PIN[2][2] = {{22, 23}, {18, 19}};  // per side: {green, red}; as wired on the bike, 22/23 are the left grip's
 static const uint8_t PWM_CH[2]       = {0, 1};
-static const uint8_t DUTY_MAX = 204;  // 80% of 255: 3 V motors on the 3V3 rail
+static const uint8_t DUTY_MAX = 255;  // full 3V3: at 80% the buzz was lost in road vibration (3 V motors, 10% over)
 
 // Motor patterns: alternating on/off durations in ms, starting with ON.
 struct Pattern { uint8_t n; uint16_t d[7]; };
 static const Pattern PATTERNS[] = {
   {0, {}},                                    // 0: none
-  {1, {150}},                                 // 1: one 150 ms pulse
-  {3, {120, 100, 120}},                       // 2: two 120 ms pulses, 100 ms apart
-  {7, {100, 80, 100, 80, 100, 80, 100}},      // 3: 100 on / 80 off x4
+  {1, {300}},                                 // 1: one 300 ms pulse
+  {3, {350, 150, 350}},                       // 2: two 350 ms pulses: long enough to feel through a moving bar
+  {7, {250, 100, 250, 100, 250, 100, 250}},   // 3: 250 on / 100 off x4
   {1, {400}},                                 // 4: offline
 };
 static const uint8_t OFFLINE = 4;

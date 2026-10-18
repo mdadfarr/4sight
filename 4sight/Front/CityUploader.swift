@@ -109,7 +109,7 @@ final class CityUploader: ObservableObject {
 /// Documents/city-risk.geojson so the map still has it offline.
 struct CityLayer {
     struct Segment: Identifiable { let id: Int; let line: MKPolyline; let per100km: Double }
-    struct Pass: Identifiable { let id: Int; let coordinate: CLLocationCoordinate2D; let level: Int }
+    struct Pass: Identifiable { let id: Int; let coordinate: CLLocationCoordinate2D; let level: Int; let demo: Bool }
     var segments: [Segment] = []
     var passes: [Pass] = []
     /// True when any of it is modelled rather than ridden; the map must say so.
@@ -119,9 +119,13 @@ struct CityLayer {
         .appendingPathComponent("city-risk.geojson")
 
     /// The live layer, else the cached one; nil with no server set or nothing cached.
-    static func load() async -> CityLayer? {
-        guard !CityAPI.base.isEmpty, let url = URL(string: CityAPI.base + "/v1/city-risk.geojson") else { return nil }
-        if let (data, resp) = try? await URLSession.shared.data(from: url),
+    /// `testRides` adds test rides (practice and stage demos), which the public layer leaves out.
+    static func load(testRides: Bool = false) async -> CityLayer? {
+        guard !CityAPI.base.isEmpty,
+              let url = URL(string: CityAPI.base + "/v1/city-risk.geojson" + (testRides ? "?demo=1" : "")) else { return nil }
+        // Fresh every time the map opens, so a ride sent a moment ago is on it.
+        let req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 20)
+        if let (data, resp) = try? await URLSession.shared.data(for: req),
            (resp as? HTTPURLResponse)?.statusCode == 200, let layer = CityLayer(data) {
             try? data.write(to: cache, options: .atomic)
             return layer
@@ -135,6 +139,7 @@ struct CityLayer {
         let kind: String?
         let level: Int?
         let synthetic: Bool?
+        let demo: Bool?
     }
 
     init?(_ data: Data) {
@@ -145,7 +150,7 @@ struct CityLayer {
                 segments.append(Segment(id: i, line: line, per100km: rate))
                 synthetic = synthetic || (p.synthetic_share ?? 0) > 0
             } else if let point = feature.geometry.first as? MKPointAnnotation, p.kind == "pass" {
-                passes.append(Pass(id: i, coordinate: point.coordinate, level: p.level ?? 2))
+                passes.append(Pass(id: i, coordinate: point.coordinate, level: p.level ?? 2, demo: p.demo == true))
                 synthetic = synthetic || p.synthetic == true
             }
         }

@@ -56,7 +56,7 @@ struct RolePickerView: View {
             // and slid from the middle of the screen.
             Color.clear
                 .frame(width: 88, height: 88)
-                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).midY } action: { logoMidY = $0 }
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).midY } action: { logoMidY = $0; PassiveHomeView.pinY = $0 }
                 .overlay {
                     ZStack {
                         RoundedRectangle(cornerRadius: 30)

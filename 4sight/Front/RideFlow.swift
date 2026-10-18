@@ -15,10 +15,6 @@ final class RideFlow: ObservableObject {
     }
 
     @Published var phase: Phase = .home
-    @Published var picking = false
-    /// Set when the picker was opened from a Places circle: the pick is saved there
-    /// instead of starting a route.
-    @Published var pickingFor: SavedPlaces.Slot?
     @Published private(set) var recents = RecentPlaces.load()
     @Published private(set) var saved = SavedPlaces.load()
 

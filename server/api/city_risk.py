@@ -24,7 +24,8 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/geo+json")
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Cache-Control", "public, max-age=60" if code == 200 else "no-store")
+        # With test rides, never cached: a stage ride must be on the map at the first refresh.
+        self.send_header("Cache-Control", "public, max-age=60" if code == 200 and not demo else "no-store")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
