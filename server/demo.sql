@@ -81,3 +81,28 @@ WHERE s.ward IS NOT NULL
 GROUP BY s.ward, s.ward_name, km.synthetic
 HAVING sum(km.km) >= 2
 ORDER BY km.synthetic, per_100km DESC;
+
+-- (d) Known crash sites: each near miss against the nearest cyclist killed or seriously
+--     injured 2022 to Oct 2026 (City of Toronto, Vision Zero). Near misses close to past KSI
+--     sites support the method; ones far from any are the early-warning story.
+SELECT CASE WHEN n.synthetic THEN 'synthetic' WHEN n.demo THEN 'demo' ELSE 'real' END AS source,
+       count(*) AS near_misses,
+       count(*) FILTER (WHERE k.metres <= 100) AS within_100m_of_ksi,
+       count(*) FILTER (WHERE k.metres <= 250) AS within_250m_of_ksi,
+       round(percentile_cont(0.5) WITHIN GROUP (ORDER BY k.metres)::numeric) AS median_metres_to_ksi
+FROM near_misses n
+CROSS JOIN LATERAL (SELECT ST_Distance(n.geom, c.geom) AS metres FROM city_ksi c
+                    ORDER BY n.geom <-> c.geom LIMIT 1) k
+GROUP BY 1
+ORDER BY 1;
+
+-- (e) One ward, one click: the City's figures for the ward next to what 4sight measured there.
+--     Edit the ward number (Scarborough-Rouge Park is 25, Spadina-Fort York is 10).
+SELECT w.ward, w.ward_name, w.cyclist_ksi, w.fatal, w.protected_km, w.painted_km, w.planned_km,
+       count(n.*) FILTER (WHERE NOT n.synthetic AND NOT n.demo) AS real_near_misses,
+       count(n.*) FILTER (WHERE n.demo) AS demo_near_misses,
+       count(n.*) FILTER (WHERE n.synthetic) AS synthetic_near_misses
+FROM wards w
+LEFT JOIN near_misses n ON ST_Intersects(w.geom, n.geom)
+WHERE w.ward = 25
+GROUP BY w.ward, w.ward_name, w.cyclist_ksi, w.fatal, w.protected_km, w.painted_km, w.planned_km;

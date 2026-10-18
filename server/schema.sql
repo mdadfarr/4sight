@@ -103,3 +103,32 @@ SELECT add_continuous_aggregate_policy('segment_km_hourly', start_offset => NULL
     end_offset => INTERVAL '1 hour', schedule_interval => INTERVAL '5 minutes', if_not_exists => true);
 SELECT add_continuous_aggregate_policy('segment_passes_hourly', start_offset => NULL,
     end_offset => INTERVAL '1 hour', schedule_interval => INTERVAL '5 minutes', if_not_exists => true);
+
+-- City of Toronto context, loaded with the City segments (tools/load_segments.py --source city):
+-- the 25 wards with the City-data work's per-ward totals, and every cyclist killed or
+-- seriously injured 2022 to Oct 2026 (Vision Zero). Real City data, never altered.
+CREATE TABLE IF NOT EXISTS wards (
+    ward              int PRIMARY KEY,
+    ward_name         text NOT NULL,
+    cyclist_ksi       int,
+    fatal             int,
+    seriously_injured int,
+    protected_km      real,
+    painted_km        real,
+    shared_km         real,
+    trail_km          real,
+    planned_km        real,
+    geom              geography(Geometry, 4326) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS wards_geom ON wards USING gist (geom);
+
+CREATE TABLE IF NOT EXISTS city_ksi (
+    id       int PRIMARY KEY,
+    date     date NOT NULL,
+    time     text,
+    outcome  text NOT NULL CHECK (outcome IN ('killed', 'seriously_injured')),
+    location text,
+    ward     int,
+    geom     geography(Point, 4326) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS city_ksi_geom ON city_ksi USING gist (geom);
