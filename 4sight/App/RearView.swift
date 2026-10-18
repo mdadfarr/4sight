@@ -345,6 +345,9 @@ struct RearView: View {
                     Button("Replay file…") { showPicker = true }
                     if pipeline.replayURL != nil { Button("Back to camera") { pipeline.setReplay(nil) } }
                 }
+                // The wheel spot is remembered across launches; after moving the mount, or a
+                // desk test that taught it a chair or someone's feet, start it over.
+                Button("Forget wheel position") { pipeline.forgetWheelPosition() }
             }
             .padding(.top, 10)
         } label: {
