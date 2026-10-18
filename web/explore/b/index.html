@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4sight Toronto Close Passes</title>
+<meta name="description" content="Where do drivers pass cyclists too close in Toronto? City of Toronto injury data, and the near-miss data 4sight adds.">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="b.css">
+</head>
+<body>
+<a class="skip" href="#map-section">Skip to the map</a>
+
+<header class="hero">
+  <div id="hero-map" class="hero-map" aria-hidden="true"></div>
+  <div class="hero-inner">
+    <p class="pill"><span class="dot" aria-hidden="true"></span> 4sight · Toronto</p>
+    <span class="logo" aria-hidden="true">
+      <svg viewBox="0 0 64 64" width="44" height="44"><path d="M6 32c6-11 15-17 26-17s20 6 26 17c-6 11-15 17-26 17S12 43 6 32z" fill="#fff"/><circle cx="32" cy="32" r="9" fill="#0A6CDF"/><circle cx="32" cy="32" r="3.5" fill="#fff"/></svg>
+    </span>
+    <h1>Where do drivers pass cyclists too close in Toronto?</h1>
+    <p class="lede">The City counts the people who get hurt. It doesn't count the close calls that come before, or how many people ride each street. 4sight sets out to fill that gap.</p>
+    <p class="hero-actions">
+      <a class="btn" href="#map-section">See the map</a>
+      <a class="btn quiet" href="#how">How it works</a>
+    </p>
+  </div>
+</header>
+
+<main>
+  <section class="band" aria-labelledby="h-city">
+    <h2 id="h-city">What the City knows</h2>
+    <p class="intro">Real figures from the City of Toronto, downloaded October 17, 2026.</p>
+    <div class="stats">
+      <article class="card stat">
+        <p class="big">155</p>
+        <p class="what">cyclists killed or seriously injured since 2022</p>
+        <p class="cap">13 of them were killed. Counted to mid-October 2026.</p>
+        <p class="src">City of Toronto, Vision Zero</p>
+      </article>
+      <article class="card stat">
+        <p class="big">148<span class="unit"> km</span></p>
+        <p class="what">of protected bike lanes</p>
+        <p class="cap">and about 142 km of painted lanes, separated from traffic by a line only.</p>
+        <p class="src">City of Toronto, cycling network</p>
+      </article>
+      <article class="card stat">
+        <p class="big">546<span class="unit"> km</span></p>
+        <p class="what">of cycling projects planned for 2025 to 2027</p>
+        <p class="cap">Mostly in Scarborough, North York and York.</p>
+        <p class="src">City of Toronto Open Data</p>
+      </article>
+    </div>
+    <div class="note">
+      <span class="i" aria-hidden="true">i</span>
+      <p><strong>Read these numbers with care.</strong> They are totals, not rates. Far more people ride downtown, so more injuries happen there. Nobody counts how many people ride each street, so these figures can't tell you whether one street is safer than another, or whether a bike lane made a difference. All lengths are approximate.</p>
+    </div>
+  </section>
+
+  <section class="band" id="how" aria-labelledby="h-how">
+    <h2 id="h-how">What's missing, and what 4sight adds</h2>
+    <p class="intro">Injuries are rare and arrive late. Close calls happen every day, long before anyone is hurt. Decisions about bike lanes are being made without near-miss data.</p>
+    <p class="define"><strong>A close pass</strong> is when a vehicle overtakes a rider too close, detected by a rear-facing camera on the bike.</p>
+    <ol class="steps">
+      <li class="card step">
+        <span class="num" aria-hidden="true">1</span>
+        <svg class="art" viewBox="0 0 200 110" aria-hidden="true">
+          <rect x="6" y="52" width="70" height="26" rx="10" fill="#E8453C"/><rect x="18" y="40" width="40" height="18" rx="7" fill="#E8453C"/>
+          <circle cx="22" cy="80" r="8" fill="#111418"/><circle cx="60" cy="80" r="8" fill="#111418"/>
+          <path d="M84 62 l30 0" stroke="#F5A623" stroke-width="4" stroke-dasharray="5 5" stroke-linecap="round"/>
+          <circle cx="135" cy="78" r="15" fill="none" stroke="#111418" stroke-width="4"/><circle cx="185" cy="78" r="15" fill="none" stroke="#111418" stroke-width="4"/>
+          <path d="M135 78 l18-26 h22 l10 26 M153 52 l14 26 M175 52 l-4-12" fill="none" stroke="#111418" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+          <rect x="120" y="36" width="20" height="14" rx="4" fill="#0A6CDF"/><circle cx="125" cy="43" r="3" fill="#fff"/>
+        </svg>
+        <h3>The rear camera spots the car</h3>
+        <p>A phone on the back of the bike watches the road behind and warns the rider when a vehicle comes too close.</p>
+      </li>
+      <li class="card step">
+        <span class="num" aria-hidden="true">2</span>
+        <svg class="art" viewBox="0 0 200 110" aria-hidden="true">
+          <path d="M58 82 a22 22 0 0 1 4-43 a30 30 0 0 1 56-6 a24 24 0 0 1 24 49z" fill="#DFE8F5"/>
+          <path d="M100 92 V50 M84 64 l16-16 16 16" fill="none" stroke="#0A6CDF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <h3>The ride uploads by itself</h3>
+        <p>Anonymously, after the ride: the route and each close pass. No account, no name, no video.</p>
+      </li>
+      <li class="card step">
+        <span class="num" aria-hidden="true">3</span>
+        <svg class="art" viewBox="0 0 200 110" aria-hidden="true">
+          <rect x="30" y="20" width="140" height="80" rx="14" fill="#E8EBEF"/>
+          <path d="M30 70 L170 46 M78 20 L96 100 M30 40 H170" stroke="#fff" stroke-width="6"/>
+          <circle cx="66" cy="62" r="7" fill="#F5A623" stroke="#fff" stroke-width="2"/><circle cx="140" cy="52" r="7" fill="#F5A623" stroke="#fff" stroke-width="2"/>
+          <path d="M108 66 c0-14 -22-14 -22 0 c0 10 11 20 11 20 s11-10 11-20z" fill="#E8453C"/><circle cx="97" cy="65" r="4" fill="#fff"/>
+        </svg>
+        <h3>It becomes a point on this map</h3>
+        <p>Together, many rides show which streets riders find stressful, and when.</p>
+      </li>
+    </ol>
+  </section>
+
+  <section class="band" id="map-section" tabindex="-1" aria-labelledby="h-map">
+    <div class="head-row">
+      <h2 id="h-map">The map</h2>
+      <fieldset class="seg" id="layer-pick">
+        <legend class="sr">Show on the map</legend>
+        <label><input type="radio" name="layer" value="passes" checked><span>Close passes</span></label>
+        <label><input type="radio" name="layer" value="ksi"><span>Injuries</span></label>
+        <label><input type="radio" name="layer" value="lanes"><span>Bike lanes</span></label>
+      </fieldset>
+    </div>
+    <div class="card map-card">
+      <div id="map" class="map" role="region" aria-label="Map of Toronto. The same figures are listed by ward further down the page."></div>
+      <section id="detail" class="detail" aria-labelledby="detail-title" hidden>
+        <div class="detail-top">
+          <button type="button" class="back" id="detail-back"><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M12.5 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</button>
+          <p class="ex-badge" id="detail-badge" hidden><span class="dot" aria-hidden="true"></span> Example data</p>
+        </div>
+        <p class="kicker" id="detail-kicker"></p>
+        <h3 id="detail-title" tabindex="-1"></h3>
+        <div id="detail-body" class="detail-body"></div>
+        <div class="share">
+          <label class="sr" for="detail-link">Link to this</label>
+          <div class="share-row"><input id="detail-link" class="field" readonly><button type="button" class="btn" id="detail-copy">Copy link</button></div>
+          <p id="detail-status" class="src" role="status"></p>
+        </div>
+      </section>
+      <p class="ex-badge on-map" id="map-badge" hidden><span class="dot" aria-hidden="true"></span> Example data</p>
+      <div class="map-foot">
+        <div id="legend" class="legend" aria-live="polite"></div>
+        <p id="map-note" class="src"></p>
+        <p id="map-links" class="map-links"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" aria-labelledby="h-bars">
+    <h2 id="h-bars">Close passes per 100 km: with a bike lane vs without</h2>
+    <div class="card bars-card">
+      <p class="ex-badge" id="bars-badge" hidden><span class="dot" aria-hidden="true"></span> Example data</p>
+      <div id="bars" class="bars"><p class="cap">Loading…</p></div>
+      <p class="cap" id="bars-note">Example data: computer-generated near misses that show how the map will work. Not real rides yet. These bars show what the comparison will look like once real rides come in. They are not a finding.</p>
+    </div>
+  </section>
+
+  <section class="band" id="ward-section" aria-labelledby="h-ward">
+    <h2 id="h-ward">Your ward</h2>
+    <p class="intro">Pick a ward to see the City's figures and what 4sight has recorded there.</p>
+    <label class="field-label" for="ward-pick">Ward</label>
+    <select id="ward-pick" class="field"><option>Loading wards…</option></select>
+    <div id="ward-card" class="card ward-card" aria-live="polite"></div>
+    <details class="all-wards">
+      <summary>All 25 wards as a table</summary>
+      <div class="table-wrap"><table id="ward-table"></table></div>
+    </details>
+  </section>
+
+  <section class="band" aria-labelledby="h-privacy">
+    <article class="card privacy" id="privacy">
+      <h2 id="h-privacy">Privacy</h2>
+      <ul class="ticks">
+        <li>No account, no name, no video.</li>
+        <li>The app uploads the ride's route as GPS points with speed, with the first and last 50 m cut off, plus each close pass: where, when, the type of vehicle and which side it passed on.</li>
+        <li>This map never shows anyone's route. It shows only totals per street and close-pass dots that are not linked to any ride or person.</li>
+      </ul>
+    </article>
+  </section>
+</main>
+
+<footer class="foot">
+  <section class="foot-data" aria-labelledby="h-foot-data">
+    <p><strong id="h-foot-data">Get the data.</strong> Free to use, updated live: new rides appear within a minute.</p>
+    <ul class="links">
+      <li><a href="https://4sight-server.vercel.app/v1/streets.csv">Every street (spreadsheet)</a></li>
+      <li><a href="https://4sight-server.vercel.app/v1/wards.csv">Every ward, with the City's figures (spreadsheet)</a></li>
+      <li><a href="https://4sight-server.vercel.app/v1/city-risk.geojson">Map data for developers (GeoJSON)</a></li>
+    </ul>
+    <p>City data: Open Government Licence – Toronto; street geometry © OpenStreetMap (ODbL); 4sight data: licence to be confirmed.</p>
+  </section>
+  <p><strong>Sources.</strong> Cyclists killed or seriously injured: City of Toronto, Vision Zero (2022 to mid-October 2026). Bike lanes: City of Toronto cycling network. Planned projects: City of Toronto Open Data, 2025 to 2027 Programmed Cycling Projects. Wards: City of Toronto Open Data, 25-ward model. All downloaded October 17, 2026.</p>
+  <p>Close passes: 4sight. Basemap © Esri. Streets © OpenStreetMap contributors.</p>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="b.js"></script>
+<script src="detail.js"></script>
+</body>
+</html>
