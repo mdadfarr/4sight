@@ -47,8 +47,9 @@ window.makeCards = function (c) {
   const link = (go, text) => `<button type="button" data-go="${esc(go)}">${esc(text)}</button>`;
   const wardLink = (w) => w && `<li>In ${link(`ward=${w.ward}`, `Ward ${w.ward}, ${w.ward_name}`)}</li>`;
   const ring = (ll) => L.circleMarker(ll, { radius: 13, color: "#0A6CDF", weight: 3, fill: false, interactive: false });
-  const sourceNote = (p) => p.synthetic ? `<p class="note"><span class="pill">Example data</span> Computer-generated to show how the map will work, not a real ride.</p>`
-    : p.demo ? `<p class="note"><span class="pill">Test ride</span> One of our own trial rides.</p>` : `<p class="note"><span class="pill real">Real ride</span></p>`;
+  // Test rides first: they are never example data or real riding.
+  const sourceNote = (p) => p.demo ? `<p class="note"><span class="pill test">Test ride</span> A practice run or stage showing, not real riding.</p>`
+    : p.synthetic ? `<p class="note"><span class="pill">Example data</span> Computer-generated to show how the map will work, not a real ride.</p>` : `<p class="note"><span class="pill real">Real ride</span></p>`;
   const exampleLine = (sh) => sh > 0 ? `<p class="note">Example data: computer-generated near misses that show how the map will work. Not real rides yet.</p>` : "";
 
   // City lane types per street, matched by name.
@@ -75,9 +76,10 @@ window.makeCards = function (c) {
       return { layer: "passes", kicker: "Street", title: s.name, mark,
         bounds: L.featureGroup(segs.getLayers().filter((l) => key(l.feature.properties.street) === s.key)).getBounds(),
         html: `<p class="stat"><b>${fmt(s.rate)}</b><span>close passes for every 100 km ridden</span></p>
-        ${group("Close passes", tag(s.share), [
+        ${group("Close passes", tag(s.share) + (s.test ? ` <span class="pill test">Test ride</span>` : ""), [
           `<li>${s.passes} close pass${s.passes === 1 ? "" : "es"} in ${fmt(s.km, 0)} km of riding</li>`,
           s.imminent && `<li>${s.imminent} of them very close (the camera's strongest warning)</li>`,
+          s.test && `<li>${s.test} of them from test rides</li>`,
           h != null && `<li>Most often around ${hour(h)}</li>`,
           VEHICLE[v] && `<li>Mostly ${VEHICLE[v][0]}</li>`,
           s.short && `<li>Only ${fmt(s.km, 0)} km ridden here so far, too little to compare with other streets</li>`])}
