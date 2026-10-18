@@ -5,8 +5,9 @@ Points to work into the pitch, with the fact behind each one.
 ## Data and privacy
 
 - **Toronto riders' data stays in Canada.** The near-miss database is a Tiger Cloud service in
-  AWS Canada (Central), Montreal (`ca-central-1`). A good line for the School of Cities judges
-  and the City: rider safety data about Toronto streets is stored in Canada.
+  AWS Canada (Central), Montreal (`ca-central-1`), and the server that receives each ride runs
+  in Vercel's Montreal region (`yul1`) beside it: rides are processed and stored in Canada.
+  A good line for the School of Cities judges and the City.
 - **Anonymous by design.** No account and no name. The app sends a random per-install id, and
   the database keeps only a hash of it. No video ever leaves the bike. The first and last 50 m
   of every ride are cut on the phone, and the live public map (the server's
