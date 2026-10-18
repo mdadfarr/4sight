@@ -127,6 +127,6 @@ Until real rides add up, most close-pass numbers on the map are modelled and lab
 
 ## Credits
 
-Jasper Sun, Arshiya Khayatzadeh, [teammate], [teammate].
+Jasper Sun, Arshiya Khayatzadeh, Shayan Dorouediani and Mohammed Dadfar.
 
 Map data © OpenStreetMap contributors. City data from the City of Toronto Open Data portal.
