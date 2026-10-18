@@ -108,7 +108,7 @@ struct RiskMapView: View {
                 .tint(Light.blue)
             }
             if city?.synthetic == true {
-                Text("City layer includes modelled data")
+                Text("Includes example data, not real rides yet")
                     .font(.system(size: 12, design: .rounded))
                     .foregroundStyle(Light.dim)
             }

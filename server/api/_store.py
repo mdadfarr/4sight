@@ -2,7 +2,9 @@
 public GeoJSON. tools/load_synthetic.py inserts through `insert_ride` too, so modelled
 data takes exactly the path real rides do. Parameterised SQL only.
 Contract: docs/DATA_PIPELINE.md."""
+import csv
 import hashlib
+import io
 import json
 import math
 import os
@@ -195,3 +197,48 @@ def city_risk(conn, demo: bool = False) -> dict:
                                         "synthetic": syn, "demo": dem, "street": street, "lane_type": lane}})
     return {"type": "FeatureCollection",
             "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "features": features}
+
+
+# Open data: the same numbers as spreadsheets, for anyone (journalists, councillors' offices,
+# researchers). Demo rides are left out; example (synthetic) data is a column, not hidden.
+STREETS_CSV_SQL = """
+WITH km AS (SELECT segment_id, sum(km) AS km, coalesce(sum(km) FILTER (WHERE synthetic), 0) AS syn
+            FROM segment_km_hourly WHERE segment_id IS NOT NULL AND NOT demo GROUP BY 1),
+passes AS (SELECT segment_id, sum(passes)::int AS passes
+           FROM segment_passes_hourly WHERE segment_id IS NOT NULL AND NOT demo GROUP BY 1)
+SELECT s.id, s.street, s.lane_type, s.ward, s.ward_name, round(km.km::numeric, 2),
+       coalesce(p.passes, 0), round((100 * coalesce(p.passes, 0) / km.km)::numeric, 1),
+       round((km.syn / km.km)::numeric, 2)
+FROM segments s JOIN km ON km.segment_id = s.id LEFT JOIN passes p ON p.segment_id = s.id
+WHERE km.km >= 2
+ORDER BY 8 DESC, 6 DESC
+"""
+STREETS_CSV_HEAD = ["segment_id", "street", "lane_type", "ward", "ward_name", "km_ridden",
+                    "close_passes", "close_passes_per_100km", "example_data_share"]
+
+WARDS_CSV_SQL = """
+WITH km AS (SELECT s.ward, sum(k.km) AS km, coalesce(sum(k.km) FILTER (WHERE k.synthetic), 0) AS syn
+            FROM segment_km_hourly k JOIN segments s ON s.id = k.segment_id WHERE NOT k.demo GROUP BY 1),
+passes AS (SELECT s.ward, sum(p.passes)::int AS passes
+           FROM segment_passes_hourly p JOIN segments s ON s.id = p.segment_id WHERE NOT p.demo GROUP BY 1)
+SELECT w.ward, w.ward_name, w.cyclist_ksi, w.fatal, w.seriously_injured, w.protected_km, w.painted_km,
+       w.shared_km, w.trail_km, w.planned_km, round(coalesce(km.km, 0)::numeric, 1), coalesce(p.passes, 0),
+       CASE WHEN km.km >= 2 THEN round((100 * coalesce(p.passes, 0) / km.km)::numeric, 1) END,
+       CASE WHEN km.km > 0 THEN round((km.syn / km.km)::numeric, 2) END
+FROM wards w LEFT JOIN km ON km.ward = w.ward LEFT JOIN passes p ON p.ward = w.ward
+ORDER BY w.ward
+"""
+WARDS_CSV_HEAD = ["ward", "ward_name", "city_cyclists_killed_or_seriously_injured_2022_2026", "city_killed",
+                  "city_seriously_injured", "city_protected_km", "city_painted_km", "city_shared_km",
+                  "city_trail_km", "city_planned_km_2025_2027", "4sight_km_ridden", "4sight_close_passes",
+                  "4sight_close_passes_per_100km", "4sight_example_data_share"]
+
+
+def export_csv(conn, which: str) -> str:
+    """streets or wards, as CSV text. Raises KeyError for anything else."""
+    sql, head = {"streets": (STREETS_CSV_SQL, STREETS_CSV_HEAD), "wards": (WARDS_CSV_SQL, WARDS_CSV_HEAD)}[which]
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(head)
+    w.writerows(conn.execute(sql).fetchall())
+    return out.getvalue()

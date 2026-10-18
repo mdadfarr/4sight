@@ -6,6 +6,7 @@ from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "api"))
 from city_risk import handler as CityRisk  # noqa: E402
+from export import handler as Export  # noqa: E402
 from rides import handler as Rides  # noqa: E402
 
 
@@ -16,8 +17,12 @@ class Dev(Rides, CityRisk):
         self.send_error(404)
 
     def do_GET(self):
-        if self.path.split("?")[0] == "/v1/city-risk.geojson":
+        path = self.path.split("?")[0]
+        if path == "/v1/city-risk.geojson":
             return CityRisk.do_GET(self)
+        if path in ("/v1/streets.csv", "/v1/wards.csv"):
+            self.path = "/api/export?t=" + path[4:-4]
+            return Export.do_GET(self)
         self.send_error(404)
 
 

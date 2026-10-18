@@ -1,7 +1,21 @@
 {
   "framework": null,
   "rewrites": [
-    { "source": "/v1/rides", "destination": "/api/rides" },
-    { "source": "/v1/city-risk.geojson", "destination": "/api/city_risk" }
+    {
+      "source": "/v1/rides",
+      "destination": "/api/rides"
+    },
+    {
+      "source": "/v1/city-risk.geojson",
+      "destination": "/api/city_risk"
+    },
+    {
+      "source": "/v1/streets.csv",
+      "destination": "/api/export?t=streets"
+    },
+    {
+      "source": "/v1/wards.csv",
+      "destination": "/api/export?t=wards"
+    }
   ]
 }
