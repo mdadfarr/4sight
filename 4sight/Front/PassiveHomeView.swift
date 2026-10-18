@@ -38,6 +38,10 @@ struct PassiveHomeView: View {
     static let peekHeight = 196.0
     static let restingHeight = 470.0
     static let expandedTop = 64.0
+    /// Where the rider's own spot sits on screen: where the role screen's logo came to rest,
+    /// so the map does not jump between the two; launched straight in (`-role front`),
+    /// the middle of the map above the half sheet.
+    @MainActor static var pinY: Double?
 
     var body: some View {
         GeometryReader { geo in
@@ -45,6 +49,10 @@ struct PassiveHomeView: View {
             ZStack(alignment: .topLeading) {
                 Map(position: $camera) { UserAnnotation() }
                     .mapStyle(.standard(elevation: .flat, pointsOfInterest: .excludingAll))
+                    // Twice the screen tall and centred on the pin, so the rider's own spot
+                    // stays where the role screen's logo left it.
+                    .frame(height: full * 2)
+                    .position(x: geo.size.width / 2, y: Self.pinY ?? (full - Self.restingHeight) / 2)
 
                 if !expanded {
                     statusPill
