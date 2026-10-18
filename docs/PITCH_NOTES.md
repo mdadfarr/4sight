@@ -20,6 +20,14 @@ Points to work into the pitch, with the fact behind each one.
   the phone itself, like any app's settings. There is no account because nothing about the
   rider needs to be on a server.
 
+## First real data (morning of 2026-10-18)
+
+- Two real rides by the Pan Am Centre / UTSC (Ellesmere Road, Military Trail, Pan Am Drive),
+  8:13 to 8:21 am, about 1 km in all: **8 real close passes, all by cars**, uploaded automatically
+  when the rider tapped Exit. They are on the public map as "Real ride".
+- Say: "our first real rides this morning logged 8 close passes on Ellesmere and Military Trail".
+  Do not quote a per-100-km rate from them: 1 km is far too little riding for a rate.
+
 ## How 4sight data upgrades each track
 
 **School of Cities: the missing denominator.** The City records outcomes (cyclists killed or
