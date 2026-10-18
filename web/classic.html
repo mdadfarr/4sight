@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4sight Close-Pass Map</title>
+<meta name="description" content="Where and when cyclists in Toronto get passed too close, from 4sight's rear-camera bike sensor, with clearly labelled synthetic data.">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"></span>
+    <div>
+      <h1>4sight — where Toronto close-passes cyclists</h1>
+      <p class="sub">Close passes measured by a rear-facing camera on the bike: a vehicle that overtook within about a metre.</p>
+    </div>
+  </div>
+  <p class="badge" id="badge" role="status"><strong>Includes synthetic data</strong> <span id="badge-detail"></span></p>
+</header>
+
+<main class="layout">
+  <aside class="panel" aria-label="Filters and findings">
+    <form class="filters" id="filters" aria-label="Filters">
+      <fieldset>
+        <legend>Data</legend>
+        <label class="check"><input type="checkbox" name="real" checked> Real rides</label>
+        <label class="check"><input type="checkbox" name="synthetic" checked> Synthetic <span class="muted">(modelled)</span></label>
+      </fieldset>
+      <div class="row">
+        <label>Vehicle
+          <select name="cls"><option value="">All</option></select>
+        </label>
+        <label>Severity
+          <select name="level">
+            <option value="2">Close pass and up</option>
+            <option value="3">Imminent only</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label>From
+          <select name="from"></select>
+        </label>
+        <label>To
+          <select name="to"></select>
+        </label>
+        <label>Map
+          <select name="view">
+            <option value="points">Points</option>
+            <option value="heat">Heat</option>
+          </select>
+        </label>
+      </div>
+    </form>
+
+    <section id="city" class="city" aria-labelledby="h-city" hidden>
+      <h2 id="h-city" class="label">City of Toronto layers</h2>
+      <form class="filters" id="city-form" aria-label="City of Toronto map layers">
+        <div data-src="lanes" hidden>
+          <fieldset>
+            <legend>Bike lanes</legend>
+            <label class="check"><input type="checkbox" name="protected" checked><i class="sw" style="--c: var(--lane-protected)"></i>Protected</label>
+            <label class="check"><input type="checkbox" name="painted" checked><i class="sw" style="--c: var(--lane-painted)"></i>Painted</label>
+            <label class="check"><input type="checkbox" name="shared"><i class="sw" style="--c: var(--lane-shared)"></i>Shared</label>
+            <label class="check"><input type="checkbox" name="trail"><i class="sw" style="--c: var(--lane-trail)"></i>Trail</label>
+          </fieldset>
+          <p class="src">City of Toronto cycling network</p>
+        </div>
+        <div data-src="ksi" hidden>
+          <label class="check"><input type="checkbox" name="ksi" checked> Cyclists killed <i class="dot ksi-k"></i> or seriously injured <i class="dot ksi-s"></i></label>
+          <p class="src">City of Toronto, Vision Zero (KSI 2022 to Oct 2026)</p>
+        </div>
+        <div data-src="wards" hidden>
+          <label class="check"><input type="checkbox" name="wards" checked> Ward outlines <span class="muted">(click a ward for its numbers)</span></label>
+          <div class="row">
+            <label>Shade wards by
+              <select name="choro">
+                <option value="">None</option>
+                <option value="cyclist_ksi">Cyclists killed or seriously injured</option>
+                <option value="planned_km">Planned bike km, 2025 to 2027</option>
+              </select>
+            </label>
+          </div>
+          <p class="src">City of Toronto wards (25-ward model) <span id="choro-key"></span></p>
+        </div>
+      </form>
+    </section>
+
+    <section id="ward" aria-labelledby="h-ward" aria-live="polite" hidden>
+      <h2 id="h-ward" class="label">Selected ward</h2>
+      <div id="ward-body"></div>
+    </section>
+
+    <section class="hero" aria-labelledby="h-rate">
+      <h2 id="h-rate" class="label">Close passes per 100 km ridden</h2>
+      <p class="big" id="rate">–</p>
+      <p class="muted" id="rate-detail"></p>
+    </section>
+
+    <section aria-labelledby="h-lane">
+      <h2 id="h-lane" class="label">Bike lane or not</h2>
+      <div class="pair">
+        <div class="tile">
+          <p class="tile-v" id="lane-yes">–</p>
+          <p class="muted">per 100 km <strong>with</strong> a bike lane</p>
+        </div>
+        <div class="tile">
+          <p class="tile-v" id="lane-no">–</p>
+          <p class="muted">per 100 km <strong>without</strong> one</p>
+        </div>
+      </div>
+      <p class="finding" id="lane-finding"></p>
+    </section>
+
+    <section aria-labelledby="h-hour">
+      <h2 id="h-hour" class="label">When: close passes by hour of day</h2>
+      <div class="chart" id="hours" role="img" aria-label="Close passes by hour of day"></div>
+    </section>
+
+    <section aria-labelledby="h-streets">
+      <h2 id="h-streets" class="label">Worst streets <span class="muted">(per 100 km, streets with 10 km+ ridden)</span></h2>
+      <ol class="streets" id="streets"></ol>
+    </section>
+
+    <section aria-labelledby="h-cls">
+      <h2 id="h-cls" class="label">Who passed</h2>
+      <ul class="classes" id="classes"></ul>
+    </section>
+
+    <footer class="notes">
+      <p><strong>Synthetic data</strong> is generated by <code>tools/synth_events.py</code> on real Toronto streets: close passes are three times as likely without a bike lane, more frequent in the commute peaks and on 60 km/h roads. It shows what the city view looks like at scale; it is not a measurement. Real rides are tagged and drawn as solid dots.</p>
+      <p>City of Toronto data, shown as published and downloaded October 17, 2026: cyclists killed or seriously injured from the Vision Zero KSI service, bike lanes from the Cycling Infrastructure layer, programmed cycling projects (2025 to 2027) and the 25 wards from Open Data. KSI figures are counts, not rates per rider. Far more people ride downtown, so more injuries there do not show that lanes cause or prevent them; do not read the map that way.</p>
+      <p>Streets © OpenStreetMap contributors. Basemap © Esri. No rider identities are stored; the first and last 50 m of every real ride are removed.</p>
+    </footer>
+  </aside>
+
+  <section class="mapwrap" aria-label="Map of close passes">
+    <div id="map"></div>
+    <div class="legend" aria-label="Map legend">
+      <span><i class="dot lvl2"></i>Close pass</span>
+      <span><i class="dot lvl3"></i>Imminent</span>
+      <span><i class="dot ring"></i>Synthetic</span>
+      <span><i class="dot solid"></i>Real</span>
+      <span><i class="line"></i>Ridden</span>
+    </div>
+    <div class="tip" id="tip" role="tooltip" hidden></div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<script src="app.js"></script>
+<script src="city.js"></script>
+</body>
+</html>
