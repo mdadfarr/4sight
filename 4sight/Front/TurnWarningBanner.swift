@@ -6,7 +6,7 @@ import ThreatEngine
 /// left turn, a vehicle coming up on the left; at a junction the rider goes straight
 /// through, a car overtaking that may turn right across them (the right hook); before a
 /// right turn, a cyclist squeezing past on the right. It takes over the manoeuvre banner in
-/// amber. Navigation knows what is ahead and the rear camera knows who is coming.
+/// amber: the guidance card turns amber. Navigation knows what is ahead and the rear camera knows who is coming.
 ///
 /// Held 1.5 s after the vehicle clears, so a track flickering out for a frame cannot make
 /// the banner blink. The merge answer, drawn above it, still wins while it shows.
@@ -28,7 +28,7 @@ struct TurnWarningBanner: View {
                 let scale = geo.size.width / Design.width
                 if let shown = warning(at: timeline.date) {
                     panel(shown)
-                        .frame(width: Design.width, height: Design.bannerH)
+                        .atGuidanceCard()
                         .scaleEffect(scale, anchor: .topLeading)
                         .transition(.opacity)
                 }
@@ -68,25 +68,13 @@ struct TurnWarningBanner: View {
         default: "Car"
         }
         let (icon, title, line): (String, String, String) = switch c {
-        case .letPassBeforeLeft: ("arrow.turn.up.left", "\(name) coming up on your left", "Let it pass before moving over")
-        case .rightHookAtJunction: ("exclamationmark.triangle.fill", "\(name) passing at the junction", "Watch for it turning right")
-        case .passingOnRight: ("arrow.turn.up.right", "\(name) passing on your right", "Let it go before turning")
+        // Short titles: read in a glance at speed. The second line carries the advice.
+        case .letPassBeforeLeft: ("arrow.turn.up.left", "\(name) on your left", "Let it pass before moving over")
+        case .rightHookAtJunction: ("exclamationmark.triangle.fill", "\(name) overtaking", "May turn right at the junction")
+        case .passingOnRight: ("arrow.turn.up.right", "\(name) on your right", "Let it go before turning")
         }
-        return ZStack(alignment: .topLeading) {
-            Rectangle().fill(Palette.amber)
-            HStack(spacing: 18) {
-                Image(systemName: icon)
-                    .font(.system(size: 38, weight: .semibold))
-                    .frame(width: 48)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.system(size: 28, weight: .bold, design: .rounded))
-                    Text(line).font(.system(size: 19, weight: .semibold, design: .rounded)).opacity(0.85)
-                }
-                .lineLimit(1).minimumScaleFactor(0.75)
-            }
-            .foregroundStyle(Color(hex: 0x1B1300))
-            .padding(.leading, 26).padding(.trailing, 16)
-            .padding(.top, 78)
+        return GuidanceCardShell(fill: Palette.amber) {
+            GuidanceCardMessage(icon: icon, title: title, line: line, ink: Color(hex: 0x1B1300))
         }
     }
 }
