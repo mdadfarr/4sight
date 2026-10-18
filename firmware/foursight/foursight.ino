@@ -10,9 +10,9 @@ enum Side { L = 0, R = 1 };
 // Pin map (Hack the Valley build): one coin motor per grip through a 2N2222A (1k to the
 // base, 1N4007 across the motor), a green and a red LED per side (150 ohm), a merge button
 // per side to GND. Leave RX0, TX0, D2, D5, D12, D15, D21 free.
-static const uint8_t MOTOR_PIN[2]    = {25, 26};
-static const uint8_t BTN_PIN[2]      = {32, 33};        // merge buttons, to GND, INPUT_PULLUP
-static const uint8_t MERGE_PIN[2][2] = {{18, 19}, {22, 23}};  // per side: {green, red}
+static const uint8_t MOTOR_PIN[2]    = {26, 25};        // as wired on the bike: 26 drives the left grip
+static const uint8_t BTN_PIN[2]      = {33, 32};        // merge buttons, to GND, INPUT_PULLUP; as wired on the bike, 33 is the left grip's
+static const uint8_t MERGE_PIN[2][2] = {{22, 23}, {18, 19}};  // per side: {green, red}; as wired on the bike, 22/23 are the left grip's
 static const uint8_t PWM_CH[2]       = {0, 1};
 static const uint8_t DUTY_MAX = 255;  // full 3V3: at 80% the buzz was lost in road vibration (3 V motors, 10% over)
 
