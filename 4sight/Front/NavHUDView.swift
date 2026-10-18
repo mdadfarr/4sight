@@ -40,7 +40,7 @@ struct NavHUDView: View {
                         Text(bannerLine).font(.system(size: 19, weight: .medium, design: .rounded))
                             .opacity(0.75)
                     }
-                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .lineLimit(1).minimumScaleFactor(0.6)
                     Spacer(minLength: 0)
                 }
                 .foregroundStyle(.white)
@@ -168,19 +168,32 @@ struct NavHUDView: View {
         return model.lanePlan?.cue(at: rider)
     }
     private var nearTurn: Bool {
-        guard let nav = model.nav, !nav.isOffRoute else { return false }
+        guard let nav = model.nav, headToRoute == nil else { return false }
         return nav.distanceToManoeuvre <= Self.turnNear
     }
 
+    /// Metres back to the route when the rider is not on it: far from the route line, or
+    /// off the street network altogether (inside a building, across a field). Apple starts
+    /// a route at the phone's own position, indoors included, so the route line alone
+    /// would call a rider on the second floor "on the route".
+    private var headToRoute: Double? {
+        guard let nav = model.nav else { return nil }
+        if nav.isOffRoute { return nav.offRoute }
+        guard let rider = model.route.riderCoordinate(at: Date()),
+              let gap = StreetMap.bundled?.networkGap(rider) else { return nil }
+        return gap.indoors || gap.metres > Self.offNetwork ? max(gap.metres, 5) : nil
+    }
+    static let offNetwork = 15.0
+
     private var bannerSymbol: String {
-        guard let nav = model.nav else { return "arrow.turn.up.left" }  // the script's turn
-        if nav.isOffRoute { return "location.north.line.fill" }
+        guard model.nav != nil else { return "arrow.turn.up.left" }  // the script's turn
+        if headToRoute != nil { return "location.north.line.fill" }
         guard nearTurn else { return "arrow.up" }
         return step(1)?.symbol ?? "flag.checkered"
     }
     private var bannerTitle: String {
         if let nav = model.nav {
-            if nav.isOffRoute { return Self.metres(nav.offRoute) }
+            if headToRoute != nil { return "Head to the route" }
             let m = Self.metres(nav.distanceToManoeuvre)
             return nearTurn ? "In \(m)" : m
         }
@@ -190,8 +203,10 @@ struct NavHUDView: View {
         guard model.nav != nil else {
             return model.scripted ? "Turn onto \(World.turnStreet.name)" : "No destination"
         }
-        if let nav = model.nav, nav.isOffRoute {
-            return nav.isWeakFix ? "Head to the route · weak GPS" : "Head to the route"
+        if let nav = model.nav, headToRoute != nil {
+            // Indoors the distance is to a guessed fix, so only show it when the rider is outside and off the route.
+            guard nav.isOffRoute else { return "Start on a road or path" }
+            return Self.metres(nav.offRoute) + (nav.isWeakFix ? " away · weak GPS" : " away")
         }
         if model.nav?.isWeakFix == true { return "Weak GPS, distances are rough" }
         guard nearTurn else { return "Continue straight" }
