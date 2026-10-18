@@ -43,12 +43,15 @@ struct DestinationPickerView: View {
         busy = true
         Task {
             defer { busy = false }
-            let search = MKLocalSearch(request: MKLocalSearch.Request(completion: completion))
-            if let item = try? await search.start().mapItems.first {
+            if let item = await Self.resolve(completion) {
                 onPick(item)
                 dismiss()
             }
         }
+    }
+
+    static func resolve(_ completion: MKLocalSearchCompletion) async -> MKMapItem? {
+        try? await MKLocalSearch(request: MKLocalSearch.Request(completion: completion)).start().mapItems.first
     }
 
     final class Completer: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {

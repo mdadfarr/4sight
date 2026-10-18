@@ -26,6 +26,14 @@ struct PassiveHomeView: View {
     // `-homeSheet peek|full` opens it there, for simulator screenshots.
     @State private var detent = Detent(rawValue: UserDefaults.standard.string(forKey: "homeSheet") ?? "") ?? .half
     private var expanded: Bool { detent == .full }
+    /// Search happens in this sheet: the bar stays where it is, the bike button turns into
+    /// Cancel, and the places give way to recents and matches as the keyboard comes up.
+    @State private var searching = false
+    @State private var detentBeforeSearch = Detent.half
+    @State private var resolving = false
+    @FocusState private var fieldFocused: Bool
+    @StateObject private var completer = DestinationPickerView.Completer()
+    private static let spring = Animation.spring(response: 0.35, dampingFraction: 0.86)
 
     static let peekHeight = 196.0
     static let restingHeight = 470.0
@@ -111,52 +119,183 @@ struct PassiveHomeView: View {
         VStack(spacing: 0) {
             searchRow.padding(.horizontal, 16)
 
-            if detent == .peek {
+            if detent == .peek && !searching {
                 chips.padding(.horizontal, 16).padding(.top, 14)
             }
-            // Always laid out, below the fold when the sheet is low, so pulling it up
-            // reveals the real places and recents as it moves, never an empty sheet.
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    if expanded { bikeCard.transition(.opacity) }
-                    places
-                    recents
-                    rides
+            ZStack(alignment: .top) {
+                if searching {
+                    searchList
+                        .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 14)),
+                                                removal: .opacity))
+                } else {
+                    // Always laid out, below the fold when the sheet is low, so pulling it up
+                    // reveals the real places and recents as it moves, never an empty sheet.
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 24) {
+                            if expanded { bikeCard.transition(.opacity) }
+                            places
+                            recents
+                            rides
+                        }
+                        .padding(.horizontal, 16).padding(.top, 22).padding(.bottom, 40)
+                    }
+                    .scrollDisabled(!expanded)
+                    .transition(.opacity.combined(with: .offset(y: 18)))
                 }
-                .padding(.horizontal, 16).padding(.top, 22).padding(.bottom, 40)
             }
-            .scrollDisabled(!expanded)
         }
+        .onChange(of: fieldFocused) { _, focused in if focused && !searching { startSearch() } }
+        // `-homeSearch <text>` opens with that typed, for simulator screenshots.
+        .onAppear {
+            if let q = UserDefaults.standard.string(forKey: "homeSearch") { completer.query = q; fieldFocused = true }
+        }
+        // Dragged down mid-search: let the sheet go where it was dragged, and stop searching.
+        .onChange(of: detent) { _, d in if searching && d != .full { endSearch(restore: false) } }
+    }
+
+    private func startSearch() {
+        withAnimation(Self.spring) {
+            detentBeforeSearch = detent
+            detent = .full
+            searching = true
+        }
+    }
+
+    private func endSearch(restore: Bool = true) {
+        fieldFocused = false
+        withAnimation(Self.spring) {
+            searching = false
+            completer.query = ""
+            if restore { detent = detentBeforeSearch }
+        }
+    }
+
+    private func go(_ item: MKMapItem) {
+        endSearch(restore: false)
+        onPick(item)
+    }
+
+    private func pick(_ completion: MKLocalSearchCompletion) {
+        guard !resolving else { return }
+        resolving = true
+        Task {
+            defer { resolving = false }
+            if let item = await DestinationPickerView.resolve(completion) { go(item) }
+        }
+    }
+
+    /// Recents before a letter is typed, then the matches; the keyboard covers the bottom
+    /// of the sheet rather than pushing it, so the list leaves room for it.
+    private var searchList: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                if completer.query.isEmpty {
+                    header("Recents", chevron: false)
+                    if flow.recents.items.isEmpty {
+                        Text("Nowhere yet. Type a place or an address.")
+                            .font(.system(size: 14, design: .rounded))
+                            .foregroundStyle(Light.dim)
+                    } else {
+                        placeList(Array(flow.recents.items.prefix(8)))
+                    }
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(Array(completer.results.prefix(12).enumerated()), id: \.offset) { i, r in
+                            if i > 0 { Divider().overlay(Light.line).padding(.leading, 48) }
+                            Button { pick(r) } label: { resultRow(r) }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .background(.white, in: RoundedRectangle(cornerRadius: 18))
+                    .overlay { if resolving { ProgressView().tint(Light.ink) } }
+                }
+            }
+            .padding(.horizontal, 16).padding(.top, 22).padding(.bottom, 360)
+        }
+        .scrollDismissesKeyboard(.immediately)
+    }
+
+    private func resultRow(_ r: MKLocalSearchCompletion) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "mappin")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Light.blue)
+                .frame(width: 36, height: 36)
+                .background(Light.blueSoft, in: Circle())
+            VStack(alignment: .leading, spacing: 1) {
+                Text(highlighted(r)).foregroundStyle(Light.ink)
+                if !r.subtitle.isEmpty {
+                    Text(r.subtitle)
+                        .font(.system(size: 13.5, design: .rounded))
+                        .foregroundStyle(Light.dim)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .lineLimit(1)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+    }
+
+    /// The typed letters in bold, as Apple Maps does.
+    private func highlighted(_ r: MKLocalSearchCompletion) -> AttributedString {
+        var s = AttributedString(r.title)
+        s.font = .system(size: 16, weight: .medium, design: .rounded)
+        for v in r.titleHighlightRanges {
+            if let range = Range(v.rangeValue, in: r.title), let a = Range(range, in: s) {
+                s[a].font = .system(size: 16, weight: .bold, design: .rounded)
+            }
+        }
+        return s
     }
 
     private var searchRow: some View {
         HStack(spacing: 10) {
-            Button { flow.pickingFor = nil; flow.picking = true } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass").font(.system(size: 17, weight: .semibold))
-                    Text("Where to?")
-                    Spacer(minLength: 0)
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass").font(.system(size: 17, weight: .semibold))
+                TextField("", text: $completer.query, prompt: Text("Where to?").foregroundStyle(Light.dim))
+                    .focused($fieldFocused)
+                    .foregroundStyle(Light.ink)
+                    .autocorrectionDisabled()
+                    .submitLabel(.search)
+                    .onSubmit { if let first = completer.results.first { pick(first) } }
+                if searching && !completer.query.isEmpty {
+                    Button { completer.query = "" } label: { Image(systemName: "xmark.circle.fill") }
+                        .foregroundStyle(Light.faint)
+                        .accessibilityLabel("Clear")
                 }
-                .font(.system(size: 17, design: .rounded))
-                .foregroundStyle(Light.dim)
-                .padding(.horizontal, 16).frame(height: 50)
-                .background(expanded ? .white : Light.field, in: RoundedRectangle(cornerRadius: 16))
             }
-            Button { detent = expanded ? .half : .full } label: {
-                Image(systemName: "bicycle")
-                    .font(.system(size: 21, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 50, height: 50)
-                    .background(Light.blue, in: Circle())
-                    .overlay(alignment: .topTrailing) {
-                        Circle().fill(colour(camera_.0 == .ok && grips.0 == .ok ? .ok : camera_.0))
-                            .frame(width: 12, height: 12)
-                            .overlay(Circle().stroke(Light.sheet, lineWidth: 2))
-                            .offset(x: -1, y: 1)
-                    }
+            .font(.system(size: 17, design: .rounded))
+            .foregroundStyle(Light.dim)
+            .padding(.horizontal, 16).frame(height: 50)
+            .background(expanded ? .white : Light.field, in: RoundedRectangle(cornerRadius: 16))
+            if searching {
+                Button("Cancel") { endSearch() }
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Light.blue)
+                    .frame(height: 50)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else {
+                bikeButton.transition(.scale(scale: 0.5).combined(with: .opacity))
             }
-            .accessibilityLabel("Your bike: rear camera and grips")
         }
+    }
+
+    private var bikeButton: some View {
+        Button { detent = expanded ? .half : .full } label: {
+            Image(systemName: "bicycle")
+                .font(.system(size: 21, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 50, height: 50)
+                .background(Light.blue, in: Circle())
+                .overlay(alignment: .topTrailing) {
+                    Circle().fill(colour(camera_.0 == .ok && grips.0 == .ok ? .ok : camera_.0))
+                        .frame(width: 12, height: 12)
+                        .overlay(Circle().stroke(Light.sheet, lineWidth: 2))
+                        .offset(x: -1, y: 1)
+                }
+        }
+        .accessibilityLabel("Your bike: rear camera and grips")
     }
 
     private func header(_ title: String, chevron: Bool = true) -> some View {
@@ -303,16 +442,20 @@ struct PassiveHomeView: View {
                     .foregroundStyle(Light.dim)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(flow.recents.items.prefix(expanded ? 6 : 2).enumerated()), id: \.element.id) { i, place in
-                        if i > 0 { Divider().overlay(Light.line).padding(.leading, 48) }
-                        Button { onPick(place.mapItem) } label: { row(place) }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .background(.white, in: RoundedRectangle(cornerRadius: 18))
+                placeList(Array(flow.recents.items.prefix(expanded ? 6 : 2)))
             }
         }
+    }
+
+    private func placeList(_ places: [RecentPlace]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(places.enumerated()), id: \.element.id) { i, place in
+                if i > 0 { Divider().overlay(Light.line).padding(.leading, 48) }
+                Button { go(place.mapItem) } label: { row(place) }
+            }
+        }
+        .padding(.horizontal, 16)
+        .background(.white, in: RoundedRectangle(cornerRadius: 18))
     }
 
     private func row(_ place: RecentPlace) -> some View {
