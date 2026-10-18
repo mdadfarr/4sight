@@ -3,14 +3,14 @@ import Foundation
 
 /// Where on the street to ride along the route, like Google Maps lane guidance: the
 /// bike lane where OSM has one, else the right-hand lane; the left lane of your own
-/// direction before a left turn on a multi-lane road; the sidewalk along a big road
-/// with no bike lane, where one is mapped. Planned from the map and the route, not
-/// measured: phone GPS (3–5 m) cannot tell lanes apart.
+/// direction before a left turn on a multi-lane road. Never the sidewalk: adult cyclists
+/// may not ride on Toronto sidewalks. Planned from the map and the route, not measured:
+/// phone GPS (3–5 m) cannot tell lanes apart.
 ///
 /// The route line is moved onto that spot, and each move is a `changing` stretch the
 /// renderer draws white with arrows and the banner announces.
 struct LanePlan {
-    enum Spot: Equatable { case road, bikeLane, rightLane, leftLane, sidewalk }
+    enum Spot: Equatable { case road, bikeLane, rightLane, leftLane }
 
     struct Sample {
         let e, n: Double       // map metres, already moved onto the spot
@@ -21,6 +21,9 @@ struct LanePlan {
 
     let samples: [Sample]
     let map: StreetMap
+    /// Route distances of junctions, where the route crosses a mapped crosswalk: the right
+    /// hook happens there, so the turn warning watches the last 35 m before each.
+    let junctions: [Double]
 
     static let step = 4.0
     /// Hold the left lane this far before a left turn.
@@ -45,7 +48,7 @@ struct LanePlan {
             ($0.kind == .road || $0.kind == .path)
                 && $0.hi.e > lo.0 - 30 && $0.lo.e < hi.0 + 30 && $0.hi.n > lo.1 - 30 && $0.lo.n < hi.1 + 30
         }
-        let roads = ways.filter { $0.kind == .road }, paths = ways.filter { $0.kind == .path }
+        let roads = ways.filter { $0.kind == .road }
 
         // Target spot and lateral offset (metres right of the road centre, along travel).
         var target: [(spot: Spot, lat: Double, centre: (e: Double, n: Double)?)] = []
@@ -59,14 +62,10 @@ struct LanePlan {
             let lanesHere = max(twoWay ? max(w.lanes, 2) / 2 : max(w.lanes, 1), 1)
             let laneW = (twoWay ? h : w.width) / Double(lanesHere)
             let leftTurnSoon = turns.contains { $0 > s && $0 - s < Self.leftTurnLead }
-            let big = (twoWay && w.lanes >= 4) || (!twoWay && w.lanes >= 3) || w.width >= 12
-            let walk = big && !w.bike ? Self.sidewalk(m.centre, d, in: paths, beyond: h) : nil
             if leftTurnSoon && lanesHere >= 2 {
                 target.append((.leftLane, (twoWay ? 0 : -h) + laneW / 2, m.centre))
             } else if w.bike {
                 target.append((.bikeLane, h - 0.8, m.centre))
-            } else if let walk {
-                target.append((.sidewalk, walk, m.centre))
             } else {
                 target.append((.rightLane, h - min(laneW, 3.3) / 2, m.centre))
             }
@@ -100,32 +99,61 @@ struct LanePlan {
             out.append(q)
         }
         samples = out
+        junctions = Self.junctions(along: pts, crossings: map.ways.filter {
+            $0.kind == .crossing && $0.hi.e > lo.0 - 30 && $0.lo.e < hi.0 + 30 && $0.hi.n > lo.1 - 30 && $0.lo.n < hi.1 + 30
+        })
     }
 
     // MARK: - Banner
 
     /// What the banner says about the next planned move within `horizon` metres of
     /// `rider`, or nil while the plan is steady. Also nil off the route.
-    func cue(at rider: CLLocationCoordinate2D, horizon: Double = 60) -> (text: String, symbol: String, metres: Double)? {
+    /// The sample the rider is at, or nil off the route.
+    private func index(of rider: CLLocationCoordinate2D) -> Int? {
         let r = map.local(rider)
         guard let i = samples.indices.min(by: {
             hypot(samples[$0].e - r.e, samples[$0].n - r.n) < hypot(samples[$1].e - r.e, samples[$1].n - r.n)
         }), hypot(samples[i].e - r.e, samples[i].n - r.n) < 30 else { return nil }
+        return i
+    }
+
+    /// Metres to the next junction ahead on the route, or nil.
+    func metresToJunction(at rider: CLLocationCoordinate2D) -> Double? {
+        guard let i = index(of: rider) else { return nil }
+        let s = samples[i].s
+        return junctions.first { $0 > s }.map { $0 - s }
+    }
+
+    func cue(at rider: CLLocationCoordinate2D, horizon: Double = 60) -> (text: String, symbol: String, metres: Double)? {
+        guard let i = index(of: rider) else { return nil }
         let here = samples[i]
         guard let next = samples[i...].first(where: { $0.spot != here.spot && $0.s - here.s <= horizon }) else { return nil }
-        let toLeft = next.spot == .leftLane || here.spot == .sidewalk
+        let toLeft = next.spot == .leftLane
         let text: String
         switch next.spot {
         case .bikeLane: text = "Move into the bike lane"
         case .leftLane: text = "Move to the left lane to turn left"
-        case .rightLane: text = here.spot == .sidewalk ? "Back onto the road" : "Keep to the right lane"
-        case .sidewalk: text = "Use the sidewalk"
+        case .rightLane: text = "Keep to the right lane"
         case .road: return nil
         }
         return (text, toLeft ? "arrow.up.left" : "arrow.up.right", next.s - here.s)
     }
 
     // MARK: - Geometry
+
+    /// Route distances where a crosswalk passes within 10 m of the route, one per 20 m.
+    private static func junctions(along pts: [(e: Double, n: Double)], crossings: [StreetMap.Way]) -> [Double] {
+        var out: [Double] = []
+        for (i, p) in pts.enumerated() {
+            let s = Double(i) * step
+            if let last = out.last, s - last < 20 { continue }
+            let near = crossings.contains { w in
+                w.pts.contains { hypot($0.e - p.e, $0.n - p.n) < 10 }
+            }
+            if near { out.append(s) }
+        }
+        return out
+    }
 
     private static func resample(_ line: [(e: Double, n: Double)], every d: Double) -> [(e: Double, n: Double)] {
         var out = [line[0]], carry = 0.0
@@ -176,16 +204,5 @@ struct LanePlan {
             }
         }
         return best.map { ($0.0, $0.1) }
-    }
-
-    /// Lateral offset (right of `c` along `d`) of a parallel sidewalk on the right
-    /// between the kerb and 12 m beyond it, or nil.
-    private static func sidewalk(_ c: (e: Double, n: Double), _ d: (Double, Double),
-                                 in paths: [StreetMap.Way], beyond h: Double) -> Double? {
-        let right = (d.1, -d.0)
-        let probe = (e: c.e + right.0 * (h + 4), n: c.n + right.1 * (h + 4))
-        guard let m = nearest(probe, d, in: paths, within: 8) else { return nil }
-        let lat = (m.centre.e - c.e) * right.0 + (m.centre.n - c.n) * right.1
-        return lat > h && lat < h + 12 ? lat : nil
     }
 }

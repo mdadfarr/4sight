@@ -97,7 +97,8 @@ lane on this side?".
 - `X` does not touch the merge LEDs, and neither does the offline pattern. Clearing them on a dead
   link would hide the blink that exists precisely to signal a dead link.
 - The two sides are independent and may show answers at the same time.
-- The merge LEDs are separate from the amber alert LEDs and never share a pin.
+- One red and one green LED per side. Red is shared: a car alert on that side lights it too, and
+  cancels a green.
 
 - Never both motor pairs on at the same time (3V3 rail budget); if both sides are commanded, left wins and right is queued.
 

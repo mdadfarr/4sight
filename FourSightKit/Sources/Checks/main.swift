@@ -262,9 +262,13 @@ runDangerChecks()
 
 // Merge-check button, see MergeChecks.swift
 runMergeChecks(check)
+runTurnChecks(check)
 
 // ThreatEngine + DangerEngine fused, see FusionChecks.swift
 runFusionChecks(check)
+
+// Near-miss upload body, see RideUploadChecks.swift
+runRideUploadChecks(check)
 
 print(failures == 0 ? "ALL CHECKS PASSED" : "\(failures) CHECK(S) FAILED")
 exit(failures == 0 ? 0 : 1)

@@ -78,11 +78,12 @@ Single-phone mode = rear role with no front phone found: grips + LEDs only. Audi
 
 ## Hardware (C + D)
 
-- Motors: GPIO 25, 26 (left pair), 32, 33 (right pair) → 1 kΩ → 2N2222 base (or logic-level N-MOSFET gate); motor between 3V3 and collector; 1N4148/1N4007 flyback across each motor, cathode to 3V3; 100 µF + 0.1 µF on 3V3. LEDs: GPIO 27 (left), 14 (right) → 220 Ω → amber LED → GND. USB power bank → ESP32. Never both grips at once (firmware enforces).
+- As built: one 3 V coin motor per grip, GPIO 25 (left) and 26 (right) → 1 kΩ → 2N2222A base; motor between 3V3 and collector; 1N4007 across each motor, stripe to 3V3. Power bank → USB-C → ESP32. Never both grips at once (firmware enforces). Full table in firmware/README.md.
 - **Merge-check buttons (added day 1).** One push button plus a green and a red LED per handlebar.
-  Button left GPIO 18, button right GPIO 19, each wired button → GND and read with `INPUT_PULLUP`
-  (pressed = LOW, no external resistor). LEDs: left green 16, left red 17, right green 22, right red 23,
-  each → 220 Ω → LED → GND. None of these are strapping pins and none are input-only.
+  Button left GPIO 32, button right GPIO 33, each wired button → GND and read with `INPUT_PULLUP`
+  (pressed = LOW, no external resistor). LEDs: left green 18, left red 19, right green 22, right red 23,
+  each → 150 Ω → LED → GND. No amber LEDs: a car alert lights that side's red. None of these are
+  strapping pins and none are input-only.
   The rider presses to ask "can I move into that lane?"; green means clear, red means blocked, and a
   **blinking red means the phone did not answer** — unknown is never shown as green. See docs/CONTRACTS.md.
 - Test order: serial commands → nRF Connect writes → range test through the box → on the bike from the power bank.

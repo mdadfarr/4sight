@@ -189,7 +189,7 @@ enum VehicleSprite {
     static func puck(_ ctx: inout GraphicsContext) {
         let p = Camera.pt(0, 0)
         // Big enough to find at a glance on a moving bike; the route runs in under it.
-        let r = 1.6 * Camera.ppm(0)
+        let r = 2.4 * Camera.ppm(0)
         let k = r / 17                                   // the chevron was drawn for 17 pt
         var layer = ctx
         layer.addFilter(.shadow(color: Color(hex: 0x081830).opacity(0.45), radius: 5, y: 2))
