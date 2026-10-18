@@ -35,6 +35,27 @@ def xy(p, lat0):
     return p[0] * 111_320 * math.cos(math.radians(lat0)), p[1] * 111_320
 
 
+# The City abbreviates ("Bloor St W"), OpenStreetMap spells out ("Bloor Street West"); one form,
+# so a street that is part City lane and part OSM road ranks as one street.
+SUFFIX = {"St": "Street", "Ave": "Avenue", "Av": "Avenue", "Rd": "Road", "Dr": "Drive", "Blvd": "Boulevard",
+          "Cres": "Crescent", "Crt": "Court", "Ct": "Court", "Pkwy": "Parkway", "Trl": "Trail", "Ln": "Lane",
+          "Pl": "Place", "Sq": "Square", "Gdns": "Gardens", "Hwy": "Highway", "Cir": "Circle", "Terr": "Terrace"}
+DIRECTION = {"E": "East", "W": "West", "N": "North", "S": "South"}
+
+
+def full_name(street):
+    if not street:
+        return street
+    words = street.split()
+    if len(words) > 2 and words[-1] in DIRECTION and words[-2] in SUFFIX:
+        words[-2:] = [SUFFIX[words[-2]], DIRECTION[words[-1]]]
+    elif len(words) > 1 and words[-1] in SUFFIX:
+        words[-1] = SUFFIX[words[-1]]
+    elif len(words) > 1 and words[-1] in DIRECTION:          # "Queens Quay W"
+        words[-1] = DIRECTION[words[-1]]
+    return " ".join(words)
+
+
 def seg_dist(p, a, b):
     ax, ay, bx, by = a[0] - p[0], a[1] - p[1], b[0] - p[0], b[1] - p[1]
     dx, dy = bx - ax, by - ay
@@ -84,7 +105,7 @@ def main():
         for k, coords in enumerate(c for c in parts if len(c) >= 2):
             ward, name = ward_of(middle(coords))
             feats.append({"type": "Feature", "geometry": {"type": "LineString", "coordinates": coords},
-                          "properties": {"segment_id": f"city-{i}-{k}", "street": p.get("street"),
+                          "properties": {"segment_id": f"city-{i}-{k}", "street": full_name(p.get("street")),
                                          "lane_type": LANE[p["lane_type"]], "ward": ward, "ward_name": name,
                                          "source": "City of Toronto Cycling Network", "city": p}})
             pts = [xy(c, lat0) for c in coords]

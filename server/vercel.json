@@ -1,5 +1,8 @@
 {
   "framework": null,
+  "regions": [
+    "yul1"
+  ],
   "rewrites": [
     {
       "source": "/v1/rides",

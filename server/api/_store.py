@@ -160,13 +160,20 @@ cls AS (
     SELECT DISTINCT ON (segment_id) segment_id, cls FROM (
         SELECT segment_id, cls, count(*) AS n FROM near_misses
         WHERE segment_id IS NOT NULL AND (NOT demo OR %(demo)s) GROUP BY 1, 2) x
-    ORDER BY segment_id, n DESC, cls)
+    ORDER BY segment_id, n DESC, cls),
+-- Whole-street totals over every segment of the street, short ones included, so a street's
+-- figures match the close-pass points drawn along it.
+street AS (
+    SELECT s.street, sum(km.km) AS km, sum(coalesce(p.passes, 0))::int AS passes
+    FROM segments s JOIN km ON km.segment_id = s.id LEFT JOIN passes p ON p.segment_id = s.id
+    WHERE s.street IS NOT NULL GROUP BY 1)
 SELECT ST_AsGeoJSON(s.geom, 6), s.street, s.lane_type, km.km, coalesce(p.passes, 0),
-       hours.h, cls.cls, km.syn_km / km.km
+       hours.h, cls.cls, km.syn_km / km.km, st.km, st.passes
 FROM segments s JOIN km ON km.segment_id = s.id
 LEFT JOIN passes p ON p.segment_id = s.id
 LEFT JOIN hours ON hours.segment_id = s.id
 LEFT JOIN cls ON cls.segment_id = s.id
+LEFT JOIN street st ON st.street = s.street
 WHERE km.km >= 2
 """
 
@@ -184,11 +191,14 @@ def city_risk(conn, demo: bool = False) -> dict:
     """The public layer: segments with ≥ 2 km ridden, and the newest 500 passes."""
     q = {"demo": demo}
     features = []
-    for geom, street, lane, km, passes, hour, cls, syn in conn.execute(SEGMENTS_SQL, q):
+    for geom, street, lane, km, passes, hour, cls, syn, st_km, st_passes in conn.execute(SEGMENTS_SQL, q):
         features.append({"type": "Feature", "geometry": json.loads(geom), "properties": {
             "street": street, "lane_type": lane, "km": round(km, 1), "passes": int(passes),
             "per_100km": round(100 * passes / km, 1), "worst_hour": hour, "top_cls": cls,
-            "synthetic_share": round(syn, 2)}})
+            "synthetic_share": round(syn, 2),
+            # Extra to the contract (additive): the whole street, every segment counted.
+            "street_km": round(st_km, 1) if st_km else None, "street_passes": st_passes,
+            "street_per_100km": round(100 * st_passes / st_km, 1) if st_km else None}})
     for lon, lat, cls, level, gap, hour, syn, dem, street, lane in conn.execute(POINTS_SQL, q):
         # street and lane_type are extra to the contract's point properties (additive).
         features.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": [round(lon, 6), round(lat, 6)]},
@@ -206,15 +216,19 @@ WITH km AS (SELECT segment_id, sum(km) AS km, coalesce(sum(km) FILTER (WHERE syn
             FROM segment_km_hourly WHERE segment_id IS NOT NULL AND NOT demo GROUP BY 1),
 passes AS (SELECT segment_id, sum(passes)::int AS passes
            FROM segment_passes_hourly WHERE segment_id IS NOT NULL AND NOT demo GROUP BY 1)
-SELECT s.id, s.street, s.lane_type, s.ward, s.ward_name, round(km.km::numeric, 2),
-       coalesce(p.passes, 0), round((100 * coalesce(p.passes, 0) / km.km)::numeric, 1),
-       round((km.syn / km.km)::numeric, 2)
+SELECT s.street, string_agg(DISTINCT s.lane_type, '; ' ORDER BY s.lane_type),
+       string_agg(DISTINCT s.ward_name, '; ' ORDER BY s.ward_name),
+       round(sum(km.km)::numeric, 1), sum(coalesce(p.passes, 0))::int,
+       round((100 * sum(coalesce(p.passes, 0)) / sum(km.km))::numeric, 1),
+       round((sum(km.syn) / sum(km.km))::numeric, 2)
 FROM segments s JOIN km ON km.segment_id = s.id LEFT JOIN passes p ON p.segment_id = s.id
-WHERE km.km >= 2
-ORDER BY 8 DESC, 6 DESC
+WHERE s.street IS NOT NULL
+GROUP BY s.street
+HAVING sum(km.km) >= 2
+ORDER BY 6 DESC, 4 DESC
 """
-STREETS_CSV_HEAD = ["segment_id", "street", "lane_type", "ward", "ward_name", "km_ridden",
-                    "close_passes", "close_passes_per_100km", "example_data_share"]
+STREETS_CSV_HEAD = ["street", "lane_types", "wards", "km_ridden", "close_passes", "close_passes_per_100km",
+                    "example_data_share"]
 
 WARDS_CSV_SQL = """
 WITH km AS (SELECT s.ward, sum(k.km) AS km, coalesce(sum(k.km) FILTER (WHERE k.synthetic), 0) AS syn
