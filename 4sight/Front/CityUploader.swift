@@ -34,19 +34,24 @@ final class CityUploader: ObservableObject {
     /// Sends run one after another, so a launch flush and a ride end never post a file twice.
     private var sending: Task<Set<String>, Never>?
 
-    func submit(_ ride: RideUpload) {
-        let name = "ride-\(Int(ride.started.timeIntervalSince1970)).json"
+    /// One ride, as one upload or (over 5.5 h) several consecutive ones.
+    func submit(_ parts: [RideUpload]) {
+        var names: [String] = []
         do {
             try FileManager.default.createDirectory(at: Self.outbox, withIntermediateDirectories: true)
-            try ride.json().write(to: Self.outbox.appendingPathComponent(name), options: .atomic)
+            for part in parts {
+                let name = "ride-\(Int(part.started.timeIntervalSince1970)).json"
+                try part.json().write(to: Self.outbox.appendingPathComponent(name), options: .atomic)
+                names.append(name)
+            }
         } catch {
             return Self.log.error("outbox write failed: \(error.localizedDescription)")
         }
-        let n = ride.events.count
+        let n = parts.reduce(0) { $0 + $1.events.count }
         Task {
             let sent = await flush().value
             guard n > 0 else { return }
-            show(sent.contains(name)
+            show(Set(names).isSubset(of: sent)
                  ? "\(n) near miss\(n == 1 ? "" : "es") added to Toronto\u{2019}s safety map"
                  : "Ride saved, will upload when online")
         }

@@ -7,14 +7,12 @@ import Protocol
 /// The trimming and one-per-vehicle rule live in `RideLog` (FourSightKit), checked there.
 final class RideRecorder {
     private var log: RideLog?
-    private var started = Date()
     private var demo = false
     private var fix: CLLocation?
 
     func begin() {
         let share = UserDefaults.standard.object(forKey: "shareNearMisses") as? Bool ?? true
         log = share ? RideLog() : nil
-        started = Date()
         #if targetEnvironment(simulator)
         demo = true
         #else
@@ -46,8 +44,7 @@ final class RideRecorder {
     /// Ends the ride and hands it to the outbox. Safe to call twice: the second is a no-op.
     func finish() {
         defer { log = nil; fix = nil }
-        guard let up = log?.upload(install: CityUploader.install, app: CityUploader.app, demo: demo,
-                                   started: started, ended: Date()) else { return }
-        CityUploader.shared.submit(up)
+        let ups = log?.uploads(install: CityUploader.install, app: CityUploader.app, demo: demo) ?? []
+        if !ups.isEmpty { CityUploader.shared.submit(ups) }
     }
 }

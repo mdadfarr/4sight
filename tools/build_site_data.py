@@ -9,7 +9,7 @@ tools/synth_events.py's output, generated here if missing.
 
 Writes web/data/events.geojson, rides.geojson and summary.json. Every feature carries
 "synthetic": true|false. Nothing identifying a rider leaves: no track ids, no device names,
-and the first and last 200 m of each real ride are cut so a ride never starts at a home.
+and the first and last 50 m of each real ride are cut so a ride never starts at a door.
 """
 import argparse
 import glob
@@ -24,7 +24,7 @@ from zoneinfo import ZoneInfo
 
 HERE = Path(__file__).resolve().parent
 TORONTO = ZoneInfo("America/Toronto")
-PRIVACY_M = 200
+PRIVACY_M = 50
 SNAP_M = 35
 CELL = 0.002  # degrees, ~200 m: grid for snapping to streets
 

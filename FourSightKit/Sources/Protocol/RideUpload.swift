@@ -54,11 +54,13 @@ public struct RideUpload: Codable, Equatable, Sendable {
         return try e.encode(self)
     }
 
+    /// The server's limits. Rounded as RideLog stores them, 20 000 points stay under its 1 MB.
     static let maxPoints = 20_000, maxEvents = 500
 
     /// Drops every point within `metres` of the ride's start or end, measured along the
-    /// path, so the upload never shows where the rider lives or works.
-    public static func trim(_ points: [[Double]], metres: Double = 200) -> [[Double]] {
+    /// path, so the upload never begins or ends at a door. The public map never shows a
+    /// ride's track (only street totals and unlinked near misses), so 50 m is enough.
+    public static func trim(_ points: [[Double]], metres: Double = 50) -> [[Double]] {
         guard points.count > 1 else { return [] }
         var along = [0.0]
         for (a, b) in zip(points, points.dropFirst()) { along.append(along.last! + distance(a, b)) }
@@ -85,27 +87,42 @@ public struct RideLog: Sendable {
 
     public init() {}
 
+    /// Stored rounded (0.1 s, ~0.1 m, 0.1 m/s): finer than GPS can tell, and half the bytes.
     public mutating func add(t: Double, lat: Double, lon: Double, speed: Double) {
+        let t = round(t, 10)
         if let last = points.last, t - last[0] < 1 { return }
-        points.append([t, lat, lon, speed])
+        points.append([t, round(lat, 1e6), round(lon, 1e6), round(speed, 10)])
     }
 
     public mutating func add(track id: Int, _ e: RideUpload.Event) {
-        if e.level >= 2 { sightings.append((id, e)) }
+        guard e.level >= 2 else { return }
+        var e = e
+        e.t = round(e.t, 10); e.lat = round(e.lat, 1e6); e.lon = round(e.lon, 1e6)
+        e.gapM = round(e.gapM, 100); e.ttcS = e.ttcS.map { round($0, 100) }; e.speed = round(e.speed, 10)
+        sightings.append((id, e))
     }
 
-    /// The upload, trimmed; nil when nothing is left to send. Events inside the trimmed
-    /// ends go too, since their position would give the same places away.
-    public func upload(install: String, app: String, demo: Bool, started: Date, ended: Date) -> RideUpload? {
-        let kept = Array(RideUpload.trim(points).prefix(RideUpload.maxPoints))
-        guard let first = kept.first?[0], let last = kept.last?[0] else { return nil }
-        // One event per track id: the first moment it reached its worst level.
-        var worst: [Int: RideUpload.Event] = [:]
-        for (id, e) in sightings where e.t >= first && e.t <= last && (worst[id]?.level ?? 0) < e.level {
-            worst[id] = e
+    private func round(_ v: Double, _ scale: Double) -> Double { (v * scale).rounded() / scale }
+
+    /// The ride as uploads, trimmed; empty when nothing is left to send. Events inside the
+    /// trimmed ends go too, since their position would give the same places away. A ride over
+    /// 20 000 points (5.5 h) goes as several consecutive uploads rather than losing any of it.
+    /// started/ended are the kept points' times, so they do not reveal the trimmed ends either.
+    public func uploads(install: String, app: String, demo: Bool) -> [RideUpload] {
+        let kept = RideUpload.trim(points)
+        return stride(from: 0, to: kept.count, by: RideUpload.maxPoints).map { start in
+            let chunk = Array(kept[start..<min(start + RideUpload.maxPoints, kept.count)])
+            let from = chunk[0][0], to = start + chunk.count < kept.count ? kept[start + chunk.count][0] : chunk.last![0] + 0.01
+            // One event per track id: the first moment it reached its worst level.
+            var worst: [Int: RideUpload.Event] = [:]
+            for (id, e) in sightings where e.t >= from && e.t < to && (worst[id]?.level ?? 0) < e.level {
+                worst[id] = e
+            }
+            // shortcut: over 500 near misses in 5.5 h keeps the first 500; split by events too if that ever happens.
+            let events = worst.values.sorted { $0.t < $1.t }.prefix(RideUpload.maxEvents)
+            return RideUpload(install: install, app: app, demo: demo,
+                              started: Date(timeIntervalSince1970: from), ended: Date(timeIntervalSince1970: chunk.last![0]),
+                              points: chunk, events: Array(events))
         }
-        let events = worst.values.sorted { $0.t < $1.t }
-        return RideUpload(install: install, app: app, demo: demo, started: started, ended: ended,
-                          points: kept, events: Array(events.prefix(RideUpload.maxEvents)))
     }
 }
