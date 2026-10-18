@@ -13,6 +13,19 @@ struct NavState {
     var currentIndex: Int
     var distanceToManoeuvre: Double   // metres from rider to end of current step
     var remaining: Double             // metres to destination
+    /// Metres from the rider to the nearest point of the route. The countdown above is
+    /// measured from that point, so far off the route it says nothing about the rider.
+    var offRoute: Double = 0
+    /// The fix's horizontal accuracy, metres (negative = unknown). Indoors it is often 30–100.
+    var accuracy: Double = -1
+
+    /// Further than this from the route, the banner points back to it instead of counting
+    /// down to a turn measured from somewhere else.
+    static let offRouteShown = 25.0
+    /// Worse than this, the position (and every distance from it) is a rough guess.
+    static let weakAccuracy = 30.0
+    var isOffRoute: Bool { offRoute > Self.offRouteShown }
+    var isWeakFix: Bool { accuracy > Self.weakAccuracy }
 
     var current: NavStep { steps[currentIndex] }
 

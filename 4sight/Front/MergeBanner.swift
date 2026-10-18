@@ -33,9 +33,9 @@ enum MergeBanner {
     }
 }
 
-/// The answer takes over the black manoeuvre banner for its 3 s: the one place the
-/// rider already looks, solid green or red to match the LEDs on that grip, never
-/// flashing, so it cannot be mistaken for the edge warning.
+/// The answer turns the guidance card green or red for its 3 s: the one place the rider
+/// already looks, solid to match the LEDs on that grip, never flashing, so it cannot be
+/// mistaken for the edge warning.
 struct MergeBannerView: View {
     @ObservedObject var model: FrontModel
 
@@ -44,7 +44,7 @@ struct MergeBannerView: View {
             let scale = geo.size.width / Design.width
             if let merge = MergeBanner.current(model.frame, link: model.link) {
                 panel(merge)
-                    .frame(width: Design.width, height: Design.bannerH)
+                    .atGuidanceCard()
                     .scaleEffect(scale, anchor: .topLeading)
                     .transition(.opacity)
             }
@@ -55,27 +55,12 @@ struct MergeBannerView: View {
 
     private func panel(_ merge: MergeMessage) -> some View {
         let left = merge.side == "L"
-        return ZStack(alignment: .topLeading) {
-            Rectangle().fill(merge.clear ? MergeBanner.clearFill : MergeBanner.blockedFill)
-            HStack(spacing: 18) {
-                Image(systemName: merge.clear
-                      ? (left ? "arrow.turn.up.left" : "arrow.turn.up.right")
-                      : "hand.raised.fill")
-                    .font(.system(size: 38, weight: .semibold))
-                    .frame(width: 48)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(merge.clear ? "Clear" : "Danger")
-                        .font(.system(size: 36, weight: .bold, design: .rounded))
-                    if merge.clear {
-                        Text("Safe to merge \(left ? "left" : "right")")
-                            .font(.system(size: 19, weight: .medium, design: .rounded))
-                            .opacity(0.9)
-                    }
-                }
-            }
-            .foregroundStyle(.white)
-            .padding(.leading, 26)
-            .padding(.top, 78)
+        return GuidanceCardShell(fill: merge.clear ? MergeBanner.clearFill : MergeBanner.blockedFill) {
+            GuidanceCardMessage(
+                icon: merge.clear ? (left ? "arrow.turn.up.left" : "arrow.turn.up.right") : "hand.raised.fill",
+                title: merge.clear ? "Clear" : "Danger",
+                line: merge.clear ? "Safe to merge \(left ? "left" : "right")" : nil,
+                ink: .white)
         }
     }
 }

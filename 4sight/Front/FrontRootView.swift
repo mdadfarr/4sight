@@ -112,7 +112,6 @@ struct FrontRootView: View {
         model.beginRide()
         model.start(feed: ride)
         flow.phase = .riding
-        if case let s = UserDefaults.standard.double(forKey: "TEMPexitAfter"), s > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + s) { exitRide() } } // TEMP-TEST
     }
 
     /// Ends the ride and goes home. Leaving the scripted ride also puts the real link

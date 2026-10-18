@@ -26,26 +26,28 @@ struct NavHUDView: View {
         ZStack(alignment: .topLeading) {
             Color.clear.at(0, 0, anchor: .topLeading)
 
-            // Manoeuvre banner, flat along the bottom so the map runs under it.
-            Rectangle().fill(Palette.banner)
-                .frame(width: Design.width, height: Design.bannerH)
-                .at(0, 0, anchor: .topLeading)
-            // The mock paints a status bar because a canvas has none; the real one
-            // already sits over this banner, so drawing a second would double it.
+            // Directions: the floating guidance card, in the home screen's ink. Read at a
+            // glance from a moving bike: one big arrow for what to do now, one big
+            // number, one short line. The arrow only turns near the turn.
+            GuidanceCardShell(fill: Light.ink) {
+                HStack(spacing: 16) {
+                    Image(systemName: bannerSymbol)
+                        .font(.system(size: 50, weight: .semibold))
+                        .frame(width: 58)
+                        .opacity(hasRoute ? 1 : 0)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(bannerTitle).font(.system(size: 40, weight: .bold, design: .rounded).monospacedDigit())
+                        Text(bannerLine).font(.system(size: 19, weight: .medium, design: .rounded))
+                            .opacity(0.75)
+                    }
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(.white)
+            }
+            .at(GuidanceCard.inset, GuidanceCard.top, anchor: .topLeading)
 
-            // Read at a glance from a moving bike: one big arrow for what to do now,
-            // one big number, one short line. The arrow only turns near the turn.
-            Image(systemName: bannerSymbol)
-                .font(.system(size: 54, weight: .semibold))
-                .foregroundStyle(Palette.text).frame(width: 64).at(52, 106)
-                .opacity(hasRoute ? 1 : 0)
-            Text(bannerTitle).font(.system(size: 42, weight: .bold, design: .rounded).monospacedDigit())
-                .fixedSize().foregroundStyle(Palette.text).at(100, 116, anchor: .bottomLeading)
-            Text(bannerLine).font(.system(size: 20, weight: .medium, design: .rounded))
-                .lineLimit(1).frame(maxWidth: Design.width - 116, alignment: .leading)
-                .foregroundStyle(Palette.text.opacity(0.8)).at(100, 144, anchor: .bottomLeading)
-
-            // A planned lane move: quiet, in the banner's own white-on-black, because
+            // A planned lane move: a small pill tucked under the card, in its ink, because
             // amber and red already mean warnings on this screen.
             if let cue = laneCue {
                 HStack(spacing: 7) {
@@ -53,46 +55,52 @@ struct NavHUDView: View {
                     Text("\(cue.text) · \(Self.metres(max(cue.metres, 5)))")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                 }
-                .foregroundStyle(Palette.text)
-                .padding(.horizontal, 12).frame(height: 28)
-                .background(Palette.hair, in: Capsule())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14).frame(height: 32)
+                .background(Light.ink.opacity(0.92), in: Capsule())
+                .shadow(color: Light.shadow, radius: 8, y: 2)
                 .fixedSize()
-                .at(20, 154, anchor: .topLeading)
+                .at(GuidanceCard.inset + 8, GuidanceCard.bottom + 8, anchor: .topLeading)
             }
 
-            speedBadge.at(16, Design.bannerH + 14, anchor: .topLeading)
+            // Speed sits low on the left above the arrival card, as in Apple Maps, so the
+            // top of the screen is only the guidance card.
+            speedBadge.at(GuidanceCard.inset + 6, height - Self.cardH - Self.cardBottom - 14, anchor: .bottomLeading)
 
-            arrivalBar.at(0, height - Self.cardH, anchor: .topLeading)
+            arrivalBar.at(GuidanceCard.inset, height - Self.cardH - Self.cardBottom, anchor: .topLeading)
         }
         .frame(width: Design.width, height: height, alignment: .topLeading)
     }
 
     private var speedBadge: some View {
         VStack(spacing: 0) {
-            Text(speedText).font(.system(size: 21, weight: .bold, design: .rounded).monospacedDigit())
-                .foregroundStyle(Palette.barInk)
+            Text(speedText).font(.system(size: 22, weight: .bold, design: .rounded).monospacedDigit())
+                .foregroundStyle(Light.ink)
             Text("km/h").font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(Palette.barDim)
+                .foregroundStyle(Light.dim)
         }
-        .frame(width: 54, height: 50)
-        .background(Palette.bar, in: RoundedRectangle(cornerRadius: 12))
+        .frame(width: 60, height: 60)
+        .background(.white, in: Circle())
         // Rear-phone link: green while frames arrive.
         .overlay(alignment: .topTrailing) {
-            Circle().fill(model.link == .connected ? Palette.green : Palette.exit)
-                .frame(width: 8, height: 8).offset(x: -6, y: 6)
+            Circle().fill(model.link == .connected ? Light.green : Light.red)
+                .frame(width: 11, height: 11)
+                .overlay(Circle().stroke(.white, lineWidth: 2))
+                .offset(x: -1, y: 1)
         }
-        .shadow(color: Color(hex: 0x0C121A).opacity(0.22), radius: 4, y: 2)
+        .shadow(color: Light.shadow, radius: 10, y: 3)
     }
 
-    static let cardH = 112.0
+    /// The arrival card floats like the guidance card, above the home indicator.
+    static let cardH = 86.0
+    static let cardBottom = 30.0
 
     private var arrivalBar: some View {
         currentCard
-        .padding(.horizontal, 24).padding(.top, 18)
-        .frame(width: Design.width, height: Self.cardH, alignment: .top)
-        .background(Palette.bar)
-        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24))
-        .shadow(color: Color(hex: 0x0C121A).opacity(0.12), radius: 12, y: -2)
+        .padding(.horizontal, 20)
+        .frame(width: GuidanceCard.width, height: Self.cardH)
+        .background(.white, in: RoundedRectangle(cornerRadius: GuidanceCard.radius, style: .continuous))
+        .shadow(color: Color(hex: 0x0C121A).opacity(0.16), radius: 18, y: 4)
     }
 
     /// Google Maps' bottom card, pared down: time left is the one number that matters
@@ -115,7 +123,7 @@ struct NavHUDView: View {
             .foregroundStyle(Palette.eta)
             Text("\(kmText) km  ·  \(arrivalText)")
                 .font(.system(size: 15, weight: .medium, design: .rounded).monospacedDigit())
-                .foregroundStyle(Palette.barDim)
+                .foregroundStyle(Light.dim)
         }
         .lineLimit(1)
     }
@@ -127,8 +135,8 @@ struct NavHUDView: View {
             Text("Exit")
                 .font(.system(size: 17, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white)
-                .frame(width: width, height: 48)
-                .background(Palette.exit, in: Capsule())
+                .frame(width: width, height: 50)
+                .background(Light.red, in: Capsule())
         }
     }
 
@@ -159,15 +167,20 @@ struct NavHUDView: View {
         guard let rider = model.route.riderCoordinate(at: Date()) else { return nil }
         return model.lanePlan?.cue(at: rider)
     }
-    private var nearTurn: Bool { (model.nav?.distanceToManoeuvre ?? 0) <= Self.turnNear }
+    private var nearTurn: Bool {
+        guard let nav = model.nav, !nav.isOffRoute else { return false }
+        return nav.distanceToManoeuvre <= Self.turnNear
+    }
 
     private var bannerSymbol: String {
-        guard model.nav != nil else { return "arrow.turn.up.left" }      // the script's turn
+        guard let nav = model.nav else { return "arrow.turn.up.left" }  // the script's turn
+        if nav.isOffRoute { return "location.north.line.fill" }
         guard nearTurn else { return "arrow.up" }
         return step(1)?.symbol ?? "flag.checkered"
     }
     private var bannerTitle: String {
         if let nav = model.nav {
+            if nav.isOffRoute { return Self.metres(nav.offRoute) }
             let m = Self.metres(nav.distanceToManoeuvre)
             return nearTurn ? "In \(m)" : m
         }
@@ -177,6 +190,10 @@ struct NavHUDView: View {
         guard model.nav != nil else {
             return model.scripted ? "Turn onto \(World.turnStreet.name)" : "No destination"
         }
+        if let nav = model.nav, nav.isOffRoute {
+            return nav.isWeakFix ? "Head to the route · weak GPS" : "Head to the route"
+        }
+        if model.nav?.isWeakFix == true { return "Weak GPS, distances are rough" }
         guard nearTurn else { return "Continue straight" }
         guard let next = step(1) else { return "Arrive at destination" }
         if next.symbol.contains("uturn") { return "Make a U-turn" }
@@ -207,8 +224,12 @@ struct NavHUDView: View {
     }
 
     /// "120 m" under a kilometre, "2.3 km" above.
+    /// Rounded like a car's nav: 5 m steps under 100 m, 10 m under 1 km, so GPS jitter
+    /// does not make the number flicker.
     static func metres(_ m: Double) -> String {
-        m < 1000 ? "\(Int(m.rounded())) m" : String(format: "%.1f km", m / 1000)
+        if m >= 1000 { return String(format: "%.1f km", m / 1000) }
+        let step = m < 100 ? 5.0 : 10.0
+        return "\(Int((m / step).rounded() * step)) m"
     }
 
     private static func clock(_ nav: NavState) -> String {

@@ -196,10 +196,12 @@ enum SceneRenderer {
 
     /// Distance fades into the sky, the way the map apps do it.
     static func haze(_ ctx: inout GraphicsContext) {
-        let rect = CGRect(x: 0, y: Design.bannerH, width: Design.width, height: 56)
+        // The guidance card floats, so the far map shows around it: fade it out toward
+        // the top behind the card and the status bar.
+        let rect = CGRect(x: 0, y: 0, width: Design.width, height: GuidanceCard.bottom + 50)
         ctx.fill(Path(rect), with: .linearGradient(
-            Gradient(colors: [Color(hex: 0xEEF1F5).opacity(0.85), Color(hex: 0xEEF1F5).opacity(0)]),
-            startPoint: CGPoint(x: 0, y: Design.bannerH),
-            endPoint: CGPoint(x: 0, y: Design.bannerH + 56)))
+            Gradient(colors: [Color(hex: 0xEEF1F5).opacity(0.95), Color(hex: 0xEEF1F5).opacity(0)]),
+            startPoint: CGPoint(x: 0, y: 0),
+            endPoint: CGPoint(x: 0, y: rect.maxY)))
     }
 }

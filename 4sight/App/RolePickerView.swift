@@ -25,12 +25,12 @@ struct RolePickerView: View {
         }
     }
 
-    /// Placeholder until the logo lands: swap this tile for the asset.
+    /// The app icon itself, so the splash and the home screen show the same mark.
     private var logo: some View {
-        RoundedRectangle(cornerRadius: 24)
-            .fill(Light.blue)
+        Image("Logo")
+            .resizable()
             .frame(width: 88, height: 88)
-            .overlay(Image(systemName: "eye.fill").font(.system(size: 38, weight: .semibold)).foregroundStyle(.white))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .shadow(color: Light.blue.opacity(0.3), radius: 12, y: 6)
     }
 
