@@ -16,6 +16,7 @@ struct FrontRootView: View {
     @State private var routing = false
     @State private var showingRiskMap = false
     @State private var rideStarted = Date()
+    @ObservedObject private var uploader = CityUploader.shared
     private let args = LaunchArgs()
 
     var body: some View {
@@ -49,6 +50,7 @@ struct FrontRootView: View {
             }
         }
         .sheet(isPresented: $showingRiskMap) { RiskMapView(demo: args.demoEvents) }
+        .overlay(alignment: .top) { UploadNote(uploader: uploader) }
         .onAppear(perform: begin)
     }
 
@@ -71,6 +73,7 @@ struct FrontRootView: View {
         router.onUpdate = advance
         router.onPose = { model.pose($0, heading: $1) }
         router.onReroute = { model.route.coordinates = $0.coordinates }
+        uploader.flush()                                  // rides queued while offline
         if args.mockRoute { model.nav = .mock }
         if args.previewRide { return startPreviewRide() }
         // The scripted ride and the frozen screenshots start mid-ride; a real launch
@@ -109,11 +112,13 @@ struct FrontRootView: View {
         model.beginRide()
         model.start(feed: ride)
         flow.phase = .riding
+        if case let s = UserDefaults.standard.double(forKey: "TEMPexitAfter"), s > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + s) { exitRide() } } // TEMP-TEST
     }
 
     /// Ends the ride and goes home. Leaving the scripted ride also puts the real link
     /// back, so the home screen's pair strip is not reporting a script as a rear phone.
     private func exitRide() {
+        model.recorder.finish()
         router.stop()
         model.nav = nil
         model.route = LiveRoute()
@@ -155,5 +160,6 @@ struct FrontRootView: View {
             closePasses: model.closePasses,
             imminent: model.imminent))
         router.stop()
+        model.recorder.finish()
     }
 }

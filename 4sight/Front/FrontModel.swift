@@ -34,7 +34,9 @@ final class FrontModel: ObservableObject {
     var closePasses: Int { worstSeen.values.filter { $0 == 2 }.count }
     var imminent: Int { worstSeen.values.filter { $0 >= 3 }.count }
 
-    func beginRide() { worstSeen.removeAll() }
+    func beginRide() { worstSeen.removeAll(); recorder.begin() }
+    /// This ride for the city close-pass map; the ride's end calls `recorder.finish()`.
+    let recorder = RideRecorder()
 
     /// True while the scripted ride is driving the screen. The HUD only falls back to
     /// the script's own street and distances then; on a live feed with no destination
@@ -55,6 +57,7 @@ final class FrontModel: ObservableObject {
 
     func pose(_ loc: CLLocation, heading: Double?) {
         route.update(loc, heading: heading, at: now())
+        recorder.pose(loc)
     }
 
     private var feed: TrackFeed?
@@ -139,6 +142,7 @@ final class FrontModel: ObservableObject {
         oncomingIDs = oncomingIDs.filter { kept[$0] != nil }
         motions = next
         for tr in f.tracks { worstSeen[tr.id] = max(worstSeen[tr.id] ?? 0, tr.level) }
+        recorder.frame(f, scripted: scripted || feed is PreviewRide)
         frame = f
         link = .connected
         alerts.update(AlertBands.zones(SurroundView.visibleTracks(f)), now: t)

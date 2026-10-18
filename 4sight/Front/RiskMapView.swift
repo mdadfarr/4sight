@@ -4,15 +4,25 @@ import SwiftUI
 
 /// Where the alerts fired. Near-miss points over a 250 m density grid, with the
 /// ridden route under them. Reads Documents/events.jsonl; nothing leaves the phone
-/// unless the rider taps Share.
+/// unless the rider taps Share. Under them, Toronto's public close-pass layer when the
+/// city server is set (CityAPI.base).
 struct RiskMapView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var store = EventStore()
     @State private var camera: MapCameraPosition = .region(Self.region(for: []))
+    @State private var city: CityLayer?
     let demo: Bool
 
     var body: some View {
         Map(position: $camera) {
+            ForEach(city?.segments ?? []) { seg in
+                MapPolyline(seg.line).stroke(Self.rateTint(seg.per100km), lineWidth: 4)
+            }
+            ForEach(city?.passes ?? []) { pass in
+                Annotation(coordinate: pass.coordinate) {
+                    Circle().fill(pass.level >= 3 ? Light.red : Light.amber).opacity(0.7).frame(width: 6, height: 6)
+                } label: { EmptyView() }
+            }
             ForEach(store.cells) { cell in
                 MapPolygon(coordinates: cell.corners)
                     .foregroundStyle(Self.cellTint(cell))
@@ -37,6 +47,7 @@ struct RiskMapView: View {
             store.load(demo: demo)
             camera = .region(Self.region(for: store.events))
         }
+        .task { city = await CityLayer.load() }
     }
 
     // MARK: - Pieces
@@ -70,6 +81,11 @@ struct RiskMapView: View {
                     stat(String(format: "%.1f", perKm), "per km")
                 }
                 Spacer(minLength: 0)
+            }
+            if city?.synthetic == true {
+                Text("City layer includes modelled data")
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundStyle(Light.dim)
             }
             if store.events.isEmpty {
                 Text("No events logged yet. Ride with the rear phone recording, or relaunch with --demoevents.")
@@ -105,6 +121,12 @@ struct RiskMapView: View {
     }
 
     // MARK: - Styling
+
+    /// City streets by close passes per 100 km ridden. shortcut: fixed cut-offs at 10 and
+    /// 30; rescale once real Toronto numbers show the spread.
+    static func rateTint(_ per100km: Double) -> Color {
+        (per100km >= 30 ? Light.red : per100km >= 10 ? Light.amber : Light.faint).opacity(0.85)
+    }
 
     /// Denser cells read stronger; a cell holding any level 3 goes red.
     static func cellTint(_ cell: GridCell) -> Color {
