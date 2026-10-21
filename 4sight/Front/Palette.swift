@@ -32,19 +32,11 @@ enum Palette {
     static let parkedBody = Color(hex: 0xCCD2D9)
     static let parkedRoof = Color(hex: 0xDEE3E8)
     static let shadow = Color(hex: 0x161C23).opacity(0.2)
-    static let banner = Color(hex: 0x0A0A0B)
-    static let hair = Color.white.opacity(0.16)
     static let lane = Color.white
-    static let bar = Color.white
-    static let barInk = Color(hex: 0x13161A)
-    static let barDim = Color(hex: 0x8A8F98)
     static let routeCore = Color(hex: 0x1C8CFF)
     static let routeCase = Color(hex: 0x0A54BE)
     static let puck = Color(hex: 0x0A84FF)
     static let text = Color.white
-    static let textDim = Color(hex: 0x9298A1)
-    static let green = Color(hex: 0x34C759)
-    static let exit = Color(hex: 0xE8453C)
 
     static let amber = Color(hex: 0xF5A623)
     static let amberEdge = Color(hex: 0xC9820F)

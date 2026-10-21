@@ -3,7 +3,7 @@ import Perception
 import Protocol
 import ThreatEngine
 
-/// Feeds Arshiya's DangerEngine from our tracks and returns its per-track verdicts as
+/// Feeds DangerEngine (the ml/danger.py port) from our tracks and returns its per-track verdicts as
 /// votes for Fusion. The engine gets RAW image-frame x: its `mirror` flag does the
 /// left/right flip, nobody else.
 nonisolated final class DangerAdapter {
@@ -17,7 +17,7 @@ nonisolated final class DangerAdapter {
 
     /// Run every frame, even with no tracks, so the engine's per-track windows age out.
     func votes(tracks: [Track], t: Double, imageW w: Double, imageH h: Double) -> [Int: DangerVote] {
-        // Box is top-left origin already, so cy/h is the "1 - midY" her README asks for.
+        // Box is top-left origin already, so cy/h is the "1 - midY" ml/README.md asks for.
         // Confidence 1: DetectionFilter already dropped large+unsure boxes upstream.
         let dets = tracks.map {
             DangerDetection(trackID: $0.id, centerX: $0.box.cx / w, width: $0.box.w / w,

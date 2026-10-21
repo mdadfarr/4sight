@@ -160,8 +160,8 @@ final class EventStore: ObservableObject {
 
     // MARK: - Demo data
 
-    /// `--demoevents`: a scripted set along Bloor St W and College St so the screen and
-    /// the pitch never depend on having ridden with a logging phone.
+    /// `--demoevents`: a scripted set along Bloor St W and College St so the screen works
+    /// in the simulator without a ride logged on a real phone.
     static func demoEvents() -> [RiskEvent] {
         let classes = ["car", "car", "car", "truck", "bus", "motorcycle"]
         var out: [RiskEvent] = []

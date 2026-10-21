@@ -6,14 +6,14 @@ BLE protocol and patterns are defined in `../docs/CONTRACTS.md`.
 
 | GPIO | Part | Board pin (column, position from the top) |
 |---|---|---|
-| 25 | Left motor: 1 kΩ to a 2N2222A base; emitter to GND, collector to the motor's blue wire | right, 8th |
-| 26 | Right motor: same as left | right, 7th |
-| 18 | Left green LED, 150 Ω, LED to GND | left, 9th |
-| 19 | Left red LED, 150 Ω, LED to GND | left, 10th |
-| 22 | Right green LED, 150 Ω, LED to GND | left, 14th |
-| 23 | Right red LED, 150 Ω, LED to GND | left, 15th (bottom) |
-| 32 | Left merge button, other leg to GND (INPUT_PULLUP, pressed = LOW) | right, 10th |
-| 33 | Right merge button, other leg to GND (INPUT_PULLUP, pressed = LOW) | right, 9th |
+| 26 | Left motor: 1 kΩ to a 2N2222A base; emitter to GND, collector to the motor's blue wire | right, 7th |
+| 25 | Right motor: same as left | right, 8th |
+| 22 | Left green LED, 150 Ω, LED to GND | left, 14th |
+| 23 | Left red LED, 150 Ω, LED to GND | left, 15th (bottom) |
+| 18 | Right green LED, 150 Ω, LED to GND | left, 9th |
+| 19 | Right red LED, 150 Ω, LED to GND | left, 10th |
+| 33 | Left merge button, other leg to GND (INPUT_PULLUP, pressed = LOW) | right, 9th |
+| 32 | Right merge button, other leg to GND (INPUT_PULLUP, pressed = LOW) | right, 10th |
 | 3V3 | + rail | left, 1st |
 | GND | − rail | left 2nd or right 2nd |
 
@@ -21,7 +21,8 @@ Each 3 V coin motor (85 mA): red wire to 3V3, blue wire to the transistor's coll
 1N4007 across the motor with the stripe to 3V3. Power bank → USB-C → the board's 3V3 rail.
 Leave RX0, TX0, D2, D5, D12, D15 and D21 free.
 
-Motors are PWM at 200 Hz, duty capped at 80 %, and the two sides never run together.
+Motors are PWM at 200 Hz at full duty (at 80 % the buzz was lost in road vibration), and the two
+sides never run together.
 Green lights only for a clear merge answer. Red lights for a blocked answer (with two
 pulses on that grip), for no answer within 1.5 s (blinking), or for a car alert on that
 side (steady; flashing at level 3).
@@ -40,10 +41,9 @@ without a phone. A button press prints `merge: ML` / `merge: MR`.
 `pio run` builds against Arduino-ESP32 core 2.x. `pio run -e esp32dev-core3` builds the same code
 against core 3.x (pioarduino), the version the newest Arduino IDE installs.
 
-### Or flash with Arduino IDE 2 (what Mohammad already has working)
+### Or flash with Arduino IDE 2
 
-Same board setup as Mohammad's web-server guide (data cable, `cu.` port, hold BOOT if it sticks on
-"Connecting..."). Two differences:
+Use a data cable and the `cu.` port; hold BOOT if it sticks on "Connecting...". Then:
 
 1. **Library Manager → install `NimBLE-Arduino` by h2zero, version 2.x.** Any esp32 board package
    version works (2.x or 3.x); the motor PWM calls are version-guarded.
@@ -62,9 +62,6 @@ Personal Hotspot for the whole ride (needs a plan that allows it, turns itself o
 ESP32 only joins while the hotspot screen is open). The ESP32's address changes on restart, and a
 button press would need the phone to poll. BLE needs no network, no address and no hotspot. Both use
 the same 2.4 GHz antenna, so the metal-box rule (antenna end outside the box) is the same either way.
-
-A teammate did have the Wi-Fi web server working on an iPhone hotspot; BLE won because it needs no
-network join, so the rider never leaves the app.
 
 ## Test with nRF Connect
 

@@ -5,7 +5,7 @@
 # Only one simulator is ever booted: several at once make this Mac unusable.
 set -euo pipefail
 GAP=${1:-3}; COUNT=${2:-5}
-OUT=${3:-/private/tmp/claude-501/-Users-jasper-4sight/ae45a6ac-6047-408f-b56d-afba25f8cd61/scratchpad/preview}
+OUT=${3:-${TMPDIR:-/tmp}/4sight-preview}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 DD="${TMPDIR:-/tmp}/4sight-preview-dd"
 BUNDLE=com.zupersun.foursight

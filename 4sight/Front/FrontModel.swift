@@ -3,6 +3,8 @@ import CoreLocation
 import Foundation
 import Protocol
 
+enum LinkState { case connected, searching, lost }
+
 @MainActor
 final class FrontModel: ObservableObject {
     @Published private(set) var frame: FrameMessage?

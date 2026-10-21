@@ -22,7 +22,7 @@ import urllib.request
 
 MIRRORS = ["https://overpass-api.de/api/interpreter",
            "https://overpass.kumi.systems/api/interpreter"]
-UA = "4sight-hackathon/0.1 (bike safety prototype)"
+UA = "4sight/0.1 (bike safety prototype)"
 
 # Carriageway width when OSM has no lanes/width tag, metres.
 ROAD_WIDTH = {"motorway": 11, "trunk": 10, "primary": 10, "secondary": 9, "tertiary": 7.5,

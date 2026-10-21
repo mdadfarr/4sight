@@ -8,7 +8,7 @@
 set -euo pipefail
 CLIP=${1:?usage: scripts/rear-replay.sh <clip.mp4> [gap] [count] [out_dir]}
 GAP=${2:-6}; COUNT=${3:-10}
-OUT=${4:-/private/tmp/claude-501/-Users-jasper-4sight/ae45a6ac-6047-408f-b56d-afba25f8cd61/scratchpad/replay}
+OUT=${4:-${TMPDIR:-/tmp}/4sight-replay}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 DD="${TMPDIR:-/tmp}/4sight-replay-dd"
 BUNDLE=com.zupersun.foursight

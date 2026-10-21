@@ -51,7 +51,7 @@ func runRideUploadChecks(_ check: (Bool, String) -> Void) {
     empty.add(track: 1, event(1, level: 3))
     check(empty.uploads(install: "x", app: "a", demo: false).isEmpty, "ride with an event but no GPS: no upload")
 
-    // A bike standing still on a stage: a teammate walks past, the rider taps Exit.
+    // A bike standing still on a stage: someone walks past, the rider taps Exit.
     var stage = RideLog()
     for i in 0..<40 { stage.add(t: t0 + Double(i) * 3, lat: 43.7840 + Double(i % 3) * 0.000005, lon: -79.1860, speed: 0) }
     stage.add(track: 1, RideUpload.Event(t: t0 + 200, lat: 43.784, lon: -79.186, cls: .person, level: 2,

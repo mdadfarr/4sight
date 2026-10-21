@@ -63,6 +63,21 @@ keeps only its hash.
 | Wi-Fi to the grips                       | ESP32 joining the phone's hotspot                | Needed an API a free developer account can't use. Moved to Bluetooth LE       |
 | Draw the street from the GPS trail, or use Apple Maps | Roads from GPS points; MapKit tiles     | Glitched at every intersection; tiles were blank at cycling zoom. We bundle OpenStreetMap and draw it ourselves |
 
+## Repository
+
+| Folder           | What's in it                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| `4sight/`        | The iOS app: `App/` is the rear camera role, `Front/` the handlebar role              |
+| `FourSightKit/`  | Swift package: protocol, perception (tracking, range, time to contact), threat engine, links |
+| `firmware/`      | ESP32 grip firmware (PlatformIO / Arduino)                                            |
+| `cad/`           | 3D-printed grip housing: STEP and STL per part, a print plate and the assembly       |
+| `server/`        | Vercel functions and the Tiger Cloud schema                                           |
+| `web/`           | The public map (static site, Leaflet)                                                 |
+| `tools/`         | Data scripts: City and OpenStreetMap layers, street segments, synthetic example rides |
+| `ml/`            | Python reference for detection, tracking and the danger logic                         |
+| `scripts/`       | Run the app in the iOS Simulator on a scripted ride or a recorded rear clip           |
+| `docs/`          | Protocol contracts, data pipeline, data and privacy, the front screen design mock     |
+
 ## Run it
 
 You need a Mac with Xcode 27, two iPhones on iOS 26 (one rear, one on the handlebars), and the
@@ -90,7 +105,8 @@ the grips by itself; don't pair it in iOS Settings.
 ### Checks and tools
 
 ```sh
-cd FourSightKit && swift run Checks                     # threat engine, tracker, protocol, upload checks
+cd FourSightKit && swift test                           # unit tests (needs Xcode)
+swift run Checks                                        # the same engines as plain asserts, plus fusion, merge and upload checks
 swift run ReplayAlerts boxes.csv 15                     # replay a recorded clip's detections through the full alert chain
 scripts/front-preview.sh                                # the front phone on a scripted ride in the iOS Simulator
 ```
@@ -121,7 +137,8 @@ Until real rides add up, most close-pass numbers on the map are modelled and lab
 ## More
 
 - [Data pipeline contract](docs/DATA_PIPELINE.md): what the app sends, the database, the public GeoJSON.
-- [Pitch notes](docs/PITCH_NOTES.md): data residency, privacy, verified City numbers.
+- [Data and privacy](docs/DATA_AND_PRIVACY.md): data residency, anonymity, how to read the numbers, verified City figures.
+- [Contracts](docs/CONTRACTS.md): the rear → front message and the phone ↔ grip Bluetooth protocol.
 - [Firmware](firmware/README.md): wiring, pins, flashing, serial test commands.
 - [ML](ml/README.md): the Python detection, tracking and danger logic the Swift port started from.
 

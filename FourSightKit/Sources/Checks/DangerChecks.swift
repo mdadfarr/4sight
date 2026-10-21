@@ -1,7 +1,7 @@
 import Foundation
 import ThreatEngine
 
-// Port of ml/test_danger.py (25) + ml/test_tracker.py (6) as asserts; see DangerEngineTests.swift.
+// Port of ml/test_danger.py (25) as asserts; see DangerEngineTests.swift.
 private let dt = 0.1
 
 private func closingWidths(ttcEnd: Double, n: Int = 6, speed: Double = 8.0, k: Double = 2000.0) -> [Double] {
@@ -28,10 +28,6 @@ private func feed(_ engine: DangerEngine, _ widths: [Double], cx: Double = 320, 
             DangerDetection(trackID: trackID, centerX: x, width: w, centerY: centerY, confidence: confidence)])
     }
     return out
-}
-
-private func car(_ cx: Double, _ half: Double) -> SimpleBox {
-    SimpleBox(x1: cx - half, y1: 100, x2: cx + half, y2: 100 + half)
 }
 
 func runDangerChecks() {
@@ -134,33 +130,4 @@ func runDangerChecks() {
               && eng.update(time: 1.6, detections: []).right == .off, "danger: 1 s hold then release")
     }
 
-    // SimpleTracker
-    let sq = SimpleBox(x1: 0, y1: 0, x2: 10, y2: 10)
-    check(near(iou(sq, sq), 1, 1e-9) && near(iou(sq, SimpleBox(x1: 20, y1: 20, x2: 30, y2: 30)), 0, 1e-9)
-          && near(iou(sq, SimpleBox(x1: 5, y1: 0, x2: 15, y2: 10)), 1.0 / 3, 1e-9), "tracker: iou basics")
-    do {
-        let tr = SimpleTracker(); var ids = Set<Int>()
-        for i in 0..<10 { ids.insert(tr.update([car(300, 30 + 4 * Double(i))])[0]) }
-        check(ids.count == 1, "tracker: growing car keeps id")
-    }
-    do {
-        let tr = SimpleTracker(); let first = tr.update([car(100, 30), car(500, 30)]); var ids = first
-        for i in 1..<6 { let d = Double(i); ids = tr.update([car(100 + 2 * d, 30 + d), car(500 - 2 * d, 30 + d)]) }
-        check(ids == first && first[0] != first[1], "tracker: two cars keep separate ids")
-    }
-    do {
-        let tr = SimpleTracker(); let a = tr.update([car(100, 30)])[0]
-        let ids = tr.update([car(102, 31), car(500, 30)])
-        check(ids[0] == a && ids[1] != a, "tracker: new car gets new id")
-    }
-    do {
-        let tr = SimpleTracker(maxMissed: 5); let a = tr.update([car(300, 40)])[0]
-        for _ in 0..<3 { _ = tr.update([]) }
-        check(tr.update([car(302, 41)])[0] == a, "tracker: brief vanish keeps id")
-    }
-    do {
-        let tr = SimpleTracker(maxMissed: 5); let a = tr.update([car(300, 40)])[0]
-        for _ in 0..<7 { _ = tr.update([]) }
-        check(tr.update([car(302, 41)])[0] != a, "tracker: long vanish -> new id")
-    }
 }

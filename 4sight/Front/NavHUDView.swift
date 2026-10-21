@@ -142,7 +142,7 @@ struct NavHUDView: View {
 
     // MARK: - Copy
     // Real routing when a destination is set; otherwise the scripted ride, so the
-    // demo and the screenshots read the same as the mock.
+    // simulator preview reads the same as the mock.
 
     private var t: Double { model.now() }
 

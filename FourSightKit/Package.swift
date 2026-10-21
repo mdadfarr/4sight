@@ -12,7 +12,7 @@ let package = Package(
         .target(name: "ThreatEngine", dependencies: ["Protocol"]),
         .target(name: "Perception", dependencies: ["Protocol"]),
         .target(name: "Links", dependencies: ["Protocol"]),
-        // XCTest is absent from Command Line Tools; `swift run Checks` covers the same cases.
+        // Plain-assert checks that also run without Xcode (Command Line Tools has no XCTest).
         .executableTarget(name: "Checks", dependencies: ["Protocol", "ThreatEngine", "Perception"]),
         .executableTarget(name: "ReplayBoxes", dependencies: ["Protocol", "Perception"]),
         .executableTarget(name: "ReplayAlerts", dependencies: ["Protocol", "Perception", "ThreatEngine"]),

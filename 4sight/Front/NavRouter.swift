@@ -30,8 +30,6 @@ final class NavRouter: NSObject, CLLocationManagerDelegate {
         location.desiredAccuracy = kCLLocationAccuracyBest
     }
 
-    var lastLocation: CLLocation? { location.location }
-
     func requestAuthorization() {
         location.requestWhenInUseAuthorization()
     }

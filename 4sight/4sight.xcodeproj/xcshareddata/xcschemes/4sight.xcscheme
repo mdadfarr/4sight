@@ -55,10 +55,6 @@
             isEnabled = "NO">
          </CommandLineArgument>
          <CommandLineArgument
-            argument = "-replay /Users/jasper/4sight-data/out/ride-bag3_1.mp4"
-            isEnabled = "NO">
-         </CommandLineArgument>
-         <CommandLineArgument
             argument = "-exclude 0,0.88,1,1"
             isEnabled = "NO">
          </CommandLineArgument>

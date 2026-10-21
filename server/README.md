@@ -51,8 +51,7 @@ npx vercel@latest deploy --prod
 The deploy prints the base URL, e.g. `https://4sight-server.vercel.app`. Point the clients at it:
 
 - App: `CityAPI.base` in `4sight/Front/CityUploader.swift` (that one line).
-- Website: open `web/index.html?api=<BASE>` (add `&demo=1` to include demo rides), or set the
-  default `API` in `web/app.js`.
+- Website: `LIVE` in `web/app.js`.
 
 Without Vercel, the same handlers run locally for the simulator:
 `uv run --with 'psycopg[binary]' server/dev.py 8787`, base `http://localhost:8787`.
@@ -73,10 +72,10 @@ close pass by a car near 43.7864, -79.1890. Then in Tiger Cloud's SQL editor run
 
 - (a) newest near misses: the demo pass at the top, seconds old, on Ellesmere Road;
 - (b) street ranking per 100 km at evening rush, the public figure;
-- (b, live) the same ranking over all hours: run it before and after the demo ride and
+- (b, live) the same ranking over all hours: run it before and after the test ride and
   Ellesmere Road's close passes and rate go up;
 - (c) by lane type and by ward, once the City file is loaded.
 
-Live demo with the app: preview ride in the simulator (`scripts/front-preview.sh`) or a real
+End to end with the app: preview ride in the simulator (`scripts/front-preview.sh`) or a real
 front phone → Exit → "1 near miss added to Toronto's safety map" → (a) shows it → (b)
 updates → the app's close-pass map and the website show it.

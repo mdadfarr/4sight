@@ -1,6 +1,6 @@
-# 4sight contracts (frozen)
+# 4sight contracts
 
-Change nothing here without telling the whole team. Everything downstream (rear app, front UI, firmware, Python harness) is built against this file.
+The formats every part is built against: rear app, front UI, firmware and the Python harness.
 
 ## Rider frame
 
@@ -70,9 +70,9 @@ Rules for the front UI: draw every track; colour by `level`; only the camera's f
 | `NL` `NR` | merge answer: that lane is BLOCKED, light the red button LED on that side |
 
 - The ESP32 owns all patterns (motors and LEDs). Level mapping per side:
-  - 1: LED steady, one 150 ms motor pulse
-  - 2: LED steady, two 120 ms pulses, 100 ms apart
-  - 3: LED flashing 4 Hz, motor 100 ms on / 80 ms off × 4, restarted on each new `3` command
+  - 1: LED steady, one 300 ms motor pulse
+  - 2: LED steady, two 350 ms pulses, 150 ms apart
+  - 3: LED flashing 4 Hz, motor 250 ms on / 100 ms off × 4, restarted on each new `3` command
   - LED turns off 2 s after the last command for that side.
 - No message of any kind for 0.5 s → "offline" pattern once (400 ms both motors), then everything off.
 ### Merge check (ESP32 → phone)

@@ -1,4 +1,4 @@
-// 4sight handlebar haptics. BLE spec: docs/CONTRACTS.md (frozen).
+// 4sight handlebar haptics. BLE spec: docs/CONTRACTS.md.
 #include <Arduino.h>
 #include <NimBLEDevice.h>
 
@@ -7,7 +7,7 @@ static const char* CMD_UUID     = "2490e4c3-b5b8-40db-8ab6-8cc856e1fa31";
 static const char* EVT_UUID     = "0f343fab-5e83-41a9-afb1-07dc42818c5f";
 
 enum Side { L = 0, R = 1 };
-// Pin map (Hack the Valley build): one coin motor per grip through a 2N2222A (1k to the
+// Pin map: one coin motor per grip through a 2N2222A (1k to the
 // base, 1N4007 across the motor), a green and a red LED per side (150 ohm), a merge button
 // per side to GND. Leave RX0, TX0, D2, D5, D12, D15, D21 free.
 static const uint8_t MOTOR_PIN[2]    = {26, 25};        // as wired on the bike: 26 drives the left grip

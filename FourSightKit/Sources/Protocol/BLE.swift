@@ -5,7 +5,6 @@ public enum BLEIDs {
     public static let command = "2490e4c3-b5b8-40db-8ab6-8cc856e1fa31"
     /// ESP32 -> phone, notify. Carries the handlebar button presses.
     public static let event = "0f343fab-5e83-41a9-afb1-07dc42818c5f"
-    public static let peripheralName = "4sight"
 }
 
 public enum BLECommand: Equatable, Sendable {

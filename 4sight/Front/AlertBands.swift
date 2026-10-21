@@ -20,18 +20,18 @@ enum AlertBands {
         return out
     }
 
-    /// The same beat the grip is playing (CONTRACTS.md): one 150 ms pulse at level 1,
-    /// two 120 ms pulses 100 ms apart at level 2, 4 Hz sustained at level 3. Eye and
-    /// hand get the same rhythm, so the screen explains the buzz without being read.
+    /// The same beat the grip is playing (CONTRACTS.md): one 300 ms pulse at level 1,
+    /// two 350 ms pulses 150 ms apart at level 2, 4 Hz sustained at level 3 (the grip LED).
+    /// Eye and hand get the same rhythm, so the screen explains the buzz without being read.
     static func flash(level: Int, age: Double) -> Double {
         if level >= 3 { return (age * 8).truncatingRemainder(dividingBy: 2) < 1 ? 1 : 0.38 }
         if level == 2 {
-            if age < 0.12 { return 1 }
-            if age < 0.22 { return 0.38 }
-            if age < 0.34 { return 1 }
+            if age < 0.35 { return 1 }
+            if age < 0.50 { return 0.38 }
+            if age < 0.85 { return 1 }
             return 0.62
         }
-        return age < 0.15 ? 1 : 0.34
+        return age < 0.30 ? 1 : 0.34
     }
 
     /// Tracks how long each zone has held its current level, so a flash fires on arrival.

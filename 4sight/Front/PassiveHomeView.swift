@@ -349,7 +349,7 @@ struct PassiveHomeView: View {
         .foregroundStyle(Light.ink)
     }
 
-    // MARK: - C: chips
+    // MARK: - Chips
 
     /// The peek's one row: Home, the latest recent, and a way to add, each one tap.
     private var chips: some View {
@@ -385,7 +385,7 @@ struct PassiveHomeView: View {
         }
     }
 
-    // MARK: - B: bike
+    // MARK: - Bike
 
     private var bikeCard: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -525,7 +525,7 @@ struct PassiveHomeView: View {
         .contentShape(Rectangle())
     }
 
-    // MARK: - B: rides
+    // MARK: - Rides
 
     private var rides: some View {
         VStack(alignment: .leading, spacing: 10) {

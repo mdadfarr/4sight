@@ -13,7 +13,7 @@ public struct DangerVote: Equatable, Sendable {
 /// ThreatEngine is the backbone: metric, lane-aware, interpretable, but only as good as
 /// its range estimate (a class-size prior can be 2x off for an occluded person or a box
 /// cut by the frame edge). DangerEngine needs no range, only box growth, but alone it
-/// cried wolf (~198 s of false urgents on Arshiya's footage). So Danger never alerts on
+/// cried wolf (~198 s of false urgents on our ride footage). So Danger never alerts on
 /// its own; it can only confirm, sharpen or rescue what ThreatEngine already sees:
 ///
 /// 1. Confirm: a track Danger rates warning or worse needs `corroboratedDebounceFrames`

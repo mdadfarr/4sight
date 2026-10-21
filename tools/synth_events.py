@@ -27,7 +27,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 CACHE = HERE / "cache" / "toronto_streets.json"
-UA = "4sight-hackathon/0.1 (bike safety prototype)"
+UA = "4sight/0.1 (bike safety prototype)"
 MIRRORS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"]
 STREETS = ("Bloor Street (West|East)|College Street|Dundas Street (West|East)|Queen Street (West|East)|"
            "King Street (West|East)|Spadina Avenue|Yonge Street|Danforth Avenue|Ellesmere Road|Military Trail|"

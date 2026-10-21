@@ -36,7 +36,6 @@ import os
     @Published private(set) var replayURL: URL?
 
     let haptics = HapticsLink()
-    var captureSession: AVCaptureSession? { (worker?.source as? CameraSource)?.session }
     var trackCount: Int { overlay.count }
 
     private var worker: RearWorker?

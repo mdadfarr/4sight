@@ -9,10 +9,4 @@ Canvas2D on purpose — every call has a direct SwiftUI `GraphicsContext` equiva
 being re-invented. The projection constants (`CAM`, `ROAD`) and the scenario table must stay
 identical on both sides.
 
-Open `front.html` in any browser and drag the slider, or render stills without a Mac:
-
-    npm install playwright          # once
-    node shot.mjs 2.5 4.5 11.5 15   # writes shot-t<N>.png
-
-It launches the container's own Chromium (`/opt/pw-browsers/chromium-1194/...`) because the
-npm package ships a newer build number than the image has.
+Open `front.html` in any browser and drag the slider.

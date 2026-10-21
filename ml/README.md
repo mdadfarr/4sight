@@ -1,4 +1,4 @@
-# Bike danger: model and danger logic
+# ML: detection, tracking and danger logic
 
 ## Files
 
@@ -6,8 +6,7 @@
 |---|---|---|
 | `../4sight/App/yolo11n.mlpackage` | Pretrained vehicle detector as a Core ML model | Swift app |
 | `../FourSightKit/Sources/ThreatEngine/Danger/DangerEngine.swift` | Danger logic: time to collision, closeness, passing check, filters | Swift app |
-| `../FourSightKit/Sources/ThreatEngine/Danger/SimpleTracker.swift` | Gives each vehicle a persistent id between frames | Swift app |
-| `../FourSightKit/Tests/ThreatEngineTests/DangerEngineTests.swift` | 25 + 6 tests, to run before trusting the Swift | Swift app |
+| `../FourSightKit/Tests/ThreatEngineTests/DangerEngineTests.swift` | The Python danger tests, ported | Swift app |
 | `detect_video.py` | Runs the detector and tracker on a video, saves boxes per frame | Laptop |
 | `danger.py`, `tracker.py` | The same logic in Python, the reference version | Laptop |
 | `replay_danger.py` | Replays a clip through the danger logic, prints when alerts fire | Laptop |
@@ -58,31 +57,13 @@ Then, for each tracked vehicle, over the last 0.5 s of box widths:
 7. An alert stays on for 1 s after the danger passes. A vehicle must be seen in at least
    5 frames inside the 0.5 s window, so the model must run at 10 fps or more.
 
-## Wiring it into the Swift app
+## How the app uses it
 
-Per camera frame:
-
-1. Run the Core ML model through Vision. Keep only car, motorcycle, bus, truck.
-2. Turn each result's `boundingBox` (normalized, origin at the BOTTOM left) into a `Box` and
-   call `SimpleTracker.update` to get ids.
-3. Build `Detection(trackID:, centerX: box.centerX, width: box.width, centerY: ..., confidence: ...)`.
-   `confidence` is the Vision observation's confidence. `centerY` only matters for exclusion
-   zones, and since Vision's y points up, use `1 - boundingBox.midY`.
-4. Create the engine with `frameWidth = 1.0` and `frameHeight = 1.0` and call
-   `update(time:detections:)` every frame, even with no detections. `time` is the frame
-   timestamp in seconds.
-5. Send `output.left` and `output.right` (each 0 to 3) to the ESP32 over BLE as two bytes.
-   The ESP32 decides the vibration per level, for example 1 = light pulse, 2 = medium, 3 = strong.
-
-Set up once on the bike, with real footage:
-- Exclusion zone around the rear wheel, mudguard, rack or anything of the bike's own that shows
-  in the picture. Use `replay_danger.py --exclude` to find the numbers, then copy them into
-  `DangerConfig.exclusionZones`.
-- If left and right feel swapped, set `mirror = false`.
-
-Things to check on a Mac first:
-- Run the Swift tests (Cmd+U). They were written without a compiler, so a typo is possible.
-- Does Vision return boxes that line up with the cars? Try both image crop and scale options.
+`DangerEngine.swift` is a line by line port of `danger.py`. The app does not use the Python
+tracker: `4sight/App/DangerAdapter.swift` feeds the engine the tracks from
+`FourSightKit/Sources/Perception/Tracker.swift` every frame, and its per-track verdicts are
+fused with the metric `ThreatEngine` (`FourSightKit/Sources/ThreatEngine/Fusion.swift`): they
+confirm, sharpen or rescue what ThreatEngine sees, but never raise an alert on their own.
 
 ## Results on clips so far (all Python, none from a bike)
 
@@ -98,7 +79,6 @@ These clips are not rear facing and not from a bike, so the alerts cannot be cal
 
 ## What is NOT done or NOT verified
 
-- Swift code has never been compiled or run. The Python versions are tested.
 - Thresholds (3 s, 2 s, 60% closeness, 4% minimum, 1.0 lateral) are starting guesses. They need
   real footage from the bike mount, and a car is much faster than a bike.
 - The detector is pretrained and not yet fine tuned for a bike's rear view.

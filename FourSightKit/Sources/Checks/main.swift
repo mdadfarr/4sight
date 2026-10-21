@@ -257,7 +257,7 @@ do {
     check(RideTrack(jsonl: "not json") == nil, "jsonl with no usable line -> nil")
 }
 
-// DangerEngine + SimpleTracker (Arshiya), see DangerChecks.swift
+// DangerEngine (the ml/danger.py port), see DangerChecks.swift
 runDangerChecks()
 
 // Merge-check button, see MergeChecks.swift
