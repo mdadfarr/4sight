@@ -1,13 +1,11 @@
 import CoreGraphics
 import Foundation
 
-/// The canvas `docs/mock/front.html` is drawn at. Everything is laid out in these
-/// points and scaled once onto the real screen, so every constant ported from the
-/// mock stays literally the same number.
+/// The canvas the ride screens are drawn at. Everything is laid out in these points
+/// and scaled once onto the real screen.
 enum Design {
     static let width: Double = 393
     static let height: Double = 852
-    static let bannerH: Double = 190
 }
 
 struct Projected {

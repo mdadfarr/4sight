@@ -1,8 +1,8 @@
 import CoreLocation
 import SwiftUI
 
-/// The live map, Tesla style: the real streets from `StreetMap` drawn through the same
-/// follow camera as the scripted demo, so roads have their true width and lane count,
+/// The live map, Tesla style: the real streets from `StreetMap` drawn through the
+/// follow camera, so roads have their true width and lane count,
 /// sidewalks and crossings show where the rider actually is, and the rear camera's
 /// tracks sit on that ground at their measured distance.
 ///
@@ -117,7 +117,7 @@ enum StreetRenderer {
     /// A route point in the rider frame; `c` marks a planned lane change.
     typealias RoutePoint = (x: Double, z: Double, c: Bool)
 
-    /// The route, Google-Maps style: a blue line with a dark edge at the mock's widths,
+    /// The route, Google-Maps style: a blue line with a dark edge at fixed widths,
     /// on the lane the plan picked, smoothed, white with arrows where it moves across.
     private static func drawRoute(_ ctx: inout GraphicsContext, _ route: [CLLocationCoordinate2D], plan: LanePlan?,
                                   rider: CLLocationCoordinate2D, heading h: Double) {

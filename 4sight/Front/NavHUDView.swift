@@ -5,8 +5,8 @@ import SwiftUI
 /// under it, the speed badge, and the arrival card. Nothing else floats over the map;
 /// destination and risk map live on the home and summary screens.
 ///
-/// Laid out at the mock's own coordinates in the 393 x 852 design space and scaled
-/// once, so every position below is the number from the mock.
+/// Laid out at fixed coordinates in the 393 x 852 design space and scaled once to the
+/// screen.
 struct NavHUDView: View {
     @ObservedObject var model: FrontModel
     var onExit: () -> Void = {}
@@ -34,7 +34,7 @@ struct NavHUDView: View {
                     Image(systemName: bannerSymbol)
                         .font(.system(size: 50, weight: .semibold))
                         .frame(width: 58)
-                        .opacity(hasRoute ? 1 : 0)
+                        .opacity(model.nav != nil ? 1 : 0)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(bannerTitle).font(.system(size: 40, weight: .bold, design: .rounded).monospacedDigit())
                         Text(bannerLine).font(.system(size: 19, weight: .medium, design: .rounded))
@@ -141,17 +141,6 @@ struct NavHUDView: View {
     }
 
     // MARK: - Copy
-    // Real routing when a destination is set; otherwise the scripted ride, so the
-    // simulator preview reads the same as the mock.
-
-    private var t: Double { model.now() }
-
-    /// The scripted ride counts down to its own turn. `now()` is seconds since the
-    /// reference date on a live feed, so this is only meaningful on the script's clock.
-    private var scriptedDistance: String {
-        let travelled = World.speed * t.truncatingRemainder(dividingBy: SyntheticFeed.loop)
-        return "\(max(5, Int((World.turnStreet.ahead - travelled) / 5).magnitude * 5)) m"
-    }
 
     /// Within this of the turn the banner switches from "continue" to the turn itself:
     /// about 12 s of warning at 15 km/h.
@@ -186,7 +175,7 @@ struct NavHUDView: View {
     static let offNetwork = 15.0
 
     private var bannerSymbol: String {
-        guard model.nav != nil else { return "arrow.turn.up.left" }  // the script's turn
+        guard model.nav != nil else { return "arrow.up" }
         if headToRoute != nil { return "location.north.line.fill" }
         guard nearTurn else { return "arrow.up" }
         return step(1)?.symbol ?? "flag.checkered"
@@ -197,12 +186,10 @@ struct NavHUDView: View {
             let m = Self.metres(nav.distanceToManoeuvre)
             return nearTurn ? "In \(m)" : m
         }
-        return model.scripted ? "In \(scriptedDistance)" : ""
+        return ""
     }
     private var bannerLine: String {
-        guard model.nav != nil else {
-            return model.scripted ? "Turn onto \(World.turnStreet.name)" : "No destination"
-        }
+        guard model.nav != nil else { return "No destination" }
         if let nav = model.nav, headToRoute != nil {
             // Indoors the distance is to a guessed fix, so only show it when the rider is outside and off the route.
             guard nav.isOffRoute else { return "Start on a road or path" }
@@ -215,26 +202,22 @@ struct NavHUDView: View {
         if next.symbol == "flag.checkered" { return "Arrive at \(next.street)" }
         return "Turn onto \(next.street)"
     }
-    /// A route or the script means there is a speed to show; a live feed with no frame
-    /// yet does not, and a standing-still readout of 13 km/h would be a lie.
-    private var hasRoute: Bool { model.nav != nil || model.scripted }
-
     private var speedText: String {
-        // This phone's own GPS first; the rear phone's reading, then the script's, after.
+        // This phone's own GPS first, then the rear phone's reading.
         let own = model.route.rider.flatMap { $0.speed >= 0 ? $0.speed : nil }
-        guard let speed = own ?? model.frame?.speed ?? (hasRoute ? World.speed : nil) else { return "–" }
+        guard let speed = own ?? model.frame?.speed else { return "–" }
         return "\(Int((speed * 3.6).rounded()))"
     }
     private var arrivalText: String {
-        guard let nav = model.nav else { return model.scripted ? "12:41" : "–" }
+        guard let nav = model.nav else { return "–" }
         return Self.clock(nav)
     }
     private var minutesText: String {
-        guard let nav = model.nav else { return model.scripted ? "18" : "–" }
+        guard let nav = model.nav else { return "–" }
         return "\(max(1, Int((nav.eta / 60).rounded(.up))))"
     }
     private var kmText: String {
-        guard let nav = model.nav else { return model.scripted ? "4.2" : "–" }
+        guard let nav = model.nav else { return "–" }
         return String(format: "%.1f", nav.remaining / 1000)
     }
 
@@ -253,8 +236,7 @@ struct NavHUDView: View {
     }
 }
 
-/// Absolute placement in the design space, so each call below reads like the
-/// mock's own draw call. Inside a topLeading ZStack, setting a child's leading and
+/// Absolute placement in the design space. Inside a topLeading ZStack, setting a child's leading and
 /// top guides puts its `anchor` point at (x, y).
 private extension View {
     func at(_ x: Double, _ y: Double, anchor: UnitPoint = .center) -> some View {

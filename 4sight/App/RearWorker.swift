@@ -37,8 +37,6 @@ nonisolated struct RearInputs: Sendable {
     var speed = 0.0
     var heading = -1.0
     var yaw: Double?
-    /// People and bikes count as threats. Only the Simulator replay of rear footage sets it.
-    var demo = false
     var thermal: ThermalLabel = .nominal
     var logging = false
     var battery: Double?
@@ -217,7 +215,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
         // One decision path, both engines every frame (Fusion.swift): ThreatEngine decides,
         // DangerEngine's range-free votes confirm, sharpen or rescue, never alert alone.
         let votes = danger.votes(tracks: tracks, t: t, imageW: w, imageH: h)
-        let threat = engine.update(tracks: states, bikeSpeed: input.speed, demoMode: input.demo, now: t,
+        let threat = engine.update(tracks: states, bikeSpeed: input.speed, demoMode: false, now: t,
                                    corroborated: Fusion.corroborated(votes))
         let decisions = Fusion.fuse(threat, votes: votes, states: states)
         latest.withLock { $0 = LatestView(states: states, t: t, wall: Date()) }
@@ -254,7 +252,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
 
         let message = FrameMessage(
             t: t, fps: frameTimes.count, temp: input.thermal, speed: input.speed, heading: input.heading,
-            demo: input.demo,
+            demo: false,
             tracks: states.filter { visible.contains($0.id) }.map { s in
                 let d = byID[s.id]
                 return TrackMessage(id: s.id, cls: s.cls, x: s.gap, z: s.z, invTTC: s.invTTC,

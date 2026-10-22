@@ -4,9 +4,7 @@ import SwiftUI
 /// The follow view: one pinhole camera behind and above the rider, drawing the map
 /// around them and whatever the rear camera saw inside its wedge.
 ///
-/// Everything is laid out in the mock's 393 x 852 design space and scaled once, so
-/// the constants in `Camera`, `Road` and `World` stay the numbers from
-/// `docs/mock/front.html`.
+/// Everything is laid out in a 393 x 852 design space and scaled once to the screen.
 struct SurroundView: View {
     @ObservedObject var model: FrontModel
 
@@ -23,22 +21,14 @@ struct SurroundView: View {
         .background(Palette.ground)
     }
 
-    /// The scripted ride keeps the mock's whole invented street. The live feed draws the
-    /// real streets around the rider from OpenStreetMap (`StreetRenderer`).
+    /// The real streets around the rider from OpenStreetMap (`StreetRenderer`), then the
+    /// rear camera's vehicles on them.
     private func draw(_ ctx: inout GraphicsContext, t: Double, date: Date) {
-        if model.scripted {
-            SceneRenderer.ground(&ctx, t)
-            SceneRenderer.blocks(&ctx, t)
-            RouteRibbon.draw(&ctx, t)
-            SceneRenderer.parked(&ctx, t)
-        } else {
-            let rider = model.route.riderCoordinate(at: date)
-            StreetRenderer.draw(&ctx, map: StreetMap.at(rider), rider: rider,
-                                heading: model.route.heading(at: t), route: model.route.coordinates,
-                                plan: model.lanePlan)
-        }
+        let rider = model.route.riderCoordinate(at: date)
+        StreetRenderer.draw(&ctx, map: StreetMap.at(rider), rider: rider,
+                            heading: model.route.heading(at: t), route: model.route.coordinates,
+                            plan: model.lanePlan)
         let blocker = MergeBanner.current(model.frame, link: model.link)?.blockedBy
-        let rider = model.scripted ? nil : model.route.riderCoordinate(at: date)
         for var track in model.tracks(at: t) {
             if track.oncoming, let lane = StreetRenderer.oncomingLane(
                 map: StreetMap.at(rider), rider: rider, heading: model.route.heading(at: t), x: track.x, z: track.z) {
@@ -52,7 +42,6 @@ struct SurroundView: View {
         }
         VehicleSprite.puck(&ctx)
         SceneRenderer.haze(&ctx)
-        if model.scripted { SceneRenderer.labels(&ctx, t) }
     }
 
     /// Only what the rear camera can actually see, painted far-behind last because
@@ -72,7 +61,7 @@ struct SurroundView: View {
     static func visibleTracks(_ frame: FrameMessage?) -> [VehicleSprite.Track] {
         guard let frame else { return [] }
         return frame.tracks
-            .filter { FOV.seen($0.x, $0.z, margin: World.size($0.cls.rawValue).w / 2) }
+            .filter { FOV.seen($0.x, $0.z, margin: Footprint.of($0.cls.rawValue).w / 2) }
             .sorted { $0.z < $1.z }
             .map { tr in
                 let vru = tr.cls == .person || tr.cls == .bicycle
