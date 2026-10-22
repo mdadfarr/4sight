@@ -52,6 +52,9 @@ struct FrontRootView: View {
             MergeBannerView(model: model)
         }
         .ignoresSafeArea()
+        // Auto-lock would stop GPS and the nav mid-ride.
+        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
+        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
     }
 
     // MARK: - Flow
