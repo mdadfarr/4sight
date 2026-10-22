@@ -7,13 +7,12 @@ import SwiftUI
 /// What the rider sees at a standstill, in Apple Maps' shape: the map, a pill saying
 /// whether the bike is awake (rear camera and grips), and a sheet of search, places
 /// and recents. Pulled up (or the bike button), the sheet adds the bike's detail,
-/// this phone's pairing name and the close-pass map.
+/// and this phone's pairing name.
 struct PassiveHomeView: View {
     @ObservedObject var model: FrontModel
     @ObservedObject var flow: RideFlow
     let onPick: (MKMapItem) -> Void
     var onDemo: () -> Void = {}
-    var onRiskMap: () -> Void = {}
 
     /// Falling back to `.automatic` with no fix yet shows the whole continent, which
     /// tells the rider nothing; the city is a better guess than the hemisphere.
@@ -145,7 +144,6 @@ struct PassiveHomeView: View {
                             if expanded { bikeCard.transition(.opacity) }
                             places
                             recents
-                            rides
                         }
                         .padding(.horizontal, 16).padding(.top, 22).padding(.bottom, 40)
                     }
@@ -523,32 +521,6 @@ struct PassiveHomeView: View {
         .lineLimit(1)
         .padding(.vertical, 10)
         .contentShape(Rectangle())
-    }
-
-    // MARK: - Rides
-
-    private var rides: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            header("Your rides")
-            Button(action: onRiskMap) {
-                VStack(alignment: .leading, spacing: 2) {
-                    ZStack {
-                        Light.field
-                        Image(systemName: "map.fill").font(.system(size: 30)).foregroundStyle(Light.blue.opacity(0.5))
-                        Circle().fill(Light.red).frame(width: 8, height: 8).offset(x: -18, y: -6)
-                        Circle().fill(Palette.amber).frame(width: 7, height: 7).offset(x: 26, y: 10)
-                    }
-                    .frame(height: 72)
-                    Text("Close-pass map").font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(Light.ink).padding(.horizontal, 12).padding(.top, 8)
-                    Text("Where cars passed close").font(.system(size: 13, design: .rounded))
-                        .foregroundStyle(Light.dim).padding(.horizontal, 12).padding(.bottom, 10)
-                }
-                .frame(width: 180, alignment: .leading)
-                .background(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-            }
-        }
     }
 }
 

@@ -7,7 +7,6 @@ import SwiftUI
 /// phone saw, not an estimate.
 struct RideSummaryView: View {
     let summary: RideSummary
-    let onRiskMap: () -> Void
     let onDone: () -> Void
 
     var body: some View {
@@ -18,14 +17,6 @@ struct RideSummaryView: View {
             }
             figures
             Spacer(minLength: 12)
-            Button(action: onRiskMap) {
-                Label("See them on the map", systemImage: "map")
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Light.ink)
-                    .frame(maxWidth: .infinity, minHeight: 56)
-                    .background(Color.white, in: Capsule())
-                    .shadow(color: Light.ink.opacity(0.08), radius: 10, y: 3)
-            }
             Button(action: onDone) {
                 Text("Done")
                     .font(.system(size: 17, weight: .semibold, design: .rounded))
@@ -95,5 +86,5 @@ struct RideSummaryView: View {
 #Preview {
     RideSummaryView(summary: RideSummary(destination: "Toronto Pan Am Sports Centre", seconds: 840,
                                          metres: 3200, closePasses: 2, imminent: 1),
-                    onRiskMap: {}, onDone: {})
+                    onDone: {})
 }

@@ -8,8 +8,6 @@ import SwiftUI
 struct RolePickerView: View {
     @State private var role = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)["role"] as? String ?? ""
     @AppStorage("lastRole") private var lastRole = ""
-    /// Read by the front's RideRecorder: off, nothing is recorded for the city map.
-    @AppStorage("shareNearMisses") private var shareNearMisses = true
     /// The opening moment: the logo alone in the middle, pulsing once, then it rises into
     /// its place on the role screen while the map and the choices fade in.
     @State private var splash = true
@@ -88,14 +86,6 @@ struct RolePickerView: View {
                     choice("front", title: "Handlebar", symbol: "bicycle")
                     choice("rear", title: "Rear rack", symbol: "camera.fill")
                 }
-                Toggle(isOn: $shareNearMisses) {
-                    Text("Add my near misses to Toronto\u{2019}s public safety map (anonymous)")
-                        .font(.system(size: 13, design: .rounded))
-                        .foregroundStyle(Light.dim)
-                }
-                .tint(Light.blue)
-                .controlSize(.mini)
-                .padding(.top, 18).padding(.horizontal, 4)
             }
             .opacity(splash ? 0 : 1)
 

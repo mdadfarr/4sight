@@ -1,6 +1,0 @@
-.claude-flow
-.swarm
-ruvector.db
-.env*
-dev.py
-test_store.py

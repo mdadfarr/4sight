@@ -81,13 +81,21 @@ public struct FrameMessage: Codable, Equatable, Sendable {
     public var grips: String?
     /// Rear phone battery, 0–1, absent when iOS does not report it.
     public var battery: Double?
+    /// True when the bike's own wheel hides too much of the rear camera's view (EgoMask);
+    /// absent otherwise, and from older rear builds.
+    public var wheelBlocksView: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case t, fps, temp, speed, heading, demo, tracks, merge, grips, battery
+        case wheelBlocksView = "wheel_blocks_view"
+    }
 
     public init(t: Double, fps: Int, temp: ThermalLabel, speed: Double, heading: Double,
                 demo: Bool, tracks: [TrackMessage], merge: MergeMessage? = nil,
-                grips: String? = nil, battery: Double? = nil) {
+                grips: String? = nil, battery: Double? = nil, wheelBlocksView: Bool? = nil) {
         self.t = t; self.fps = fps; self.temp = temp; self.speed = speed
         self.heading = heading; self.demo = demo; self.tracks = tracks; self.merge = merge
-        self.grips = grips; self.battery = battery
+        self.grips = grips; self.battery = battery; self.wheelBlocksView = wheelBlocksView
     }
 
     /// One JSON object terminated by "\n", the wire format of the rear→front link.

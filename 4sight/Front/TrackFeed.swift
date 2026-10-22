@@ -8,15 +8,13 @@ protocol TrackFeed {
 }
 
 /// Launch arguments: --synthetic, --freeze T, --mockroute, --demo (FrameMessage.demo,
-/// which makes bicycles and people count as threats, matching ThreatEngine) and
-/// --demoevents (scripted near misses on the risk map, for a phone that has not ridden).
+/// which makes bicycles and people count as threats, matching ThreatEngine).
 /// `-previewRide YES` (with `-role front`) laps a pretend live ride for the simulator.
 struct LaunchArgs {
     let synthetic: Bool
     let freeze: Double?
     let mockRoute: Bool
     let demo: Bool
-    let demoEvents: Bool
     let previewRide: Bool
     /// `-replayRear <file in Documents>`: with `-previewRide`, real rear-pipeline tracks.
     let replayRear: String?
@@ -30,7 +28,6 @@ struct LaunchArgs {
         freeze = value(after: "--freeze").flatMap(Double.init)
         mockRoute = args.contains("--mockroute")
         demo = args.contains("--demo")
-        demoEvents = args.contains("--demoevents")
         previewRide = args.contains("-previewRide")
         replayRear = value(after: "-replayRear")
     }

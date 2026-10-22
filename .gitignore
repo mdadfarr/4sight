@@ -34,6 +34,9 @@ ruvector.db
 .claude/
 scripts/esp32_wifi_*.ino
 
-# Raw ride GPS stays off the public repo; only the trimmed web/data output is committed
+# Raw ride GPS stays off the public repo
 data/real/
 data/synthetic/
+
+# Paused close-pass map (uploads, server, website), kept locally; on GitHub at tag close-pass-map
+archive/

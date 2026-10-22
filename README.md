@@ -4,13 +4,11 @@ See what's behind you.
 
 [![4sight](docs/images/hero.jpg)](https://youtu.be/WKfXj8Th4Fk)
 
-**[▶ Watch the demo](https://youtu.be/WKfXj8Th4Fk)** · **[Live map](https://4sight-map.vercel.app)**
+**[▶ Watch the demo](https://youtu.be/WKfXj8Th4Fk)**
 
 **Built at Hack the Valley 2026 for the School of Cities track, MLH Best Use of Tiger Data and Best AI for Social Impact.**
 
-Most close passes come from behind, where a cyclist can't see them, and none of them get
-counted. Toronto records where cyclists get hurt and where the bike lanes are, but not how many
-people ride each street or how often they are nearly hit.
+Most close passes come from behind, where a cyclist can't see them.
 
 4sight turns a spare iPhone into a rear-view camera for your bike. It watches the road behind
 you with AI that runs entirely on the phone, and when a vehicle is about to pass too close, the
@@ -18,9 +16,8 @@ left handlebar grip buzzes. Press the button on either grip and it tells you whe
 is clear to move into. Your own phone on the handlebars does the navigation and shows the cars
 behind you in their lanes.
 
-When the ride ends, every near miss uploads by itself, anonymously, to a public map of where
-Toronto's cyclists get close-passed: close passes per 100 km actually ridden, by street, ward and
-type of bike lane, next to the City's own record of cyclists killed or seriously injured.
+Everything runs on the two phones. No video, location or ride data leaves them, and there are
+no accounts.
 
 ## How it works
 
@@ -31,26 +28,16 @@ flowchart LR
   C --> D[Threat engine]
   D --> E[Grips buzz]
   D --> F[Front phone HUD]
-  F --> G[Ride ends: upload]
-  G --> H[Tiger Data]
-  H --> I[Public map]
 ```
 
 | Step       | What happens                                                                                       | Built on                                                         |
 | ---------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| See        | Detect cars, trucks, buses, bikes and people behind the bike, 15 times a second, on the phone      | [YOLO11n](https://docs.ultralytics.com/models/yolo11/), Core ML  |
-| Track      | Keep each vehicle's identity frame to frame; learn and ignore the bike's own wheel                 | Our own tracker (Kalman + IoU)                                   |
+| See        | Detect cars, trucks, buses, bikes and people behind the bike, on the phone: 15 times a second, 10 once the phone is warm, 5 near overheating | [YOLO11n](https://docs.ultralytics.com/models/yolo11/), Core ML  |
+| Track      | Keep each vehicle's identity frame to frame; learn and ignore the bike's own wheel, and ask for a higher mount if it hides too much | Our own tracker (Kalman + IoU)                                   |
 | Measure    | Distance from each class's real size; seconds to contact from how fast its box grows               | Swift, `FourSightKit/Perception`                                 |
 | Decide     | Predict how close it will pass; inside about a metre is a threat. A looming engine confirms faster | Swift, `FourSightKit/ThreatEngine`                               |
 | Warn       | Buzz and light the grip on that side; answer the merge buttons red or green                        | ESP32, Bluetooth LE, [NimBLE](https://github.com/h2zero/NimBLE-Arduino) |
 | Guide      | Rear phone streams to the front phone; 3D street view, turn-by-turn, warnings before turns         | Apple peer-to-peer Wi-Fi, [OpenStreetMap](https://www.openstreetmap.org), MapKit directions |
-| Upload     | Ride ends, ends of the route trimmed on the phone, sent anonymously                                | Vercel functions (Montreal)                                      |
-| Count      | Match every point to a street, keep live totals per street and hour                                | [Tiger Cloud](https://www.tigerdata.com): TimescaleDB hypertables, PostGIS, real-time continuous aggregates |
-| Show       | Close passes per 100 km by street, ward and lane type, beside the City's layers                    | Leaflet, City of Toronto Open Data                               |
-
-No video ever leaves the bike. The database and the server are in Canada (AWS Canada Central,
-Vercel Montreal). There are no accounts; the app sends a random per-install id and the database
-keeps only its hash.
 
 ## What we tried first
 
@@ -71,16 +58,15 @@ keeps only its hash.
 | `FourSightKit/`  | Swift package: protocol, perception (tracking, range, time to contact), threat engine, links |
 | `firmware/`      | ESP32 grip firmware (PlatformIO / Arduino)                                            |
 | `cad/`           | 3D-printed grip housing: STEP and STL per part, a print plate and the assembly       |
-| `server/`        | Vercel functions and the Tiger Cloud schema                                           |
-| `web/`           | The public map (static site, Leaflet)                                                 |
-| `tools/`         | Data scripts: City and OpenStreetMap layers, street segments, synthetic example rides |
+| `tools/`         | OpenStreetMap street extraction for the app's map; ride bag to footage conversion     |
 | `ml/`            | Python reference for detection, tracking and the danger logic                         |
 | `scripts/`       | Run the app in the iOS Simulator on a scripted ride or a recorded rear clip           |
-| `docs/`          | Protocol contracts, data pipeline, data and privacy, the front screen design mock     |
+| `docs/`          | Protocol contracts and the front screen design mock                                   |
 
 ## Run it
 
-You need a Mac with Xcode 27, two iPhones on iOS 26 (one rear, one on the handlebars), and the
+You need a Mac with Xcode 27, two iPhones on iOS 17 or later (iPhone XS or newer; one rear, one
+on the handlebars), and the
 grips: an ESP32 dev board, two coin vibration motors, a green and a red LED and a button per
 grip. Wiring is in [firmware/README.md](firmware/README.md).
 
@@ -106,38 +92,22 @@ the grips by itself; don't pair it in iOS Settings.
 
 ```sh
 cd FourSightKit && swift test                           # unit tests (needs Xcode)
-swift run Checks                                        # the same engines as plain asserts, plus fusion, merge and upload checks
+swift run Checks                                        # the same engines as plain asserts, plus fusion and merge checks
 swift run ReplayAlerts boxes.csv 15                     # replay a recorded clip's detections through the full alert chain
 scripts/front-preview.sh                                # the front phone on a scripted ride in the iOS Simulator
 ```
 
-### Server and map
-
-The server and database setup, the live demo queries for Tiger Cloud's SQL editor and the
-upload contract are in [server/README.md](server/README.md), [server/demo.sql](server/demo.sql)
-and [docs/DATA_PIPELINE.md](docs/DATA_PIPELINE.md). The website is in [web/](web/); the live map
-is at [4sight-map.vercel.app](https://4sight-map.vercel.app), with open data downloads:
-[every street](https://4sight-server.vercel.app/v1/streets.csv),
-[every ward](https://4sight-server.vercel.app/v1/wards.csv),
-[GeoJSON](https://4sight-server.vercel.app/v1/city-risk.geojson).
-
 ## Data
 
-| Source                                                                                     | Used for                                         |
-| ------------------------------------------------------------------------------------------ | ------------------------------------------------ |
-| [City of Toronto Cycling Network](https://open.toronto.ca/dataset/cycling-network/)        | Street segments and lane type (protected, painted, shared) |
-| [City of Toronto City Wards](https://open.toronto.ca/dataset/city-wards/)                  | Ward of every segment                            |
-| City of Toronto Vision Zero, cyclists killed or seriously injured, 2022 to October 2026    | Injury layer and ward figures                    |
-| [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors                      | Streets without cycling infrastructure; the app's street drawing |
-| 4sight rides                                                                               | Kilometres ridden and close passes               |
+The handlebar map draws OpenStreetMap streets (© OpenStreetMap contributors, ODbL), bundled for
+the area around UTSC.
 
-Until real rides add up, most close-pass numbers on the map are modelled and labelled
-**example data**, and stage rides are labelled **test rides**. Neither is presented as a finding.
+The hackathon build also uploaded near misses to a public close-pass map of Toronto (Vercel,
+Tiger Cloud, Leaflet). That is paused and out of the app; its code is at the
+[`close-pass-map`](https://github.com/mdadfarr/4sight/tree/close-pass-map) tag.
 
 ## More
 
-- [Data pipeline contract](docs/DATA_PIPELINE.md): what the app sends, the database, the public GeoJSON.
-- [Data and privacy](docs/DATA_AND_PRIVACY.md): data residency, anonymity, how to read the numbers, verified City figures.
 - [Contracts](docs/CONTRACTS.md): the rear → front message and the phone ↔ grip Bluetooth protocol.
 - [Firmware](firmware/README.md): wiring, pins, flashing, serial test commands.
 - [ML](ml/README.md): the Python detection, tracking and danger logic the Swift port started from.
@@ -146,4 +116,4 @@ Until real rides add up, most close-pass numbers on the map are modelled and lab
 
 Jasper Sun, Arshiya Khayatzadeh, Shayan Dorouediani and Mohammed Dadfar.
 
-Map data © OpenStreetMap contributors. City data from the City of Toronto Open Data portal.
+Map data © OpenStreetMap contributors.

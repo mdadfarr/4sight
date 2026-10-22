@@ -44,6 +44,7 @@ Transport: Network.framework peer-to-peer TCP, Bonjour type `_foursight._tcp`, f
 | `merge.t` | double | rear-phone time the answer was computed |
 | `grips` | string \| absent | `connected` \| `searching`: the rear phone's BLE link to the grips (absent from older rear builds) |
 | `battery` | double \| absent | rear phone battery 0–1, absent when iOS does not report it |
+| `wheel_blocks_view` | bool \| absent | `true` when the bike's own wheel hides over 20% of the camera's view (EgoMask); the front then asks the rider to remount, never mid-ride. Absent otherwise |
 
 The front must show `merge` for 3 s from `merge.t` and then drop it, and must render it
 differently from the level colours (a banner on the side asked about, green or red, matching

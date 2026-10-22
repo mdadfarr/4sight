@@ -24,6 +24,18 @@ public struct EgoMask: Sendable {
     public var minHits = 8
     /// Learned zones, in frame fractions.
     public private(set) var zones: [DetectionFilter.Zone] = []
+    /// Masked share of the frame above which the mount is too low to work: traffic behind
+    /// the wheel goes unseen. shortcut: 0.2 is a starting guess (a wheel box a fifth of the
+    /// frame each way masks ~0.08 once padded and clipped); tune it on more mounts.
+    public var maxCoverage = 0.2
+
+    /// Share of the frame the learned zones hide (overlaps counted twice, an upper bound).
+    public var coverage: Double {
+        zones.reduce(0) { $0 + max(0, min($1.x2, 1) - max($1.x1, 0)) * max(0, min($1.y2, 1) - max($1.y1, 0)) }
+    }
+
+    /// The wheel hides so much of the view that the rider should remount the phone.
+    public var blocksView: Bool { coverage > maxCoverage }
 
     private var candidate: (cx: Double, cy: Double, w: Double, h: Double, since: Double, last: Double, hits: Int)?
 

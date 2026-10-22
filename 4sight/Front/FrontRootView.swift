@@ -1,4 +1,5 @@
 import MapKit
+import Protocol
 import SwiftUI
 
 /// The front phone, start to finish: pick somewhere at a standstill, choose how to get
@@ -14,33 +15,42 @@ struct FrontRootView: View {
     @State private var chosen: RoutePlan?
     @State private var destination = ""
     @State private var routing = false
-    @State private var showingRiskMap = false
     @State private var rideStarted = Date()
-    @ObservedObject private var uploader = CityUploader.shared
+    @State private var wheelWarned = false
     private let args = LaunchArgs()
 
     var body: some View {
         ZStack {
             switch flow.phase {
             case .home:
-                PassiveHomeView(model: model, flow: flow, onPick: preview, onDemo: startDemo,
-                                onRiskMap: { showingRiskMap = true })
+                PassiveHomeView(model: model, flow: flow, onPick: preview, onDemo: startDemo)
             case .preview:
                 RoutePreviewView(model: model, plans: plans, destination: destination,
                                  chosen: $chosen, onStart: start, onCancel: { flow.phase = .home })
             case .riding:
                 ride
             case let .arrived(summary):
-                RideSummaryView(summary: summary,
-                                onRiskMap: { showingRiskMap = true },
-                                onDone: { flow.phase = .home })
+                RideSummaryView(summary: summary, onDone: { flow.phase = .home })
             }
             if routing { RoutePreviewSkeleton() }
         }
         .preferredColorScheme(.light)
-        .sheet(isPresented: $showingRiskMap) { RiskMapView(demo: args.demoEvents) }
-        .overlay(alignment: .top) { UploadNote(uploader: uploader) }
         .onAppear(perform: begin)
+        .alert("Rear camera can\u{2019}t see enough", isPresented: wheelAlert) {
+            Button("OK") {}
+        } message: {
+            Text("Your back wheel fills too much of the rear camera\u{2019}s view, so cars behind you "
+                 + "could be missed. Mount the rear phone higher or tilt it up, then tap "
+                 + "\u{201C}Forget wheel position\u{201D} on the rear phone.")
+        }
+    }
+
+    /// Once per launch, and never mid-ride: a modal over the nav would hide the road.
+    private var wheelAlert: Binding<Bool> {
+        Binding(get: {
+            if case .riding = flow.phase { return false }
+            return !wheelWarned && model.frame?.wheelBlocksView == true
+        }, set: { if !$0 { wheelWarned = true } })
     }
 
     private var ride: some View {
@@ -60,12 +70,10 @@ struct FrontRootView: View {
     // MARK: - Flow
 
     private func begin() {
-        showingRiskMap = args.demoEvents
         model.freeze = args.freeze
         router.onUpdate = advance
         router.onPose = { model.pose($0, heading: $1) }
         router.onReroute = { model.route.coordinates = $0.coordinates }
-        uploader.flush()                                  // rides queued while offline
         if args.mockRoute { model.nav = .mock }
         if args.previewRide { return startPreviewRide() }
         // The scripted ride and the frozen screenshots start mid-ride; a real launch
@@ -109,7 +117,6 @@ struct FrontRootView: View {
     /// Ends the ride and goes home. Leaving the scripted ride also puts the real link
     /// back, so the home screen's pair strip is not reporting a script as a rear phone.
     private func exitRide() {
-        model.recorder.finish()
         router.stop()
         model.nav = nil
         model.route = LiveRoute()
@@ -151,6 +158,5 @@ struct FrontRootView: View {
             closePasses: model.closePasses,
             imminent: model.imminent))
         router.stop()
-        model.recorder.finish()
     }
 }

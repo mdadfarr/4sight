@@ -274,7 +274,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
                 if let current = m, t - current.t > 3 { m = nil }
                 return m
             },
-            grips: input.grips, battery: input.battery)
+            grips: input.grips, battery: input.battery, wheelBlocksView: egoMask.blocksView ? true : nil)
         if t - lastSendT >= 1.0 / 15 {
             lastSendT = t
             peer.send(message)
