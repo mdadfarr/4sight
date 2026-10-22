@@ -1,6 +1,6 @@
 # 4sight 
 
-[![4sight demo](docs/images/hero.jpg)](https://youtu.be/WKfXj8Th4Fk)
+[![4sight demo](docs/images/hero.png)](https://youtu.be/WKfXj8Th4Fk)
 
 Tesla vision and navigation for bikes.
 
