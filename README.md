@@ -1,6 +1,4 @@
-# 4sight <img src="docs/images/icon.png" height="38" align="top">
-
-> **See what's behind you.**
+# 4sight 
 
 [![4sight demo](docs/images/hero.jpg)](https://youtu.be/WKfXj8Th4Fk)
 
@@ -23,7 +21,7 @@ Tesla vision and navigation for bikes.
 
 ---
 
-## ⚙️ How it works
+## How it works
 
 ```mermaid
 flowchart LR
@@ -96,19 +94,7 @@ uv run --project tools python tools/osm_streets.py --region <name> --bbox S,W,N,
 
 ---
 
-## 🧪 What we tried first
-
-| Idea | Tried | What happened |
-|------|-------|---------------|
-| Distance from one size for everything | Every detection treated as car-sized | A teammate 1 m away read as 4 m. Per-class sizes and smoothing fixed it |
-| Warn from looming alone | Box growth only (how fast something gets bigger) | 198 seconds of false alarms on our ride footage. Now geometry decides and looming only confirms |
-| More frames for better tracking | 10, 15, 20 and 30 fps on real footage | More frames made tracking worse. 15 fps won |
-| Trust every detection | The model on the rear camera as-is | It saw the bike's own wheel as a person in half the frames. A learned mask cut 210 false boxes to 21 |
-| Draw the street from the GPS trail, or use Apple Maps | Roads from GPS points; MapKit tiles | Glitched at every intersection; tiles were blank at cycling zoom. We bundle OpenStreetMap and draw it ourselves |
-
----
-
-## 🛠️ Development
+## Development
 
 ```bash
 cd FourSightKit && swift test          # unit tests (needs Xcode)
@@ -129,7 +115,7 @@ scripts/front-preview.sh               # the handlebar view on a scripted ride i
 
 ---
 
-## 👥 Credits
+## Credits
 
 Jasper Sun, Arshiya Khayatzadeh, Shayan Dorouediani and Mohammed Dadfar.
 
