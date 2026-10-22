@@ -6,7 +6,8 @@
 
 Tesla vision and navigation for bikes.
 
-**[▶ Watch the demo](https://youtu.be/WKfXj8Th4Fk)** · Built at Hack the Valley 2026 
+**[▶ Watch the demo](https://youtu.be/WKfXj8Th4Fk)** · Built at Hack the Valley 2026
+
 ---
 
 ## Features
@@ -125,10 +126,6 @@ scripts/front-preview.sh               # the handlebar view on a scripted ride i
 | `scripts/` | Run the app in the iOS Simulator on a scripted ride or a recorded rear clip |
 | `docs/` | The rear → front message format ([contracts](docs/CONTRACTS.md)) and the screen design mock |
 | `firmware/`, `cad/` | The hackathon prototype's handlebar grips (ESP32, 3D-printed housing); no longer used by the app |
-
-The hackathon build also uploaded near misses to a public close-pass map of Toronto (Vercel, Tiger
-Cloud, Leaflet). That is paused and out of the app; its code is at the
-[`close-pass-map`](https://github.com/mdadfarr/4sight/tree/close-pass-map) tag.
 
 ---
 
