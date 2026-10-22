@@ -26,7 +26,6 @@ import os
     @Published private(set) var previewImage: CGImage?
     @Published private(set) var error: String?
     @Published private(set) var eventCount = EventLogger.shared.count
-    @Published var demoMode = false { didSet { syncInputs() } }
     @Published var logging = false { didSet { syncInputs() } }
     /// Frame-fraction rectangles hiding the bike's own parts; `-exclude x1,y1,x2,y2[;...]` at launch.
     @Published var exclusionZones: [DetectionFilter.Zone] = [] { didSet { syncInputs() } }
@@ -75,7 +74,6 @@ import os
         speed = 0
         heading = -1
         // Developer switches live in the Settings app (Settings.bundle), not on this screen.
-        demoMode = UserDefaults.standard.bool(forKey: "demoMode")
         logging = UserDefaults.standard.bool(forKey: "recordVideo")
         do {
             // The handlebar grips are retired, so their commands go nowhere and no Bluetooth
@@ -154,11 +152,11 @@ import os
 
     /// Copies the main-actor sensor/toggle values into the worker (yaw arrives separately).
     private func syncInputs() {
-        let (demo, log, temp, spd, hdg, zones) = (demoMode, logging, thermal, speed, heading, exclusionZones)
+        let (log, temp, spd, hdg, zones) = (logging, thermal, speed, heading, exclusionZones)
         let level = UIDevice.current.batteryLevel
         let battery: Double? = level >= 0 ? Double(level) : nil
         worker?.inputs.withLock {
-            $0.demo = demo; $0.logging = log; $0.thermal = temp; $0.speed = spd; $0.heading = hdg
+            $0.logging = log; $0.thermal = temp; $0.speed = spd; $0.heading = hdg
             $0.exclusionZones = zones; $0.battery = battery
         }
     }

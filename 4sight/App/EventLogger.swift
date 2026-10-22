@@ -48,7 +48,7 @@ nonisolated final class EventLogger: @unchecked Sendable {
                     "left_level": d.grip == "L" ? d.level : 0, "right_level": d.grip == "R" ? d.level : 0,
                     "ttc_seconds": (tr?.invTTC ?? 0) > 0 ? 1 / tr!.invTTC : NSNull(),
                     "gap_m": d.gapPred, "cls": tr?.cls.rawValue ?? "unknown",
-                    "engine": "fused", "track_id": d.id, "demo": input.demo,
+                    "engine": "fused", "track_id": d.id,
                 ]
                 guard let data = try? JSONSerialization.data(withJSONObject: rec), let h = s.handle else { continue }
                 h.write(data + Data("\n".utf8))

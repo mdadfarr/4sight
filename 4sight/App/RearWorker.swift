@@ -37,6 +37,7 @@ nonisolated struct RearInputs: Sendable {
     var speed = 0.0
     var heading = -1.0
     var yaw: Double?
+    /// People and bikes count as threats. Only the Simulator replay of rear footage sets it.
     var demo = false
     var thermal: ThermalLabel = .nominal
     var logging = false

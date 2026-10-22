@@ -24,16 +24,6 @@
 		</dict>
 		<dict>
 			<key>Type</key>
-			<string>PSToggleSwitchSpecifier</string>
-			<key>Title</key>
-			<string>Demo: people and bikes alert</string>
-			<key>Key</key>
-			<string>demoMode</string>
-			<key>DefaultValue</key>
-			<false/>
-		</dict>
-		<dict>
-			<key>Type</key>
 			<string>PSGroupSpecifier</string>
 			<key>FooterText</key>
 			<string>The name shown as "This phone" on the handlebar phone. Empty pairs with the first one found.</string>

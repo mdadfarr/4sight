@@ -57,7 +57,8 @@ cd 4sight
 open 4sight/4sight.xcodeproj
 ```
 
-Set your team under **Signing & Capabilities**, then run on both phones.
+Set your team under **Signing & Capabilities**, then run on both phones. A free Apple account works;
+the app then has to be reinstalled from Xcode every 7 days.
 
 ### Settings
 
@@ -67,7 +68,6 @@ The rear screen is just the camera's view, so its few switches live in the **Set
 | Setting | Does |
 |---------|------|
 | Record video | Saves the rear camera's footage to the app's Documents, for replay and tuning |
-| Demo: people and bikes alert | Lets someone walking at the camera trigger warnings, for indoor demos |
 | Pair only with | Joins only the handlebar phone with that name ("This phone" on its home screen) |
 
 ---
