@@ -133,6 +133,7 @@ struct FrontRootView: View {
             guard let found = try? await router.plans(to: item), !found.isEmpty else { return }
             plans = found
             chosen = found.first
+            _ = StreetMap.at(found[0].coordinates.first)   // start loading that city's streets now
             flow.phase = .preview(found[0])
         }
     }

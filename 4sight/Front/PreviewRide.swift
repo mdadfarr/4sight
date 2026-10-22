@@ -61,7 +61,7 @@ final class PreviewRide: TrackFeed {
     /// What the rider actually rides: the lane plan's line around the loop (bike lane,
     /// right lane, sidewalk), not the road's centre line the route follows.
     private lazy var path: [CLLocationCoordinate2D] = {
-        guard let map = StreetMap.bundled, let plan = LanePlan(route: Self.loop, map: map) else { return Self.loop }
+        guard let map = StreetMap.loaded(at: Self.loop.first), let plan = LanePlan(route: Self.loop, map: map) else { return Self.loop }
         return plan.samples.map { map.coordinate(($0.e, $0.n)) }
     }()
     private lazy var pathCumulative: [Double] = {

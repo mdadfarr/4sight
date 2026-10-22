@@ -11,9 +11,9 @@ import UIKit
     }
 }
 
-/// Keeps every screen portrait. The front rides upright on the handlebar and its views are
-/// laid out for portrait; the rear rides sideways in the rack with only its Dynamic Island
-/// end showing, which is the top in portrait. The rear camera levels itself by gravity.
+/// Portrait by default: the front rides upright on the handlebar and its views are laid
+/// out for portrait. The rear screen turns with the phone instead: its camera levels itself
+/// by gravity, so a sideways phone sends sideways frames, which only fill a sideways screen.
 final class OrientationLock: NSObject, UIApplicationDelegate {
     static var mask: UIInterfaceOrientationMask = .portrait
 

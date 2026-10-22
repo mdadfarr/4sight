@@ -1,11 +1,14 @@
 """Download the streets, sidewalks, buildings and parks of one area from OpenStreetMap
-and write the compact file the front phone draws its map from (4sight/Front/Streets.json).
+and write the compact file the front phone draws its map from: one bundled region,
+4sight/Front/Streets-<region>.deflate (raw DEFLATE of the JSON below, a third the size),
+listed with its bounds in StreetRegions.json.
 
 Bundled rather than fetched on the bike: the public Overpass servers took 30 s and
 returned 500/502 on and off when this was written, which is no way to draw a road.
+A city is fetched in tiles of --tile degrees, so no single query times out.
 
-    uv run tools/osm_streets.py                       # UTSC / Pan Am Centre, Scarborough
-    uv run tools/osm_streets.py --bbox S,W,N,E --out path
+    uv run tools/osm_streets.py --region utsc --bbox 43.772,-79.212,43.798,-79.168
+    uv run tools/osm_streets.py --region sf --bbox 37.705,-122.515,37.815,-122.355 --tile 0.03
 
 Output: {"origin":[lat,lon], "ways":[{"k":kind, "w":width_m, "n":lanes, "one":0|1,
 "bike":0|1, "sw":bits 1=left 2=right of the way's direction,
@@ -19,6 +22,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+import zlib
 
 MIRRORS = ["https://overpass-api.de/api/interpreter",
            "https://overpass.kumi.systems/api/interpreter"]
@@ -71,21 +75,40 @@ def classify(t: dict):
     return None
 
 
+def fetch_area(s, w, n, e, tile):
+    """Every way in the box, fetched tile by tile; a way crossing tiles is kept once."""
+    step = tile or max(n - s, e - w)
+    ways = {}
+    lat = s
+    while lat < n:
+        lon = w
+        while lon < e:
+            bb = f"({lat},{lon},{min(lat + step, n)},{min(lon + step, e)})"
+            q = (f"[out:json][timeout:180];(way[highway]{bb};way[building]{bb};"
+                 f"way[leisure~\"^(park|pitch|garden)$\"]{bb};way[landuse~\"^(grass|recreation_ground)$\"]{bb};);out geom;")
+            for el in fetch(q)["elements"]:
+                ways[el["id"]] = el
+            print(f"  tile {bb}: {len(ways)} ways so far", file=sys.stderr)
+            time.sleep(1)   # one query at a time, gently
+            lon += step
+        lat += step
+    return list(ways.values())
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--bbox", default="43.772,-79.212,43.798,-79.168", help="S,W,N,E")
-    ap.add_argument("--out", default="4sight/Front/Streets.json")
+    ap.add_argument("--region", required=True, help="short name, e.g. toronto")
+    ap.add_argument("--bbox", required=True, help="S,W,N,E")
+    ap.add_argument("--tile", type=float, default=0, help="tile size in degrees; 0 = one query")
     a = ap.parse_args()
     s, w, n, e = (float(v) for v in a.bbox.split(","))
-    bb = f"({s},{w},{n},{e})"
-    q = (f"[out:json][timeout:120];(way[highway]{bb};way[building]{bb};"
-         f"way[leisure~\"^(park|pitch|garden)$\"]{bb};way[landuse~\"^(grass|recreation_ground)$\"]{bb};);out geom;")
-    data = fetch(q)
+    out = f"4sight/Front/Streets-{a.region}.deflate"
+    elements = fetch_area(s, w, n, e, a.tile)
 
     lat0, lon0 = (s + n) / 2, (w + e) / 2
     m_lat, m_lon = 111_320.0, 111_320.0 * math.cos(math.radians(lat0))
     ways = []
-    for el in data["elements"]:
+    for el in elements:
         t = el.get("tags", {})
         c = classify(t)
         if not c or "geometry" not in el:
@@ -114,10 +137,23 @@ def main():
     order = {"park": 0, "path": 1, "crossing": 2, "road": 3, "building": 4}
     ways.sort(key=lambda x: order[x["k"]])
     assert ways, "no ways in bbox"
-    with open(a.out, "w") as f:
-        json.dump({"origin": [lat0, lon0], "ways": ways}, f, separators=(",", ":"))
+    raw = json.dumps({"origin": [lat0, lon0], "ways": ways}, separators=(",", ":")).encode()
+    packer = zlib.compressobj(9, zlib.DEFLATED, -15)   # raw DEFLATE, what NSData's .zlib reads
+    with open(out, "wb") as f:
+        f.write(packer.compress(raw) + packer.flush())
     kinds = {k: sum(1 for x in ways if x["k"] == k) for k in order}
-    print(f"{a.out}: {len(ways)} ways {kinds}")
+    print(f"{out}: {len(ways)} ways {kinds}")
+
+    # The app picks the region whose box holds the rider, without opening every file.
+    index = "4sight/Front/StreetRegions.json"
+    try:
+        regions = json.load(open(index))
+    except FileNotFoundError:
+        regions = []
+    regions = [r for r in regions if r["name"] != a.region]
+    regions.append({"name": a.region, "s": s, "w": w, "n": n, "e": e})
+    with open(index, "w") as f:
+        json.dump(sorted(regions, key=lambda r: r["name"]), f, indent=1)
 
 
 if __name__ == "__main__":

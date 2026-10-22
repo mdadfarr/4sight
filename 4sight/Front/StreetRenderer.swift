@@ -127,8 +127,8 @@ enum StreetRenderer {
                                  from: (0, 0), heading: h)
         }
         var line: [RoutePoint]
-        if let plan, let map = StreetMap.bundled {
-            let r = map.local(rider)
+        if let plan {
+            let r = plan.map.local(rider)
             line = plan.samples.map {
                 let (x, z) = StreetMap.riderFrame(($0.e, $0.n), from: r, heading: h)
                 return (x, z, $0.changing)

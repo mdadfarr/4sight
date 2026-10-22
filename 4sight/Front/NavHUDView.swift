@@ -180,7 +180,7 @@ struct NavHUDView: View {
         guard let nav = model.nav else { return nil }
         if nav.isOffRoute { return nav.offRoute }
         guard let rider = model.route.riderCoordinate(at: Date()),
-              let gap = StreetMap.bundled?.networkGap(rider) else { return nil }
+              let gap = StreetMap.at(rider)?.networkGap(rider) else { return nil }
         return gap.indoors || gap.metres > Self.offNetwork ? max(gap.metres, 5) : nil
     }
     static let offNetwork = 15.0

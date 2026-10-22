@@ -96,8 +96,11 @@ scripts/front-preview.sh                                # the front phone on a s
 
 ## Data
 
-The handlebar map draws OpenStreetMap streets (© OpenStreetMap contributors, ODbL), bundled for
-the area around UTSC.
+The handlebar map draws OpenStreetMap streets, sidewalks, crossings and buildings
+(© OpenStreetMap contributors, ODbL), bundled for central Toronto, UTSC, Waterloo, San Francisco,
+Manhattan and downtown Los Angeles (`4sight/Front/StreetRegions.json` has each box). Elsewhere,
+search and turn-by-turn still work and the ride view draws the route alone. Add a city with
+`tools/osm_streets.py --region <name> --bbox S,W,N,E --tile 0.03`.
 
 The hackathon build also uploaded near misses to a public close-pass map of Toronto (Vercel,
 Tiger Cloud, Leaflet). That is paused and out of the app; its code is at the

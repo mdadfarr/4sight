@@ -49,7 +49,16 @@ final class FrontModel: ObservableObject {
             let c = route.coordinates
             guard c.count != oldValue.coordinates.count || c.first?.latitude != oldValue.coordinates.first?.latitude
                     || c.last?.latitude != oldValue.coordinates.last?.latitude else { return }
-            lanePlan = StreetMap.bundled.flatMap { LanePlan(route: c, map: $0) }
+            // A city's streets can take a second to load; plan off the main thread.
+            lanePlan = nil
+            DispatchQueue.global(qos: .userInitiated).async {
+                let plan = StreetMap.loaded(at: c.first).flatMap { LanePlan(route: c, map: $0) }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.route.coordinates.count == c.count,
+                          self.route.coordinates.first?.latitude == c.first?.latitude else { return }
+                    self.lanePlan = plan
+                }
+            }
         }
     }
     /// Which part of the street to ride along the route; rebuilt when the route changes.

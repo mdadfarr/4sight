@@ -61,12 +61,13 @@ struct RearView: View {
         })
         .onAppear {
             UIApplication.shared.isIdleTimerDisabled = true
-            OrientationLock.set(.portrait)
+            OrientationLock.set(.allButUpsideDown)
             savedBrightness = screen?.brightness ?? 1
             pipeline.start()
         }
         .onDisappear {
             pipeline.stop()
+            OrientationLock.set(.portrait)
             UIApplication.shared.isIdleTimerDisabled = false
             screen?.brightness = savedBrightness
         }

@@ -32,7 +32,8 @@ struct SurroundView: View {
             RouteRibbon.draw(&ctx, t)
             SceneRenderer.parked(&ctx, t)
         } else {
-            StreetRenderer.draw(&ctx, map: StreetMap.bundled, rider: model.route.riderCoordinate(at: date),
+            let rider = model.route.riderCoordinate(at: date)
+            StreetRenderer.draw(&ctx, map: StreetMap.at(rider), rider: rider,
                                 heading: model.route.heading(at: t), route: model.route.coordinates,
                                 plan: model.lanePlan)
         }
@@ -40,7 +41,7 @@ struct SurroundView: View {
         let rider = model.scripted ? nil : model.route.riderCoordinate(at: date)
         for var track in model.tracks(at: t) {
             if track.oncoming, let lane = StreetRenderer.oncomingLane(
-                map: StreetMap.bundled, rider: rider, heading: model.route.heading(at: t), x: track.x, z: track.z) {
+                map: StreetMap.at(rider), rider: rider, heading: model.route.heading(at: t), x: track.x, z: track.z) {
                 track = VehicleSprite.Track(id: track.id, cls: track.cls, x: lane, z: track.z, level: track.level,
                                             turnR: track.turnR, opacity: track.opacity, oncoming: true)
             }
