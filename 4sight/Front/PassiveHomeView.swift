@@ -12,7 +12,6 @@ struct PassiveHomeView: View {
     @ObservedObject var model: FrontModel
     @ObservedObject var flow: RideFlow
     let onPick: (MKMapItem) -> Void
-    var onDemo: () -> Void = {}
 
     /// Falling back to `.automatic` with no fix yet shows the whole continent, which
     /// tells the rider nothing; the city is a better guess than the hemisphere.
@@ -58,9 +57,6 @@ struct PassiveHomeView: View {
                 if !expanded {
                     statusPill
                         .padding(.leading, 16).padding(.top, geo.safeAreaInsets.top + 8)
-                        // Hidden: a 1.5 s hold starts the scripted ride, so the demo can be
-                        // filmed with no Xcode tether and no rear phone.
-                        .onLongPressGesture(minimumDuration: 1.5, perform: onDemo)
                 }
 
                 SheetFrame(detent: $detent, full: full) { sheetContent }
@@ -403,7 +399,6 @@ struct PassiveHomeView: View {
             }
             .padding(.horizontal, 16)
             .background(.white, in: RoundedRectangle(cornerRadius: 18))
-            .onLongPressGesture(minimumDuration: 1.5, perform: onDemo)
         }
     }
 

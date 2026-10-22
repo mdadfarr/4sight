@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Detected traffic, ported from the mock's `drawVehicle` / `drawPerson` / `drawCyclist`.
+/// Detected traffic: vehicles, people and cyclists.
 ///
 /// Vehicles are an extruded body box with a greenhouse on top and carry the alert in
 /// their own fill. People and cyclists are drawn as upright figures instead: from
@@ -31,7 +31,7 @@ enum VehicleSprite {
     // MARK: - Vehicles
 
     private static func vehicle(_ ctx: inout GraphicsContext, _ tr: Track, _ t: Double) {
-        let (w, l) = World.size(tr.cls)
+        let (w, l) = Footprint.of(tr.cls)
         let big = tr.cls == "bus" || tr.cls == "truck"
         let hBody = big ? 2.4 : 0.95, hRoof = big ? 3.0 : 1.45
         let col = Palette.paint(tr.level)
@@ -176,7 +176,7 @@ enum VehicleSprite {
     /// taking the answer on trust.
     static func blockedRing(_ ctx: inout GraphicsContext, _ tr: Track) {
         let p = Camera.pt(tr.x, tr.z)
-        let (w, l) = World.size(tr.cls)
+        let (w, l) = Footprint.of(tr.cls)
         let rx = max(p.s * max(w, l) * 0.72, 14)
         let rect = CGRect(x: p.x - rx, y: p.y - rx * 0.42, width: rx * 2, height: rx * 2 * 0.42)
         ctx.stroke(Path(ellipseIn: rect), with: .color(MergeBanner.blockedFill), lineWidth: 3.5)
@@ -214,5 +214,19 @@ enum VehicleSprite {
 private extension StrokeStyle {
     func with(lineWidth: Double) -> StrokeStyle {
         StrokeStyle(lineWidth: lineWidth, lineCap: lineCap, lineJoin: lineJoin)
+    }
+}
+
+/// Vehicle footprints in metres, matching VehicleClass in the package.
+enum Footprint {
+    static func of(_ cls: String) -> (w: Double, l: Double) {
+        switch cls {
+        case "truck": return (2.5, 9)
+        case "bus": return (2.55, 11)
+        case "motorcycle": return (0.8, 2.2)
+        case "bicycle": return (0.6, 1.8)
+        case "person": return (0.6, 0.6)
+        default: return (1.8, 4.5)
+        }
     }
 }

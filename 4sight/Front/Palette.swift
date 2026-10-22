@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The colour table `C` from `docs/mock/front.html`, ported value for value.
+/// Every colour the ride screens use, in one table.
 /// Light Tesla-clay world; the alert colours are the only saturated things on screen.
 enum Palette {
     static let ground = Color(hex: 0xE9ECF0)
@@ -8,13 +8,9 @@ enum Palette {
     static let blockSide = Color(hex: 0xDAD5CE)
     static let blockBack = Color(hex: 0xCDC8C0)
     static let park = Color(hex: 0xCFE4C1)
-    static let parkEdge = Color(hex: 0xB9D4A8)
-    static let coneTint = Color.white.opacity(0.2)
     static let label = Color.white
-    static let labelInk = Color(hex: 0x3B4250)
-    static let labelRoute = Color(hex: 0x0A6CDF)
     static let road = Color(hex: 0xDEE3E8)
-    /// Live map: real streets read darker than the mock's so the white paint shows.
+    /// Streets, dark enough that the white lane paint shows.
     static let street = Color(hex: 0xC7CED6)
     static let kerb = Color(hex: 0xB2BAC3)
     static let sidewalk = Color(hex: 0xFFFFFF)
@@ -23,14 +19,10 @@ enum Palette {
     static let sidewalkEdge = Color(hex: 0xC9D0D8)
     /// Time-to-arrive, the Google Maps green that stays legible on white.
     static let eta = Color(hex: 0x188038)
-    static let parkBay = Color(hex: 0xD9DEE4)
-    static let cone = Color.white.opacity(0.5)
     static let body = Color(hex: 0xC3C9D1)
     static let bodyEdge = Color(hex: 0xAEB5BE)
     static let roof = Color(hex: 0xD9DEE4)
     static let glass = Color(hex: 0x9AA3AD)
-    static let parkedBody = Color(hex: 0xCCD2D9)
-    static let parkedRoof = Color(hex: 0xDEE3E8)
     static let shadow = Color(hex: 0x161C23).opacity(0.2)
     static let lane = Color.white
     static let routeCore = Color(hex: 0x1C8CFF)
@@ -68,7 +60,7 @@ enum Palette {
         static let limb = Color(hex: 0x3E454E)
         static let head = Color(hex: 0x9AA2AC)
         static let halo = Color.white
-        /// True size. The mock's 1.6x stood a person 2.7 m tall, and because the figure
+        /// True size. Drawn at 1.6x, a person stood 2.7 m tall, and because the figure
         /// stands up the screen toward the rider, someone 4 m back had their head on the
         /// puck. Distance is read from the feet; the figure must not reach forward.
         static let scale = 1.0

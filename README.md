@@ -1,6 +1,6 @@
 # 4sight 
 
-[![4sight demo](docs/images/hero.jpg)](https://youtu.be/WKfXj8Th4Fk)
+[![4sight demo](docs/images/hero.png)](https://youtu.be/WKfXj8Th4Fk)
 
 Tesla vision and navigation for bikes.
 
@@ -100,7 +100,6 @@ uv run --project tools python tools/osm_streets.py --region <name> --bbox S,W,N,
 cd FourSightKit && swift test          # unit tests (needs Xcode)
 swift run Checks                       # the same engines as plain asserts, plus fusion checks
 swift run ReplayAlerts boxes.csv 15    # replay a recorded clip's detections through the alert chain
-scripts/front-preview.sh               # the handlebar view on a scripted ride in the iOS Simulator
 ```
 
 | Folder | What's in it |
@@ -109,8 +108,7 @@ scripts/front-preview.sh               # the handlebar view on a scripted ride i
 | `FourSightKit/` | Swift package: protocol, perception (tracking, range, time to contact), threat engine, links |
 | `ml/` | Python reference for detection, tracking and the danger logic ([ML notes](ml/README.md)) |
 | `tools/` | OpenStreetMap street extraction; ride bag to footage conversion |
-| `scripts/` | Run the app in the iOS Simulator on a scripted ride or a recorded rear clip |
-| `docs/` | The rear → front message format ([contracts](docs/CONTRACTS.md)) and the screen design mock |
+| `docs/` | The rear → front message format ([contracts](docs/CONTRACTS.md)) |
 | `firmware/`, `cad/` | The hackathon prototype's handlebar grips (ESP32, 3D-printed housing); no longer used by the app |
 
 ---

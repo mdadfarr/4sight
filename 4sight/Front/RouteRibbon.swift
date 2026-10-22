@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// The route, as a blue ribbon that turns where you will turn. Ported from the
-/// mock's `ribbon` / `drawRoute`.
+/// Ground ribbons: the route, roads and paths, drawn as strips that narrow with distance.
 enum RouteRibbon {
 
     /// A ribbon w metres wide along a ground polyline, projected edge by edge, so it
@@ -25,20 +24,5 @@ enum RouteRibbon {
         for q in right.reversed() { p.addLine(to: q) }
         p.closeSubpath()
         return p
-    }
-
-    static func draw(_ ctx: inout GraphicsContext, _ t: Double) {
-        let line = World.routeLine(t)
-        guard line.count > 1 else { return }
-        ctx.fill(path(line, width: 2.1), with: .color(Palette.routeCase))
-        ctx.fill(path(line, width: 1.5), with: .color(Palette.routeCore))
-
-        // The road already ridden, fading out behind: it marks the path taken without
-        // painting over the stretch the warnings are about.
-        let a = Camera.pt(-0.75, 0.4), b = Camera.pt(0.75, 0.4)
-        let c = Camera.pt(0.75, 22), d = Camera.pt(-0.75, 22)
-        ctx.fill(SceneRenderer.poly([a, b, c, d]), with: .linearGradient(
-            Gradient(colors: [Palette.routeCore.opacity(0.55), Palette.routeCore.opacity(0)]),
-            startPoint: CGPoint(x: 0, y: a.y), endPoint: CGPoint(x: 0, y: c.y)))
     }
 }

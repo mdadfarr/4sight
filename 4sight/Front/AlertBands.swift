@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The screen-edge warning, drawn last over the nav chrome too: a warning outranks
-/// the map. Ported from the mock's `alertZones` / `flashAt` / `edgeBand`.
+/// the map.
 enum AlertBands {
     enum Zone: String, CaseIterable {
         case left = "L", right = "R", centre = "C"

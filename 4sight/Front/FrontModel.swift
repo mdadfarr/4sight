@@ -27,8 +27,6 @@ final class FrontModel: ObservableObject {
     private var born: [Int: Double] = [:]
     private var ghosts: [Int: (track: VehicleSprite.Track, lostAt: Double)] = [:]
     private var oncomingIDs = Set<Int>()
-    /// When set, every clock in the UI reads this value (deterministic screenshots).
-    var freeze: Double?
 
     /// The worst level each track reached during this ride, so the summary counts a
     /// vehicle once however long it stayed alongside.
@@ -37,11 +35,6 @@ final class FrontModel: ObservableObject {
     var imminent: Int { worstSeen.values.filter { $0 >= 3 }.count }
 
     func beginRide() { worstSeen.removeAll() }
-
-    /// True while the scripted ride is driving the screen. The HUD only falls back to
-    /// the script's own street and distances then; on a live feed with no destination
-    /// it says so instead of inventing a turn.
-    private(set) var scripted = false
 
     /// Live mode only: the real route and which way the rider faces.
     var route = LiveRoute() {
@@ -73,7 +66,7 @@ final class FrontModel: ObservableObject {
 
     /// Seconds on the UI timebase for a TimelineView date.
     func now(_ date: Date = Date()) -> Double {
-        freeze ?? date.timeIntervalSinceReferenceDate
+        date.timeIntervalSinceReferenceDate
     }
 
     /// Link counts as lost after this long without a frame.
@@ -84,7 +77,6 @@ final class FrontModel: ObservableObject {
     func start(feed: TrackFeed) {
         stop()
         self.feed = feed
-        scripted = feed is SyntheticFeed
         link = .searching
         feed.start()
         consumer = Task { [weak self] in
@@ -93,7 +85,6 @@ final class FrontModel: ObservableObject {
                 self.ingest(f)
             }
         }
-        guard freeze == nil else { return }
         watchdog = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(500))
@@ -158,18 +149,16 @@ final class FrontModel: ObservableObject {
     /// Visible tracks with their positions slid over the 0.1 s between frames, so
     /// traffic moves smoothly at 30 Hz on a 10 Hz feed.
     /// The rear sends a vehicle's near side, the passing gap, not its centre. Drawn
-    /// centred on that, every vehicle sat half its width too close to the bike. The
-    /// scripted cues were written as centres, so the demo is left as it was.
+    /// centred on that, every vehicle sat half its width too close to the bike.
     private func centreX(_ x: Double, _ cls: String) -> Double {
-        guard !scripted, x != 0 else { return x }
-        let half = World.size(cls).w / 2
+        guard x != 0 else { return x }
+        let half = Footprint.of(cls).w / 2
         return x < 0 ? x - half : x + half
     }
 
     func tracks(at t: Double) -> [VehicleSprite.Track] {
-        // A frozen clock never advances a fade, so screenshots draw everything solid.
         func fadeIn(_ id: Int) -> Double {
-            guard freeze == nil, let b = born[id] else { return 1 }
+            guard let b = born[id] else { return 1 }
             return min(max((t - b) / Self.fade, 0), 1)
         }
         let live = SurroundView.visibleTracks(frame).map { tr -> VehicleSprite.Track in
@@ -182,7 +171,7 @@ final class FrontModel: ObservableObject {
         }
         let leaving = ghosts.values.compactMap { g -> VehicleSprite.Track? in
             let alpha = 1 - (t - g.lostAt) / Self.fade
-            guard freeze == nil, alpha > 0 else { return nil }
+            guard alpha > 0 else { return nil }
             var tr = g.track
             tr.opacity = alpha * g.track.opacity
             return tr
