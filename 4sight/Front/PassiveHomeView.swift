@@ -5,7 +5,7 @@ import Protocol
 import SwiftUI
 
 /// What the rider sees at a standstill, in Apple Maps' shape: the map, a pill saying
-/// whether the bike is awake (rear camera and grips), and a sheet of search, places
+/// whether the rear camera is awake, and a sheet of search, places
 /// and recents. Pulled up (or the bike button), the sheet adds the bike's detail,
 /// and this phone's pairing name.
 struct PassiveHomeView: View {
@@ -83,13 +83,6 @@ struct PassiveHomeView: View {
         }
     }
 
-    /// Only the rear phone talks to the grips; it says so in every frame. No link, or a
-    /// rear build that predates the field, means we do not know.
-    private var grips: (Status, String) {
-        guard model.link == .connected, let g = model.frame?.grips else { return (.unknown, "–") }
-        return g == "connected" ? (.ok, "Paired") : (.waiting, "Searching")
-    }
-
     private var battery: String {
         guard model.link == .connected, let b = model.frame?.battery else { return "–" }
         return "\(Int((b * 100).rounded()))%"
@@ -107,7 +100,6 @@ struct PassiveHomeView: View {
     private var statusPill: some View {
         HStack(spacing: 14) {
             pillItem("Camera", camera_.0)
-            pillItem("Grips", grips.0)
         }
         .padding(.horizontal, 13).frame(height: 36)
         .background(.white.opacity(0.92), in: Capsule())
@@ -330,13 +322,13 @@ struct PassiveHomeView: View {
                 .frame(width: 50, height: 50)
                 .background(Light.blue, in: Circle())
                 .overlay(alignment: .topTrailing) {
-                    Circle().fill(colour(camera_.0 == .ok && grips.0 == .ok ? .ok : camera_.0))
+                    Circle().fill(colour(camera_.0))
                         .frame(width: 12, height: 12)
                         .overlay(Circle().stroke(Light.sheet, lineWidth: 2))
                         .offset(x: -1, y: 1)
                 }
         }
-        .accessibilityLabel("Your bike: rear camera and grips")
+        .accessibilityLabel("Your bike: rear camera")
     }
 
     private func header(_ title: String, chevron: Bool = true) -> some View {
@@ -391,7 +383,6 @@ struct PassiveHomeView: View {
             VStack(spacing: 0) {
                 HStack(alignment: .top) {
                     bikeStat(camera_.1, "Rear camera", camera_.0)
-                    bikeStat(grips.1, "Grips", grips.0)
                     bikeStat(battery, "Rear battery", nil)
                 }
                 .padding(.vertical, 14)

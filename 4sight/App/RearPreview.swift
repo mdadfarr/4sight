@@ -3,7 +3,6 @@ import Perception
 import Protocol
 import SwiftUI
 import UIKit
-import UniformTypeIdentifiers
 
 /// Live camera (or replay frame) with detection boxes drawn over it.
 struct RearPreview: UIViewRepresentable {
@@ -76,26 +75,5 @@ final class PreviewUIView: UIView {
         let w = iw * scale, h = ih * scale
         let ox = (bounds.width - w) / 2, oy = (bounds.height - h) / 2
         return CGRect(x: ox + r.minX * w, y: oy + r.minY * h, width: r.width * w, height: r.height * h)
-    }
-}
-
-/// UIDocumentPicker for .mov/.mp4 replay files.
-struct ReplayPicker: UIViewControllerRepresentable {
-    let onPick: (URL) -> Void
-
-    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let p = UIDocumentPickerViewController(forOpeningContentTypes: [.movie, .mpeg4Movie, .quickTimeMovie])
-        p.delegate = context.coordinator
-        return p
-    }
-    func updateUIViewController(_ c: UIDocumentPickerViewController, context: Context) {}
-    func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
-
-    final class Coordinator: NSObject, UIDocumentPickerDelegate {
-        let onPick: (URL) -> Void
-        init(onPick: @escaping (URL) -> Void) { self.onPick = onPick }
-        func documentPicker(_ c: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-            if let u = urls.first { onPick(u) }
-        }
     }
 }

@@ -1,12 +1,10 @@
 import Protocol
 import SwiftUI
 
-/// Whether the rest of the bike is awake, shown before the ride starts: the rear camera
-/// (the link to the rear phone) and the handlebar grips (which only the rear phone talks
-/// to, so it reports them in every frame).
+/// Whether the rear camera is awake, shown before the ride starts.
 ///
 /// A maps app has no reason for this strip. 4sight does: the rider must not find out at
-/// speed that the rear phone never woke up or the grips never paired.
+/// speed that the rear phone never woke up.
 struct LinkStrip: View {
     @ObservedObject var model: FrontModel
 
@@ -18,17 +16,9 @@ struct LinkStrip: View {
         }
     }
 
-    /// No link, or a rear build older than the field: unknown, not "not paired".
-    private var grips: (Color, String) {
-        guard model.link == .connected, let g = model.frame?.grips else { return (Light.faint, "Unknown") }
-        return g == "connected" ? (Light.green, "Paired") : (Light.red, "Not paired")
-    }
-
     var body: some View {
         HStack(spacing: 0) {
             item("Camera", camera)
-            Rectangle().fill(Light.line).frame(width: 1, height: 22)
-            item("Grips", grips)
         }
         .frame(height: 44)
         .background(.white, in: RoundedRectangle(cornerRadius: 12))

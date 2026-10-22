@@ -40,11 +40,8 @@ nonisolated struct RearInputs: Sendable {
     var demo = false
     var thermal: ThermalLabel = .nominal
     var logging = false
-    var grips = "searching"
     var battery: Double?
     var exclusionZones: [DetectionFilter.Zone] = []
-    /// Bumped by "Forget wheel position": the worker drops the learned bike parts and relearns.
-    var forgetWheel = 0
 }
 
 /// Everything off the main actor: capture → detect → track → TTC/gap → ThreatEngine → links.
@@ -77,8 +74,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
     /// frame is the same shape (a replayed clip or a remount starts over).
     private var egoMask = EgoMask()
     static let egoKey = "egoZones"
-    private var savedEgoZones = -1
-    private var forgotWheel = 0
+    private var savedEgoZones: [DetectionFilter.Zone] = []
     private let tracker = Tracker()
     private let ttc = TTCEstimator()
     private let rangeFilter = RangeFilter()
@@ -180,12 +176,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
             let saved = (UserDefaults.standard.string(forKey: Self.egoKey) ?? "").split(separator: "|")
             egoMask = EgoMask(zones: saved.count == 2 && saved[0] == "\(Int(w))x\(Int(h))"
                 ? saved[1].split(separator: ";").compactMap { DetectionFilter.Zone(String($0)) } : [])
-            savedEgoZones = egoMask.zones.count
-        }
-        if input.forgetWheel != forgotWheel {
-            forgotWheel = input.forgetWheel
-            egoMask = EgoMask(); savedEgoZones = 0
-            UserDefaults.standard.removeObject(forKey: Self.egoKey)
+            savedEgoZones = egoMask.zones
         }
         let geo = gapEstimator!
 
@@ -193,8 +184,8 @@ nonisolated final class RearWorker: @unchecked Sendable {
         filter.exclusionZones = input.exclusionZones
         let detections = egoMask.apply(filter.apply(detector.detect(frame.pixelBuffer), imageW: w, imageH: h),
                                        imageW: w, imageH: h, t: t)
-        if egoMask.zones.count != savedEgoZones {
-            savedEgoZones = egoMask.zones.count
+        if egoMask.zones != savedEgoZones {
+            savedEgoZones = egoMask.zones
             let zones = egoMask.zones.map { "\($0.x1),\($0.y1),\($0.x2),\($0.y2)" }.joined(separator: ";")
             UserDefaults.standard.set("\(Int(w))x\(Int(h))|\(zones)", forKey: Self.egoKey)
         }
@@ -274,7 +265,7 @@ nonisolated final class RearWorker: @unchecked Sendable {
                 if let current = m, t - current.t > 3 { m = nil }
                 return m
             },
-            grips: input.grips, battery: input.battery, wheelBlocksView: egoMask.blocksView ? true : nil)
+            battery: input.battery, wheelBlocksView: egoMask.blocksView ? true : nil)
         if t - lastSendT >= 1.0 / 15 {
             lastSendT = t
             peer.send(message)

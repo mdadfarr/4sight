@@ -22,6 +22,9 @@ public struct EgoMask: Sendable {
     public var gap = 1.0
     /// Hits needed over `settle`, so two chance boxes cannot mask a spot.
     public var minHits = 8
+    /// A zone nothing has been seen in for this long is dropped: the mount moved, so the
+    /// wheel is relearned where it is now, with no button for the rider to press.
+    public var stale = 20.0
     /// Learned zones, in frame fractions.
     public private(set) var zones: [DetectionFilter.Zone] = []
     /// Masked share of the frame above which the mount is too low to work: traffic behind
@@ -38,15 +41,29 @@ public struct EgoMask: Sendable {
     public var blocksView: Bool { coverage > maxCoverage }
 
     private var candidate: (cx: Double, cy: Double, w: Double, h: Double, since: Double, last: Double, hits: Int)?
+    /// When each zone last had a detection in it; nil until the first frame.
+    private var lastSeen: [Double?]
 
-    /// `zones` from an earlier ride: the mount does not move, so the wheel is known from
-    /// the first frame instead of after a few seconds of riding.
-    public init(zones: [DetectionFilter.Zone] = []) { self.zones = zones }
+    /// `zones` from an earlier ride: usually the mount has not moved, so the wheel is known
+    /// from the first frame; if it has, the old zones go stale and are dropped.
+    public init(zones: [DetectionFilter.Zone] = []) {
+        self.zones = zones
+        lastSeen = Array(repeating: nil, count: zones.count)
+    }
 
     /// Learns from this frame's detections and returns those not on a bike part.
     public mutating func apply(_ dets: [Detection], imageW: Double, imageH: Double, t: Double) -> [Detection] {
         func frac(_ b: Box) -> (cx: Double, cy: Double, w: Double, h: Double) {
             (b.cx / imageW, b.cy / imageH, b.w / imageW, b.h / imageH)
+        }
+        for i in zones.indices where lastSeen[i] == nil
+            || dets.contains(where: { let f = frac($0.box); return f.h < maxHeight && inside(f.cx, f.cy, zones[i]) }) {
+            lastSeen[i] = t
+        }
+        let live = zones.indices.filter { t - lastSeen[$0]! <= stale }
+        if live.count != zones.count {
+            zones = live.map { zones[$0] }
+            lastSeen = live.map { lastSeen[$0] }
         }
         let anchored = dets.map { frac($0.box) }
             .filter { $0.cy + $0.h / 2 > 1 - anchorBand && $0.h < maxHeight }
@@ -58,6 +75,7 @@ public struct EgoMask: Sendable {
                 // Pad by a quarter of its size: the detector's box around the wheel wobbles.
                 let pw = c.w * 0.75, ph = c.h * 0.75
                 zones.append(.init(x1: c.cx - pw, y1: c.cy - ph, x2: c.cx + pw, y2: min(c.cy + ph, 1)))
+                lastSeen.append(t)
                 candidate = nil
             }
         } else if candidate == nil || t - candidate!.last > gap {

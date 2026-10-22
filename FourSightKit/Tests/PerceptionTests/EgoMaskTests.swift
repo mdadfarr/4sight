@@ -29,6 +29,15 @@ final class EgoMaskTests: XCTestCase {
         XCTAssertTrue(saved.blocksView)
     }
 
+    func testMovedMountForgetsTheOldWheel() {
+        var mask = EgoMask(zones: [.init(x1: 0.2, y1: 0.6, x2: 0.8, y2: 1)])
+        let elsewhere = Detection(box: Box(x: 100, y: 850, w: 100, h: 150), cls: .person, confidence: 0.6)
+        for i in 0...(25 * 15) { _ = mask.apply([elsewhere], imageW: 1000, imageH: 1000, t: Double(i) / 15) }
+        XCTAssertEqual(mask.zones.count, 1, "the old zone expired and the new wheel was learned")
+        XCTAssertLessThan(mask.zones[0].x2, 0.3)
+        XCTAssertFalse(mask.blocksView)
+    }
+
     func testWheelFlagIsOptionalOnTheWire() throws {
         let old = try FrameMessage.decode(line: #"{"t":1,"fps":15,"temp":"nominal","speed":0,"heading":-1,"demo":false,"tracks":[]}"#)
         XCTAssertNil(old.wheelBlocksView)

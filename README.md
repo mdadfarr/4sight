@@ -11,10 +11,9 @@ See what's behind you.
 Most close passes come from behind, where a cyclist can't see them.
 
 4sight turns a spare iPhone into a rear-view camera for your bike. It watches the road behind
-you with AI that runs entirely on the phone, and when a vehicle is about to pass too close, the
-left handlebar grip buzzes. Press the button on either grip and it tells you whether that lane
-is clear to move into. Your own phone on the handlebars does the navigation and shows the cars
-behind you in their lanes.
+you with AI that runs entirely on the phone. Your own phone on the handlebars does the
+navigation, shows the cars behind you in their lanes, and flashes a warning on the side a
+vehicle is about to pass too close.
 
 Everything runs on the two phones. No video, location or ride data leaves them, and there are
 no accounts.
@@ -26,7 +25,6 @@ flowchart LR
   A[Rear camera] --> B[Detect and track vehicles]
   B --> C[Distance and time to contact]
   C --> D[Threat engine]
-  D --> E[Grips buzz]
   D --> F[Front phone HUD]
 ```
 
@@ -36,7 +34,7 @@ flowchart LR
 | Track      | Keep each vehicle's identity frame to frame; learn and ignore the bike's own wheel, and ask for a higher mount if it hides too much | Our own tracker (Kalman + IoU)                                   |
 | Measure    | Distance from each class's real size; seconds to contact from how fast its box grows               | Swift, `FourSightKit/Perception`                                 |
 | Decide     | Predict how close it will pass; inside about a metre is a threat. A looming engine confirms faster | Swift, `FourSightKit/ThreatEngine`                               |
-| Warn       | Buzz and light the grip on that side; answer the merge buttons red or green                        | ESP32, Bluetooth LE, [NimBLE](https://github.com/h2zero/NimBLE-Arduino) |
+| Warn       | Flash the edge of the handlebar screen on the side the vehicle is coming                            | SwiftUI                                                          |
 | Guide      | Rear phone streams to the front phone; 3D street view, turn-by-turn, warnings before turns         | Apple peer-to-peer Wi-Fi, [OpenStreetMap](https://www.openstreetmap.org), MapKit directions |
 
 ## What we tried first
@@ -56,8 +54,8 @@ flowchart LR
 | ---------------- | ------------------------------------------------------------------------------------- |
 | `4sight/`        | The iOS app: `App/` is the rear camera role, `Front/` the handlebar role              |
 | `FourSightKit/`  | Swift package: protocol, perception (tracking, range, time to contact), threat engine, links |
-| `firmware/`      | ESP32 grip firmware (PlatformIO / Arduino)                                            |
-| `cad/`           | 3D-printed grip housing: STEP and STL per part, a print plate and the assembly       |
+| `firmware/`      | ESP32 grip firmware from the hackathon prototype; the app no longer uses the grips    |
+| `cad/`           | The prototype's 3D-printed grip housing: STEP and STL per part, a print plate         |
 | `tools/`         | OpenStreetMap street extraction for the app's map; ride bag to footage conversion     |
 | `ml/`            | Python reference for detection, tracking and the danger logic                         |
 | `scripts/`       | Run the app in the iOS Simulator on a scripted ride or a recorded rear clip           |
@@ -65,28 +63,27 @@ flowchart LR
 
 ## Run it
 
-You need a Mac with Xcode 27, two iPhones on iOS 17 or later (iPhone XS or newer; one rear, one
-on the handlebars), and the
-grips: an ESP32 dev board, two coin vibration motors, a green and a red LED and a button per
-grip. Wiring is in [firmware/README.md](firmware/README.md).
+You need a Mac with Xcode 27 and two iPhones on iOS 17 or later (iPhone XS or newer): one on a
+rear rack, one on the handlebars.
 
 ```sh
 git clone https://github.com/mdadfarr/4sight.git
 cd 4sight
 open 4sight/4sight.xcodeproj        # set your team under Signing, run on both phones
-cd firmware && pio run -t upload    # flash the grips (PlatformIO); Arduino IDE 2 also works
 ```
 
-On the bike phone, open 4sight and pick **Rear**; on the handlebar phone, pick **Front**. The
-two phones talk directly over Apple's peer-to-peer Wi-Fi, no router needed. The rear connects to
-the grips by itself; don't pair it in iOS Settings.
+On the rear phone, open 4sight and pick **Rear rack**; on the handlebar phone, pick
+**Handlebar**. The two phones talk directly over Apple's peer-to-peer Wi-Fi, no router needed.
+The rear screen is just the camera's view, with whether the handlebar phone is connected and a
+**Screen off** button that keeps the camera running. The rear learns the bike's own wheel by
+itself, relearns it when the mount moves, and asks for a higher mount if the wheel hides too
+much of the road.
 
-| Setting (rear phone, Diagnostics)             | Does                                                              |
-| --------------------------------------------- | ----------------------------------------------------------------- |
-| Demo: people and bikes trigger alerts         | Lets a person walking or jogging at the camera trigger warnings, for indoor demos. Rides recorded with it on are labelled test rides |
-| Pair only with front named                    | Joins only the front phone with that name ("This phone" on its home screen) |
-| Forget wheel position                         | Relearn the bike's wheel after moving the mount                   |
-| Record video to Documents                     | Saves the rear camera's footage, for replay and tuning            |
+| Setting (Settings app → 4sight, read when the rear camera starts) | Does                                    |
+| ----------------------------------------------------------------- | --------------------------------------- |
+| Record video                                                      | Saves the rear camera's footage to the app's Documents, for replay and tuning |
+| Demo: people and bikes alert                                      | Lets a person walking or jogging at the camera trigger warnings, for indoor demos |
+| Pair only with                                                    | Joins only the handlebar phone with that name ("This phone" on its home screen) |
 
 ### Checks and tools
 
@@ -108,8 +105,8 @@ Tiger Cloud, Leaflet). That is paused and out of the app; its code is at the
 
 ## More
 
-- [Contracts](docs/CONTRACTS.md): the rear → front message and the phone ↔ grip Bluetooth protocol.
-- [Firmware](firmware/README.md): wiring, pins, flashing, serial test commands.
+- [Contracts](docs/CONTRACTS.md): the rear → front message, and the prototype's grip Bluetooth protocol.
+- [Firmware](firmware/README.md): the prototype grips' wiring, pins and flashing.
 - [ML](ml/README.md): the Python detection, tracking and danger logic the Swift port started from.
 
 ## Credits

@@ -30,12 +30,8 @@ import os
     @Published var logging = false { didSet { syncInputs() } }
     /// Frame-fraction rectangles hiding the bike's own parts; `-exclude x1,y1,x2,y2[;...]` at launch.
     @Published var exclusionZones: [DetectionFilter.Zone] = [] { didSet { syncInputs() } }
-    /// Counts presses of "Forget wheel position"; the worker acts on each change.
-    private var forgetWheel = 0
-    func forgetWheelPosition() { forgetWheel += 1; syncInputs() }
     @Published private(set) var replayURL: URL?
 
-    let haptics = HapticsLink()
     var trackCount: Int { overlay.count }
 
     private var worker: RearWorker?
@@ -44,8 +40,6 @@ import os
     private var thermalObserver: NSObjectProtocol?
     /// This ride's GPS track, always written while the live camera runs.
     private var gpsLog: GPSLog?
-    /// The grips' link and this phone's battery go to the front with every frame.
-    private var gripsWatch: AnyCancellable?
     private var batteryObserver: NSObjectProtocol?
     /// GPS log of the clip being replayed; the Simulator's own location is useless for this.
     private var rideTrack: RideTrack?
@@ -80,13 +74,15 @@ import os
         firstFrameT = nil
         speed = 0
         heading = -1
+        // Developer switches live in the Settings app (Settings.bundle), not on this screen.
+        demoMode = UserDefaults.standard.bool(forKey: "demoMode")
+        logging = UserDefaults.standard.bool(forKey: "recordVideo")
         do {
-            let w = try RearWorker(source: source, previewImage: true,
-                                   sendHaptic: { [haptics] cmd in DispatchQueue.main.async { haptics.send(cmd) } },
+            // The handlebar grips are retired, so their commands go nowhere and no Bluetooth
+            // permission is ever asked for.
+            let w = try RearWorker(source: source, previewImage: true, sendHaptic: { _ in },
                                    publish: { [weak self] snap in Task { @MainActor in self?.apply(snap) } })
             worker = w
-            // Handlebar button presses arrive on the Bluetooth queue and are answered there.
-            haptics.onEvent = { [weak w] event in w?.handle(event: event) }
             thermal = Self.label(ProcessInfo.processInfo.thermalState)
             syncInputs()
             try w.start()
@@ -105,9 +101,6 @@ import os
             }
         }
         UIDevice.current.isBatteryMonitoringEnabled = true
-        gripsWatch = haptics.$state.dropFirst().receive(on: DispatchQueue.main).sink { [weak self] _ in
-            Task { @MainActor in self?.syncInputs() }
-        }
         batteryObserver = NotificationCenter.default.addObserver(
             forName: UIDevice.batteryLevelDidChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in Task { @MainActor in self?.syncInputs() } }
@@ -129,16 +122,7 @@ import os
         motion.stopDeviceMotionUpdates()
         if let o = thermalObserver { NotificationCenter.default.removeObserver(o) }
         if let o = batteryObserver { NotificationCenter.default.removeObserver(o) }
-        gripsWatch = nil
         thermalObserver = nil
-    }
-
-    /// Switch the source; nil goes back to the live camera. Restarts if running.
-    func setReplay(_ url: URL?) {
-        replayURL?.stopAccessingSecurityScopedResource()
-        _ = url?.startAccessingSecurityScopedResource()
-        replayURL = url
-        if worker != nil { start() }
     }
 
     private func apply(_ s: RearSnapshot) {
@@ -171,14 +155,11 @@ import os
     /// Copies the main-actor sensor/toggle values into the worker (yaw arrives separately).
     private func syncInputs() {
         let (demo, log, temp, spd, hdg, zones) = (demoMode, logging, thermal, speed, heading, exclusionZones)
-        let forget = forgetWheel
-        let grips = haptics.state == .connected ? "connected" : "searching"
         let level = UIDevice.current.batteryLevel
         let battery: Double? = level >= 0 ? Double(level) : nil
         worker?.inputs.withLock {
             $0.demo = demo; $0.logging = log; $0.thermal = temp; $0.speed = spd; $0.heading = hdg
-            $0.exclusionZones = zones; $0.grips = grips; $0.battery = battery
-            $0.forgetWheel = forget
+            $0.exclusionZones = zones; $0.battery = battery
         }
     }
 

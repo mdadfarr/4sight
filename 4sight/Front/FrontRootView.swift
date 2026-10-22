@@ -40,8 +40,8 @@ struct FrontRootView: View {
             Button("OK") {}
         } message: {
             Text("Your back wheel fills too much of the rear camera\u{2019}s view, so cars behind you "
-                 + "could be missed. Mount the rear phone higher or tilt it up, then tap "
-                 + "\u{201C}Forget wheel position\u{201D} on the rear phone.")
+                 + "could be missed. Mount the rear phone higher or tilt it up. 4sight relearns "
+                 + "the wheel by itself.")
         }
     }
 
