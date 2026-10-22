@@ -4,31 +4,25 @@
 
 [![4sight demo](docs/images/hero.jpg)](https://youtu.be/WKfXj8Th4Fk)
 
-Tesla-style vision and navigation for bikes. A spare iPhone on the rear rack watches the road
-behind you with AI that runs on the phone; your own iPhone on the handlebars navigates, draws the
-cars behind you in their lanes, and warns you on the side a vehicle is about to pass too close.
+Tesla vision and navigation for bikes.
 
-**[▶ Watch the demo](https://youtu.be/WKfXj8Th4Fk)** · Built at Hack the Valley 2026 (School of
-Cities track, MLH Best Use of Tiger Data, Best AI for Social Impact)
-
+**[▶ Watch the demo](https://youtu.be/WKfXj8Th4Fk)** · Built at Hack the Valley 2026 
 ---
 
-## ✨ Features
+## Features
 
 | Feature | Description |
 |---------|-------------|
-| 👀 **On-device vision** | YOLO11n on Core ML spots cars, trucks, buses, bikes and people behind you, 15 times a second |
-| 🎯 **Close-pass prediction** | Tracks each vehicle, measures its distance and time to contact, predicts how close it will pass |
-| 🗺️ **Surround view** | Heading-up 3D street view with the cars behind you in their lanes, like a Tesla's screen |
-| 🧭 **Turn-by-turn** | Cycling routes, lane guidance (bike lane, else the right lane) and warnings before turns |
-| ⚠️ **Side warnings** | The edge of the handlebar screen flashes on the side the vehicle is coming |
-| 🛞 **Self-calibrating** | Learns to ignore the bike's own wheel, relearns it when the mount moves, asks for a higher mount if it blocks the view |
-| 🌡️ **Heat-aware** | Detection drops to 10 then 5 times a second as the phone heats up, so it keeps running |
-| 🔒 **Private** | No accounts and no servers. No video, location or ride data leaves the two phones |
+| 👀 **Vision** | YOLO11n on Core ML spots cars, trucks, buses, bikes and people behind you, 15 times a second |
+| 🧠 **Prediction** | Tracks each vehicle, measures its distance and time to contact, predicts how close it will pass |
+| 🗺️ **Surround view** | 3D street view with the cars behind you in their lanes |
+| ⚠️ **Warning** | Flashing screen on the side of overtaking vehicles |
+| 🎚️ **Calibration** | Adaptively ignores the bike's rear wheel |
+| 🔒 **Privacy** | No data ever leaves the two phones |
 
 ---
 
-## 🧠 How it works
+## ⚙️ How it works
 
 ```mermaid
 flowchart LR
@@ -49,7 +43,7 @@ flowchart LR
 
 ---
 
-## 🚀 Local Setup
+## Run it yourself
 
 ### Prerequisites
 - A Mac with Xcode 27
@@ -78,7 +72,7 @@ The rear screen is just the camera's view, so its few switches live in the **Set
 
 ---
 
-## 📖 Usage
+## Usage
 
 1. **Mount** → Rear phone on the rack, camera facing back; your phone on the handlebars
 2. **Pick roles** → Open 4sight: **Rear rack** on one phone, **Handlebar** on the other. They connect on their own
@@ -88,7 +82,7 @@ The rear screen is just the camera's view, so its few switches live in the **Set
 
 ---
 
-## 🗺️ Map coverage
+## Map coverage
 
 The surround view draws OpenStreetMap streets, sidewalks, crossings and buildings, bundled for
 **central Toronto, UTSC, Waterloo, San Francisco, Manhattan and downtown Los Angeles**
